@@ -1,4 +1,5 @@
 .vscode/
 .VSCodeCounter/
+dev/
 target/
 Cargo.lock

@@ -5,7 +5,7 @@ use std::io::{self, BufReader};
 use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::io::{copy, sink, split, AsyncWriteExt};
+use tokio::io::{copy, split, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio_rustls::rustls::{self, Certificate, PrivateKey};
 use tokio_rustls::TlsAcceptor;
@@ -77,7 +77,6 @@ async fn main() -> anyhow::Result<()> {
                 writer.flush().await?;
                 println!("Echo: {} - {}", peer_addr, n);
             } else {
-                let mut output = sink();
                 stream
                     .write_all(
                         &b"HTTP/1.0 200 ok\r\n\
@@ -88,7 +87,6 @@ async fn main() -> anyhow::Result<()> {
                     )
                     .await?;
                 stream.shutdown().await?;
-                copy(&mut stream, &mut output).await?;
                 println!("Hello: {}", peer_addr);
             }
 
