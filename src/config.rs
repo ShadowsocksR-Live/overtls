@@ -68,11 +68,14 @@ impl Config {
             return Err(anyhow::anyhow!("Need server or client settings"));
         }
         if self.is_server() {
-            let server = self.server.as_mut().ok_or(anyhow::anyhow!("server"))?;
+            let server = self
+                .server
+                .as_mut()
+                .ok_or_else(|| anyhow::anyhow!("server"))?;
             if server
                 .certfile
                 .to_str()
-                .ok_or(anyhow::anyhow!("server"))?
+                .ok_or_else(|| anyhow::anyhow!("server"))?
                 .is_empty()
             {
                 return Err(anyhow::anyhow!("We need certfile in server settings"));
@@ -80,7 +83,7 @@ impl Config {
             if server
                 .keyfile
                 .to_str()
-                .ok_or(anyhow::anyhow!("server"))?
+                .ok_or_else(|| anyhow::anyhow!("server"))?
                 .is_empty()
             {
                 return Err(anyhow::anyhow!("We need keyfile in server settings"));
@@ -93,7 +96,10 @@ impl Config {
             }
         }
         if self.is_client() {
-            let client = self.client.as_mut().ok_or(anyhow::anyhow!("client"))?;
+            let client = self
+                .client
+                .as_mut()
+                .ok_or_else(|| anyhow::anyhow!("client"))?;
             if client.server_host.is_empty() {
                 return Err(anyhow::anyhow!("We need server_host in client settings"));
             }

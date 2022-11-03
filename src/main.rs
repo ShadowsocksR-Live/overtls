@@ -20,14 +20,16 @@ async fn main() -> anyhow::Result<()> {
     config.verbose = verbose;
     config.correct()?;
     if is_server {
-        println!("Server config: {:?}, verbose: {}", config, verbose);
-        unimplemented!();
-    } else {
-        if config.is_client() {
-            client::run_client(&config).await?;
+        if config.is_server() {
+            println!("Server config: {:?}, verbose: {}", config, verbose);
+            unimplemented!();
         } else {
-            anyhow::bail!("Config is not client");
+            anyhow::bail!("Config is not a server config");
         }
+    } else if config.is_client() {
+        client::run_client(&config).await?;
+    } else {
+        anyhow::bail!("Config is not a client config");
     }
 
     Ok(())
