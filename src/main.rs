@@ -1,22 +1,34 @@
+use std::fs::File;
+
 use structopt::StructOpt;
 
-mod cmdopt;
 mod client;
+mod cmdopt;
 mod config;
 mod server;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = cmdopt::CmdOpt::from_args();
+    let (config, verbose, is_server) = match opt {
+        cmdopt::CmdOpt::Server { config, verbose } => (config, verbose, true),
+        cmdopt::CmdOpt::Client { config, verbose } => (config, verbose, false),
+    };
 
-    match opt {
-        cmdopt::CmdOpt::Server { config, verbose } => {
-            println!("Server config: {:?}, verbose: {}", config, verbose);
-            unimplemented!();
-        }
-        cmdopt::CmdOpt::Client { config, verbose } => {
-            println!("Client config: {:?}, verbose: {}", config, verbose);
+    let f = File::open(config)?;
+    let mut config: config::Config = serde_json::from_reader(f)?;
+    config.verbose = verbose;
+    config.correct()?;
+    if is_server {
+        println!("Server config: {:?}, verbose: {}", config, verbose);
+        unimplemented!();
+    } else {
+        if config.is_client() {
+            client::run_client(&config).await?;
+        } else {
+            anyhow::bail!("Config is not client");
         }
     }
+
     Ok(())
 }

@@ -7,15 +7,15 @@
         "certfile": "/etc/mysite_cert/fullchain.pem",
         "keyfile": "/etc/mysite_cert/privkey.pem",
         "listen_host": "0.0.0.0",
-        "listen_port": "443"
+        "listen_port": 443
     },
 
     "client_settings": {
         "server_host": "123.45.67.89",
-        "server_port": "443",
+        "server_port": 443,
         "server_domain": "example.com",
         "cafile": "",
         "listen_host": "127.0.0.1",
-        "listen_port": "1080"
+        "listen_port": 1080
     }
 }
