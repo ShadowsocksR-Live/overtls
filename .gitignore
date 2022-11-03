@@ -1,5 +1,7 @@
 .vscode/
 .VSCodeCounter/
+build/
+tmp/
 dev/
 target/
 Cargo.lock
