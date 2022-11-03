@@ -195,3 +195,5 @@ mod tests {
         println!("client: read echoed data");
     }
 }
+
+fn main() {}
