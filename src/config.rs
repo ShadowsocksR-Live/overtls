@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
     pub method: String,
     pub password: String,
@@ -16,7 +16,7 @@ pub struct Config {
     pub verbose: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Server {
     pub certfile: PathBuf,
     pub keyfile: PathBuf,
@@ -24,7 +24,7 @@ pub struct Server {
     pub listen_port: u16,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Client {
     pub server_host: String,
     pub server_port: u16,
