@@ -46,7 +46,7 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
         }
         Connection::Connect(connect, addr) => {
             if config.verbose {
-                println!("Connecting {} -> {}", peer_addr, addr);
+                println!("Tunnel establishing {} -> {}", peer_addr, addr);
             }
             let target = match addr {
                 Address::DomainAddress(domain, port) => TcpStream::connect((domain, port)).await,

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -14,6 +15,8 @@ pub struct Config {
     pub client: Option<Client>,
     #[serde(skip)]
     pub verbose: bool,
+    #[serde(skip)]
+    pub test_timeout_secs: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -43,6 +46,7 @@ impl Config {
             server: None,
             client: None,
             verbose: false,
+            test_timeout_secs: 5,
         }
     }
 
@@ -55,6 +59,9 @@ impl Config {
     }
 
     pub fn check_correctness(&mut self) -> anyhow::Result<()> {
+        if self.test_timeout_secs == 0 {
+            self.test_timeout_secs = 5;
+        }
         if self.method.is_empty() {
             self.method = "none".to_string();
         }
@@ -107,6 +114,13 @@ impl Config {
             if client.listen_port == 0 {
                 client.listen_port = 1080;
             }
+
+            let addr = format!("{}:{}", client.server_host, client.server_port);
+            let mut addr = addr.to_socket_addrs()?;
+            let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
+            let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
+            let _ = TcpStream::connect_timeout(&addr, timeout)?;
+            client.server_host = addr.ip().to_string();
         }
         Ok(())
     }
