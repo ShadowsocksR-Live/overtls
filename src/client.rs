@@ -1,7 +1,6 @@
 use crate::config::Config;
 use socks5_proto::{Address, Reply};
 use socks5_server::{auth::NoAuth, Connection, IncomingConnection, Server};
-use std::{io::Result, sync::Arc};
 use tokio::{io, net::TcpStream};
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
@@ -9,13 +8,12 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     let client = config.client.as_ref();
     let client = client.ok_or_else(|| anyhow::anyhow!("client settings"))?;
     let addr = format!("{}:{}", client.listen_host, client.listen_port);
-    let server = Server::bind(addr, Arc::new(NoAuth)).await?;
+    let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
 
     while let Ok((conn, _)) = server.accept().await {
         tokio::spawn(async move {
-            match handle_incoming(conn).await {
-                Ok(()) => {}
-                Err(err) => eprintln!("{err}"),
+            if let Err(e) = handle_incoming(conn).await {
+                eprintln!("error: {}", e);
             }
         });
     }
@@ -23,7 +21,8 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn handle_incoming(conn: IncomingConnection) -> Result<()> {
+async fn handle_incoming(conn: IncomingConnection) -> anyhow::Result<()> {
+    let peer_addr = conn.peer_addr()?;
     match conn.handshake().await? {
         Connection::Associate(associate, _) => {
             let mut conn = associate
@@ -56,6 +55,7 @@ async fn handle_incoming(conn: IncomingConnection) -> Result<()> {
             }
         }
     }
+    println!("{} disconnected", peer_addr);
 
     Ok(())
 }
