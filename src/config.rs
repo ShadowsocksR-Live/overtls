@@ -54,7 +54,7 @@ impl Config {
         self.client.is_some()
     }
 
-    pub fn correct(&mut self) -> anyhow::Result<()> {
+    pub fn check_correctness(&mut self) -> anyhow::Result<()> {
         if self.method.is_empty() {
             self.method = "none".to_string();
         }
@@ -68,24 +68,18 @@ impl Config {
             return Err(anyhow::anyhow!("Need server or client settings"));
         }
         if self.is_server() {
-            let server = self
-                .server
-                .as_mut()
-                .ok_or_else(|| anyhow::anyhow!("server"))?;
-            if server
-                .certfile
-                .to_str()
-                .ok_or_else(|| anyhow::anyhow!("server"))?
-                .is_empty()
-            {
+            let server = self.server.as_mut();
+            let server = server.ok_or_else(|| anyhow::anyhow!("server settings"))?;
+
+            let certfile = server.certfile.to_str();
+            let certfile = certfile.ok_or_else(|| anyhow::anyhow!("certfile"))?;
+            if certfile.is_empty() {
                 return Err(anyhow::anyhow!("We need certfile in server settings"));
             }
-            if server
-                .keyfile
-                .to_str()
-                .ok_or_else(|| anyhow::anyhow!("server"))?
-                .is_empty()
-            {
+
+            let keyfile = server.keyfile.to_str();
+            let keyfile = keyfile.ok_or_else(|| anyhow::anyhow!("keyfile"))?;
+            if keyfile.is_empty() {
                 return Err(anyhow::anyhow!("We need keyfile in server settings"));
             }
             if server.listen_host.is_empty() {
@@ -96,10 +90,8 @@ impl Config {
             }
         }
         if self.is_client() {
-            let client = self
-                .client
-                .as_mut()
-                .ok_or_else(|| anyhow::anyhow!("client"))?;
+            let client = self.client.as_mut();
+            let client = client.ok_or_else(|| anyhow::anyhow!("client settings"))?;
             if client.server_host.is_empty() {
                 return Err(anyhow::anyhow!("We need server_host in client settings"));
             }

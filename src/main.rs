@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
     let f = File::open(config)?;
     let mut config: config::Config = serde_json::from_reader(f)?;
     config.verbose = verbose;
-    config.correct()?;
+    config.check_correctness()?;
     if is_server {
         if config.is_server() {
             println!("Server config: {:?}, verbose: {}", config, verbose);
