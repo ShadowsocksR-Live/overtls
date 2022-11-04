@@ -1,7 +1,14 @@
 use crate::config::Config;
+use bytes::BytesMut;
 use socks5_proto::{Address, Reply};
 use socks5_server::{auth::NoAuth, Connection, IncomingConnection, Server};
-use tokio::{io, net::TcpStream};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+        TcpStream,
+    },
+};
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     if config.verbose {
@@ -53,11 +60,17 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
                 Address::SocketAddress(addr) => TcpStream::connect(addr).await,
             };
 
-            if let Ok(mut target) = target {
-                let mut conn = connect
+            if let Ok(target) = target {
+                let conn = connect
                     .reply(Reply::Succeeded, Address::unspecified())
                     .await?;
-                io::copy_bidirectional(&mut target, &mut conn).await?;
+                let (incoming_r, incoming_w) = conn.stream.into_split();
+                let (outgo_r, outgo_w) = target.into_split();
+
+                tokio::try_join!(
+                    read_and_write(incoming_r, outgo_w, config.clone(), true),
+                    read_and_write(outgo_r, incoming_w, config.clone(), false),
+                )?;
             } else {
                 let mut conn = connect
                     .reply(Reply::HostUnreachable, Address::unspecified())
@@ -72,4 +85,31 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
     }
 
     Ok(())
+}
+
+async fn read_and_write(
+    reader: OwnedReadHalf,
+    mut writer: OwnedWriteHalf,
+    config: Config,
+    encrypt: bool,
+) -> anyhow::Result<()> {
+    let mut buf_reader = tokio::io::BufReader::new(reader);
+    let mut buf = BytesMut::with_capacity(2048);
+    loop {
+        match buf_reader.read_buf(&mut buf).await {
+            Err(e) => {
+                eprintln!("read from client error \"{}\"", e);
+                break Err(anyhow::anyhow!(e));
+            }
+            Ok(0) => {
+                // 遇到了 EOF, client closed
+                break Ok(());
+            }
+            Ok(_n) => {
+                println!("{} stream with {}", encrypt, config.method);
+                writer.write_buf(&mut buf).await?;
+                buf.clear();
+            }
+        }
+    }
 }
