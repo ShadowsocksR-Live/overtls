@@ -6,8 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.0", features = [ "full" ] }
-argh = "0.1"
+tokio = { version = "1.20", features = [ "full" ] }
 tokio-rustls = "0.23.4"
 webpki-roots = "0.22"
 rustls-pemfile = "1.0.1"
@@ -15,6 +14,9 @@ anyhow = "1.0.66"
 structopt = "0.3.23"
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
-socks5-proto = "0.3.2"
-socks5-server = { git = "https://github.com/ssrlive/socks5-server.git", branch = "master" }
+socks5-proto = { version = "0.3.2" }
+socks5-server = { version = "0.8.3", git = "https://github.com/ssrlive/socks5-server.git", rev = "5bc4ce7d7596e4b775ef8c6cc588a5233106d4ef" }
 bytes = "1.2.1"
+
+[dev-dependencies]
+argh = "0.1"
