@@ -1,15 +1,9 @@
 use argh::FromArgs;
-use std::convert::TryFrom;
-use std::fs::File;
 use std::io;
-use std::io::BufReader;
 use std::net::ToSocketAddrs;
 use std::path::PathBuf;
-use std::sync::Arc;
 use tokio::io::{copy, split, stdin as tokio_stdin, stdout as tokio_stdout, AsyncWriteExt};
-use tokio::net::TcpStream;
-use tokio_rustls::rustls::{self, OwnedTrustAnchor};
-use tokio_rustls::{webpki, TlsConnector};
+use viatls::tls::{create_tls_cliet_stream, retrieve_root_cert_store_for_client};
 
 /// Demo client for beginning to use tokio-rustls
 #[derive(FromArgs)]
@@ -40,47 +34,13 @@ async fn main() -> anyhow::Result<()> {
         .next()
         .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?;
     let domain = options.domain.unwrap_or(options.host);
-    let content = format!("GET / HTTP/1.0\r\nHost: {}\r\n\r\n", domain);
 
-    let mut root_cert_store = rustls::RootCertStore::empty();
-    if let Some(cafile) = &options.cafile {
-        let mut pem = BufReader::new(File::open(cafile)?);
-        let certs = rustls_pemfile::certs(&mut pem)?;
-        let trust_anchors = certs.iter().map(|cert| {
-            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        });
-        root_cert_store.add_server_trust_anchors(trust_anchors);
-    } else {
-        root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
-            |ta| {
-                OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    ta.subject,
-                    ta.spki,
-                    ta.name_constraints,
-                )
-            },
-        ));
-    }
-
-    let config = rustls::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(root_cert_store)
-        .with_no_client_auth();
-    let connector = TlsConnector::from(Arc::new(config));
-
-    let stream = TcpStream::connect(&addr).await?;
+    let cert_store = retrieve_root_cert_store_for_client(&options.cafile)?;
+    let mut stream = create_tls_cliet_stream(cert_store, &addr, &domain).await?;
 
     let (mut stdin, mut stdout) = (tokio_stdin(), tokio_stdout());
 
-    let domain = rustls::ServerName::try_from(domain.as_str())
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
-
-    let mut stream = connector.connect(domain, stream).await?;
+    let content = format!("GET / HTTP/1.0\r\nHost: {}\r\n\r\n", domain);
     stream.write_all(content.as_bytes()).await?;
 
     let (mut reader, mut writer) = split(stream);
