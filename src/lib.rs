@@ -1,3 +1,10 @@
+pub mod client;
+pub mod cmdopt;
+pub mod config;
+pub mod server;
+pub mod tls;
+pub mod weirduri;
+
 pub fn add(left: usize, right: usize) -> usize {
     left + right
 }

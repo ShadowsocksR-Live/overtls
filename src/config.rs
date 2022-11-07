@@ -14,8 +14,6 @@ pub struct Config {
     #[serde(rename(deserialize = "client_settings", serialize = "client_settings"))]
     pub client: Option<Client>,
     #[serde(skip)]
-    pub verbose: bool,
-    #[serde(skip)]
     pub test_timeout_secs: u64,
 }
 
@@ -37,24 +35,29 @@ pub struct Client {
     pub listen_port: u16,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Config {
     pub fn new() -> Self {
         Config {
             method: "none".to_string(),
             password: "password".to_string(),
-            tunnel_path: "/tunnel".to_string(),
+            tunnel_path: "/tunnel/".to_string(),
             server: None,
             client: None,
-            verbose: false,
             test_timeout_secs: 5,
         }
     }
 
-    pub fn is_server(&self) -> bool {
+    pub fn exist_server(&self) -> bool {
         self.server.is_some()
     }
 
-    pub fn is_client(&self) -> bool {
+    pub fn exist_client(&self) -> bool {
         self.client.is_some()
     }
 
@@ -69,12 +72,12 @@ impl Config {
             self.password = "password".to_string();
         }
         if self.tunnel_path.is_empty() {
-            self.tunnel_path = "/tunnel".to_string();
+            self.tunnel_path = "/tunnel/".to_string();
         }
-        if !self.is_server() && !self.is_client() {
+        if !self.exist_server() && !self.exist_client() {
             return Err(anyhow::anyhow!("Need server or client settings"));
         }
-        if self.is_server() {
+        if self.exist_server() {
             let server = self.server.as_mut();
             let server = server.ok_or_else(|| anyhow::anyhow!("server settings"))?;
 
@@ -96,7 +99,7 @@ impl Config {
                 server.listen_port = 443;
             }
         }
-        if self.is_client() {
+        if self.exist_client() {
             let client = self.client.as_mut();
             let client = client.ok_or_else(|| anyhow::anyhow!("client settings"))?;
             if client.server_host.is_empty() {

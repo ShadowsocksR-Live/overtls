@@ -11,12 +11,12 @@ const TARGET_ADDRESS_STR: &str = "Target-Address";
 /// For example, we can pass the remote server IP to the server.
 /// This is useful for servers that are behind a reverse proxy.
 #[derive(Debug, Clone)]
-pub struct WeidUri<'a> {
+pub struct WeirdUri<'a> {
     pub uri: &'a str,
     pub target_address: Option<String>,
 }
 
-impl<'a> WeidUri<'a> {
+impl<'a> WeirdUri<'a> {
     pub fn new(uri: &'a str, target_address: Option<String>) -> Self {
         Self {
             uri,
@@ -25,7 +25,7 @@ impl<'a> WeidUri<'a> {
     }
 }
 
-impl<'a> IntoClientRequest for WeidUri<'a> {
+impl<'a> IntoClientRequest for WeirdUri<'a> {
     fn into_client_request(self) -> Result<Request> {
         let uri = url::Url::parse(self.uri).map_err(|_| Error::Url(UrlError::NoPathOrQuery))?;
 

@@ -1,5 +1,6 @@
-use crate::config::Config;
+use crate::{config::Config, weirduri::WeirdUri};
 use bytes::BytesMut;
+use log::*;
 use socks5_proto::{Address, Reply};
 use socks5_server::{auth::NoAuth, Connection, IncomingConnection, Server};
 use tokio::{
@@ -11,11 +12,9 @@ use tokio::{
 };
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
-    if config.verbose {
-        println!("Starting viatls client with following settings:");
-        serde_json::to_writer_pretty(std::io::stdout(), config)?;
-        println!();
-    }
+    info!("Starting viatls client with following settings:");
+    info!("{}", serde_json::to_string_pretty(config)?);
+
     let client = config.client.as_ref();
     let client = client.ok_or_else(|| anyhow::anyhow!("client settings"))?;
     let addr = format!("{}:{}", client.listen_host, client.listen_port);
@@ -24,11 +23,8 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     while let Ok((conn, _)) = server.accept().await {
         let config = config.clone();
         tokio::spawn(async move {
-            let verbose = config.verbose;
             if let Err(e) = handle_incoming(conn, config).await {
-                if verbose {
-                    eprintln!("Error: {}", e);
-                }
+                error!("Error: {}", e);
             }
         });
     }
@@ -52,9 +48,7 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
             conn.shutdown().await?;
         }
         Connection::Connect(connect, addr) => {
-            if config.verbose {
-                println!("Tunnel establishing {} -> {}", peer_addr, addr);
-            }
+
             let target = match addr {
                 Address::DomainAddress(domain, port) => TcpStream::connect((domain, port)).await,
                 Address::SocketAddress(addr) => TcpStream::connect(addr).await,
@@ -80,9 +74,7 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
         }
     }
 
-    if config.verbose {
-        println!("{} disconnected", peer_addr);
-    }
+    info!("{} disconnected", peer_addr);
 
     Ok(())
 }
@@ -98,7 +90,7 @@ async fn read_and_write(
     loop {
         match buf_reader.read_buf(&mut buf).await {
             Err(e) => {
-                eprintln!("read from client error \"{}\"", e);
+                error!("read from client error \"{}\"", e);
                 break Err(anyhow::anyhow!(e));
             }
             Ok(0) => {
@@ -106,7 +98,7 @@ async fn read_and_write(
                 break Ok(());
             }
             Ok(_n) => {
-                println!("{} stream with {}", encrypt, config.method);
+                info!("{} stream with {}", encrypt, config.method);
                 writer.write_buf(&mut buf).await?;
                 buf.clear();
             }

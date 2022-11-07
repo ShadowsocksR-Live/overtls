@@ -25,3 +25,16 @@ pub enum CmdOpt {
         verbose: bool,
     },
 }
+
+impl CmdOpt {
+    pub fn is_server(&self) -> bool {
+        match self {
+            CmdOpt::Server { .. } => true,
+            CmdOpt::Client { .. } => false,
+        }
+    }
+
+    pub fn parse_cmd() -> CmdOpt {
+        CmdOpt::from_args()
+    }
+}
