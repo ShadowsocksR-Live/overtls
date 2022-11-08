@@ -1,8 +1,10 @@
-use crate::{config::Config, weirduri::WeirdUri};
+use crate::config::Config;
 use bytes::BytesMut;
 use log::*;
 use socks5_proto::{Address, Reply};
-use socks5_server::{auth::NoAuth, Connection, IncomingConnection, Server};
+use socks5_server::{
+    auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server,
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
@@ -48,33 +50,42 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
             conn.shutdown().await?;
         }
         Connection::Connect(connect, addr) => {
-
-            let target = match addr {
-                Address::DomainAddress(domain, port) => TcpStream::connect((domain, port)).await,
-                Address::SocketAddress(addr) => TcpStream::connect(addr).await,
-            };
-
-            if let Ok(target) = target {
-                let conn = connect
-                    .reply(Reply::Succeeded, Address::unspecified())
-                    .await?;
-                let (incoming_r, incoming_w) = conn.stream.into_split();
-                let (outgo_r, outgo_w) = target.into_split();
-
-                tokio::try_join!(
-                    read_and_write(incoming_r, outgo_w, config.clone(), true),
-                    read_and_write(outgo_r, incoming_w, config.clone(), false),
-                )?;
-            } else {
-                let mut conn = connect
-                    .reply(Reply::HostUnreachable, Address::unspecified())
-                    .await?;
-                conn.shutdown().await?;
-            }
+            handle_socks5_cmd_connection(connect, addr, config).await?;
         }
     }
 
     info!("{} disconnected", peer_addr);
+
+    Ok(())
+}
+
+async fn handle_socks5_cmd_connection(
+    connect: Connect<NeedReply>,
+    addr: Address,
+    config: Config,
+) -> anyhow::Result<()> {
+    let target = match addr {
+        Address::DomainAddress(domain, port) => TcpStream::connect((domain, port)).await,
+        Address::SocketAddress(addr) => TcpStream::connect(addr).await,
+    };
+
+    if let Ok(target) = target {
+        let conn = connect
+            .reply(Reply::Succeeded, Address::unspecified())
+            .await?;
+        let (incoming_r, incoming_w) = conn.stream.into_split();
+        let (outgo_r, outgo_w) = target.into_split();
+
+        tokio::try_join!(
+            read_and_write(incoming_r, outgo_w, config.clone(), true),
+            read_and_write(outgo_r, incoming_w, config.clone(), false),
+        )?;
+    } else {
+        let mut conn = connect
+            .reply(Reply::HostUnreachable, Address::unspecified())
+            .await?;
+        conn.shutdown().await?;
+    }
 
     Ok(())
 }

@@ -12,19 +12,24 @@ pub fn retrieve_root_cert_store_for_client(
     cafile: &Option<PathBuf>,
 ) -> anyhow::Result<RootCertStore> {
     let mut root_cert_store = rustls::RootCertStore::empty();
+    let mut done = false;
     if let Some(cafile) = cafile {
-        let mut pem = BufReader::new(File::open(cafile)?);
-        let certs = rustls_pemfile::certs(&mut pem)?;
-        let trust_anchors = certs.iter().map(|cert| {
-            let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        });
-        root_cert_store.add_server_trust_anchors(trust_anchors);
-    } else {
+        if cafile.exists() {
+            let mut pem = BufReader::new(File::open(cafile)?);
+            let certs = rustls_pemfile::certs(&mut pem)?;
+            let trust_anchors = certs.iter().map(|cert| {
+                let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
+                OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    ta.subject,
+                    ta.spki,
+                    ta.name_constraints,
+                )
+            });
+            root_cert_store.add_server_trust_anchors(trust_anchors);
+            done = true;
+        }
+    }
+    if !done {
         root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
             |ta| {
                 OwnedTrustAnchor::from_subject_spki_name_constraints(
