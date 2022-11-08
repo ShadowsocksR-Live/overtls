@@ -15,9 +15,7 @@ pub fn parse_response_data(data: &[u8]) -> Result<Response> {
     let key = response
         .headers()
         .get("Sec-WebSocket-Accept")
-        .ok_or(Error::Protocol(
-            ProtocolError::SecWebSocketAcceptKeyMismatch,
-        ))?
+        .ok_or(Error::Protocol(ProtocolError::SecWebSocketAcceptKeyMismatch))?
         .to_str()?
         .to_owned();
     let data = VerifyData { accept_key: key };
@@ -89,9 +87,7 @@ impl VerifyData {
             .map(|h| h.eq_ignore_ascii_case("websocket"))
             .unwrap_or(false)
         {
-            return Err(Error::Protocol(
-                ProtocolError::MissingUpgradeWebSocketHeader,
-            ));
+            return Err(Error::Protocol(ProtocolError::MissingUpgradeWebSocketHeader));
         }
         // 3.  If the response lacks a |Connection| header field or the
         // |Connection| header field doesn't contain a token that is an
@@ -103,9 +99,7 @@ impl VerifyData {
             .map(|h| h.eq_ignore_ascii_case("Upgrade"))
             .unwrap_or(false)
         {
-            return Err(Error::Protocol(
-                ProtocolError::MissingConnectionUpgradeHeader,
-            ));
+            return Err(Error::Protocol(ProtocolError::MissingConnectionUpgradeHeader));
         }
         // 4.  If the response lacks a |Sec-WebSocket-Accept| header field or
         // the |Sec-WebSocket-Accept| contains a value other than the
@@ -116,9 +110,7 @@ impl VerifyData {
             .map(|h| h == &self.accept_key)
             .unwrap_or(false)
         {
-            return Err(Error::Protocol(
-                ProtocolError::SecWebSocketAcceptKeyMismatch,
-            ));
+            return Err(Error::Protocol(ProtocolError::SecWebSocketAcceptKeyMismatch));
         }
         // 5.  If the response includes a |Sec-WebSocket-Extensions| header
         // field and this header field indicates the use of an extension

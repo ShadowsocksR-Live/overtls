@@ -79,13 +79,7 @@ impl WeirdUri<'_> {
 
         // Headers that must be present in a correct request.
         const KEY_HEADERNAME: &str = "Sec-WebSocket-Key";
-        const WEBSOCKET_HEADERS: [&str; 5] = [
-            "Host",
-            "Connection",
-            "Upgrade",
-            "Sec-WebSocket-Version",
-            KEY_HEADERNAME,
-        ];
+        const WEBSOCKET_HEADERS: [&str; 5] = ["Host", "Connection", "Upgrade", "Sec-WebSocket-Version", KEY_HEADERNAME];
 
         // We must extract a WebSocket key from a properly formed request or fail if it's not present.
         let key = request
@@ -107,20 +101,12 @@ impl WeirdUri<'_> {
             let value = headers
                 .remove(header)
                 .ok_or_else(|| anyhow::anyhow!("Missing header: {}", header))?;
-            write!(
-                req,
-                "{header}: {value}\r\n",
-                header = header,
-                value = value.to_str()?
-            )?;
+            write!(req, "{header}: {value}\r\n", header = header, value = value.to_str()?)?;
         }
 
         // Now we must ensure that the headers that we've written once are not anymore present in the map.
         // If they do, then the request is invalid (some headers are duplicated there for some reason).
-        let insensitive: Vec<String> = WEBSOCKET_HEADERS
-            .iter()
-            .map(|h| h.to_ascii_lowercase())
-            .collect();
+        let insensitive: Vec<String> = WEBSOCKET_HEADERS.iter().map(|h| h.to_ascii_lowercase()).collect();
         for (k, v) in headers {
             let mut name = k.as_str();
 

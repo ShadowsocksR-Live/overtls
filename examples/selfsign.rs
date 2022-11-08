@@ -37,10 +37,7 @@ pub fn load_private_key(filename: &str) -> rustls::PrivateKey {
         }
     }
 
-    panic!(
-        "no keys found in {:?} (encrypted keys not supported)",
-        filename
-    );
+    panic!("no keys found in {:?} (encrypted keys not supported)", filename);
 }
 
 pub fn lookup_ipv4(host: &str, port: u16) -> SocketAddr {
@@ -54,11 +51,7 @@ pub fn lookup_ipv4(host: &str, port: u16) -> SocketAddr {
     unreachable!("Cannot lookup address");
 }
 
-fn make_client_config(
-    ca_file: &str,
-    certs_file: &str,
-    key_file: &str,
-) -> Arc<rustls::ClientConfig> {
+fn make_client_config(ca_file: &str, certs_file: &str, key_file: &str) -> Arc<rustls::ClientConfig> {
     let cert_file = File::open(&ca_file).expect("Cannot open CA file");
     let mut reader = BufReader::new(cert_file);
 
@@ -179,14 +172,7 @@ mod tests {
 
     async fn start_client(msg: &[u8], buf: &mut [u8]) {
         let addr = lookup_ipv4("192.168.28.130", 5002);
-        let mut tls_stream = new_tls_stream(
-            "testserver.com",
-            addr,
-            CA_FILE,
-            CLIENT_CERT_FILE,
-            CLIENT_KEY_FILE,
-        )
-        .await;
+        let mut tls_stream = new_tls_stream("testserver.com", addr, CA_FILE, CLIENT_CERT_FILE, CLIENT_KEY_FILE).await;
 
         tls_stream.write(msg).await.unwrap();
         println!("client: send data");

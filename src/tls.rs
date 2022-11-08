@@ -8,9 +8,7 @@ use tokio_rustls::{
     webpki, TlsConnector,
 };
 
-pub fn retrieve_root_cert_store_for_client(
-    cafile: &Option<PathBuf>,
-) -> anyhow::Result<RootCertStore> {
+pub fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> anyhow::Result<RootCertStore> {
     let mut root_cert_store = rustls::RootCertStore::empty();
     let mut done = false;
     if let Some(cafile) = cafile {
@@ -19,26 +17,18 @@ pub fn retrieve_root_cert_store_for_client(
             let certs = rustls_pemfile::certs(&mut pem)?;
             let trust_anchors = certs.iter().map(|cert| {
                 let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-                OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    ta.subject,
-                    ta.spki,
-                    ta.name_constraints,
-                )
+                OwnedTrustAnchor::from_subject_spki_name_constraints(ta.subject, ta.spki, ta.name_constraints)
             });
             root_cert_store.add_server_trust_anchors(trust_anchors);
             done = true;
         }
     }
     if !done {
-        root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
-            |ta| {
-                OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    ta.subject,
-                    ta.spki,
-                    ta.name_constraints,
-                )
-            },
-        ));
+        root_cert_store.add_server_trust_anchors(
+            webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+                OwnedTrustAnchor::from_subject_spki_name_constraints(ta.subject, ta.spki, ta.name_constraints)
+            }),
+        );
     }
     Ok(root_cert_store)
 }
