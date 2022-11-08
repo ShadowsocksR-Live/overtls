@@ -16,7 +16,7 @@ const TARGET_ADDRESS_STR: &str = "Target-Address";
 pub struct WeirdUri<'a> {
     pub uri: &'a str,
     pub target_address: Option<String>,
-    sec_websocket_key: String,
+    pub sec_websocket_key: String,
 }
 
 impl<'a> WeirdUri<'a> {
