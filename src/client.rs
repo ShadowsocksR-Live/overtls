@@ -1,10 +1,9 @@
-use crate::config::Config;
+use crate::{config::Config, parseresponse::parse_response_data, tls::*, weirduri::WeirdUri};
 use bytes::BytesMut;
 use log::*;
 use socks5_proto::{Address, Reply};
-use socks5_server::{
-    auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server,
-};
+use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server};
+use std::net::ToSocketAddrs;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
@@ -12,6 +11,8 @@ use tokio::{
         TcpStream,
     },
 };
+
+use tokio_tungstenite::{tungstenite::protocol::Role, WebSocketStream};
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     info!("Starting viatls client with following settings:");
@@ -26,7 +27,7 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
         let config = config.clone();
         tokio::spawn(async move {
             if let Err(e) = handle_incoming(conn, config).await {
-                error!("Error: {}", e);
+                error!("{}", e);
             }
         });
     }
@@ -44,9 +45,7 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
             conn.shutdown().await?;
         }
         Connection::Bind(bind, _) => {
-            let mut conn = bind
-                .reply(Reply::CommandNotSupported, Address::unspecified())
-                .await?;
+            let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
             conn.shutdown().await?;
         }
         Connection::Connect(connect, addr) => {
@@ -59,6 +58,7 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
     Ok(())
 }
 
+/*
 async fn handle_socks5_cmd_connection(
     connect: Connect<NeedReply>,
     addr: Address,
@@ -115,4 +115,106 @@ async fn read_and_write(
             }
         }
     }
+}
+*/
+
+async fn handle_socks5_cmd_connection(
+    connect: Connect<NeedReply>,
+    addr: Address,
+    config: Config,
+) -> anyhow::Result<()> {
+    let incoming = connect.reply(Reply::Succeeded, Address::unspecified()).await?.stream;
+
+    let peer_addr = incoming.peer_addr()?;
+    let (incoming_r, mut incoming_w) = incoming.into_split();
+
+    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
+    let tunnel_path = config.tunnel_path.clone();
+    let tunnel_path = tunnel_path.trim().trim_matches('/');
+
+    info!("Tunnel establishing {} -> {}", peer_addr, addr);
+
+    let mut buf = BytesMut::with_capacity(1024);
+    addr.write_to_buf(&mut buf);
+    let b64_addr = base64::encode(&buf);
+
+    let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
+
+    let uri = WeirdUri::new(&uri, Some(b64_addr));
+
+    let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
+
+    let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
+    let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
+    let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
+
+    let mut outgoing = create_tls_cliet_stream(cert_store, &addr, domain).await?;
+
+    let (v, key) = uri.generate_request()?;
+    outgoing.write_all(&v).await?;
+
+    let mut buf = BytesMut::with_capacity(2048);
+    outgoing.read_buf(&mut buf).await?;
+
+    let response = parse_response_data(&buf)?;
+    let remote_key = response
+        .headers()
+        .get("Sec-WebSocket-Accept")
+        .ok_or_else(|| anyhow::anyhow!("{:?}", response))?;
+
+    let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
+
+    if accept_key.as_str() != remote_key.to_str()? {
+        info!("Tunnel failed {} -> {}", peer_addr, addr);
+        return Ok(());
+    }
+
+    use futures_util::{SinkExt, StreamExt};
+    use tokio::net::TcpStream;
+    use tokio::sync::mpsc;
+    use tokio_rustls::{
+        client::TlsStream,
+        rustls::{self, OwnedTrustAnchor},
+        webpki, TlsConnector,
+    };
+    use tokio_tungstenite::client_async;
+    use tungstenite::protocol::Message;
+
+    type WsStream = WebSocketStream<TlsStream<TcpStream>>;
+
+    let mut ws_stream = WebSocketStream::from_raw_socket(outgoing, Role::Client, None).await;
+    // let (mut ws_stream, _) = tokio_tungstenite::client_async(uri, outgoing).await?;
+
+    let mut buf = BytesMut::with_capacity(2048);
+    let mut buf_reader = tokio::io::BufReader::new(incoming_r);
+
+    let result = loop {
+        info!("tokio::select {} -> {}", peer_addr, addr);
+        tokio::select! {
+            Some(msg) = ws_stream.next() => {
+                warn!("ws_stream.next() {:?}", msg);
+                match msg? {
+                    Message::Binary(v) => {
+                        incoming_w.write_all(&v).await?;
+                    }
+                    Message::Close(_) => {
+                        break Ok(());
+                    }
+                    _ => {}
+                }
+            }
+            Ok(len) = buf_reader.read_buf(&mut buf) => {
+                if buf.is_empty() || len == 0 {
+                    break Ok(());
+                }
+                println!("write to ws {:?}", buf);
+                ws_stream.send(Message::Binary(buf.to_vec())).await?;
+                buf.clear();
+            }
+            else => {
+                break Err(anyhow::anyhow!("else"));
+            }
+        }
+    };
+    result
 }
