@@ -56,66 +56,6 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
     Ok(())
 }
 
-/*
-async fn handle_socks5_cmd_connection(
-    connect: Connect<NeedReply>,
-    addr: Address,
-    config: Config,
-) -> anyhow::Result<()> {
-    let target = match addr {
-        Address::DomainAddress(domain, port) => TcpStream::connect((domain, port)).await,
-        Address::SocketAddress(addr) => TcpStream::connect(addr).await,
-    };
-
-    if let Ok(target) = target {
-        let conn = connect
-            .reply(Reply::Succeeded, Address::unspecified())
-            .await?;
-        let (incoming_r, incoming_w) = conn.stream.into_split();
-        let (outgo_r, outgo_w) = target.into_split();
-
-        tokio::try_join!(
-            read_and_write(incoming_r, outgo_w, config.clone(), true),
-            read_and_write(outgo_r, incoming_w, config.clone(), false),
-        )?;
-    } else {
-        let mut conn = connect
-            .reply(Reply::HostUnreachable, Address::unspecified())
-            .await?;
-        conn.shutdown().await?;
-    }
-
-    Ok(())
-}
-
-async fn read_and_write(
-    reader: OwnedReadHalf,
-    mut writer: OwnedWriteHalf,
-    config: Config,
-    encrypt: bool,
-) -> anyhow::Result<()> {
-    let mut buf_reader = tokio::io::BufReader::new(reader);
-    let mut buf = BytesMut::with_capacity(2048);
-    loop {
-        match buf_reader.read_buf(&mut buf).await {
-            Err(e) => {
-                error!("read from client error \"{}\"", e);
-                break Err(anyhow::anyhow!(e));
-            }
-            Ok(0) => {
-                // 遇到了 EOF, client closed
-                break Ok(());
-            }
-            Ok(_n) => {
-                info!("{} stream with {}", encrypt, config.method);
-                writer.write_buf(&mut buf).await?;
-                buf.clear();
-            }
-        }
-    }
-}
-*/
-
 async fn handle_socks5_cmd_connection(
     connect: Connect<NeedReply>,
     target_addr: Address,
