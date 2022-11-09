@@ -1,9 +1,12 @@
 use crate::{config::Config, parseresponse::parse_response_data, tls::*, weirduri::WeirdUri};
 use bytes::BytesMut;
+use futures_util::SinkExt;
+use futures_util::{future, pin_mut, stream::SplitStream, StreamExt};
 use log::*;
 use socks5_proto::{Address, Reply};
 use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server};
 use std::net::ToSocketAddrs;
+use tokio::sync::mpsc;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
@@ -11,7 +14,12 @@ use tokio::{
         TcpStream,
     },
 };
-
+use tokio_rustls::{
+    client::TlsStream,
+    rustls::{self, OwnedTrustAnchor},
+    webpki, TlsConnector,
+};
+use tokio_tungstenite::{client_async, connect_async, tungstenite::protocol::Message};
 use tokio_tungstenite::{tungstenite::protocol::Role, WebSocketStream};
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
@@ -126,7 +134,7 @@ async fn handle_socks5_cmd_connection(
     let incoming = connect.reply(Reply::Succeeded, Address::unspecified()).await?.stream;
 
     let peer_addr = incoming.peer_addr()?;
-    let (incoming_r, mut incoming_w) = incoming.into_split();
+    let (mut incoming_r, mut incoming_w) = incoming.into_split();
 
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
     let tunnel_path = config.tunnel_path.clone();
@@ -169,52 +177,47 @@ async fn handle_socks5_cmd_connection(
         return Ok(());
     }
 
-    use futures_util::{SinkExt, StreamExt};
-    use tokio::net::TcpStream;
-    use tokio::sync::mpsc;
-    use tokio_rustls::{
-        client::TlsStream,
-        rustls::{self, OwnedTrustAnchor},
-        webpki, TlsConnector,
-    };
-    use tokio_tungstenite::client_async;
-    use tungstenite::protocol::Message;
-
-    type WsStream = WebSocketStream<TlsStream<TcpStream>>;
-
-    let mut ws_stream = WebSocketStream::from_raw_socket(outgoing, Role::Client, None).await;
+    let ws_stream = WebSocketStream::from_raw_socket(outgoing, Role::Client, None).await;
     // let (mut ws_stream, _) = tokio_tungstenite::client_async(uri, outgoing).await?;
 
-    let mut buf = BytesMut::with_capacity(2048);
-    let mut buf_reader = tokio::io::BufReader::new(incoming_r);
+    let (mut ws_stream_w, mut ws_stream_r) = ws_stream.split();
 
-    let result = loop {
-        info!("tokio::select {} -> {}", peer_addr, addr);
-        tokio::select! {
-            Some(msg) = ws_stream.next() => {
-                warn!("ws_stream.next() {:?}", msg);
-                match msg? {
-                    Message::Binary(v) => {
-                        incoming_w.write_all(&v).await?;
-                    }
-                    Message::Close(_) => {
-                        break Ok(());
-                    }
-                    _ => {}
-                }
+    let incoming_to_ws = async {
+        let mut buf = BytesMut::with_capacity(2048);
+        loop {
+            let data = incoming_r.read_buf(&mut buf).await?;
+            if data == 0 {
+                break;
             }
-            Ok(len) = buf_reader.read_buf(&mut buf) => {
-                if buf.is_empty() || len == 0 {
-                    break Ok(());
+            ws_stream_w.send(Message::Binary(buf.to_vec())).await?;
+            buf.clear();
+        }
+        Ok::<_, anyhow::Error>(())
+    };
+
+    let ws_to_incoming = async {
+        loop {
+            let msg = ws_stream_r.next().await.ok_or_else(|| anyhow::anyhow!(""))??;
+            match msg {
+                Message::Binary(v) => {
+                    incoming_w.write_all(&v).await?;
+                    info!("{} stream with {}", true, config.method);
                 }
-                println!("write to ws {:?}", buf);
-                ws_stream.send(Message::Binary(buf.to_vec())).await?;
-                buf.clear();
-            }
-            else => {
-                break Err(anyhow::anyhow!("else"));
+                Message::Close(_) => {
+                    info!("Tunnel closed {} -> {}", peer_addr, addr);
+                    break;
+                }
+                _ => {}
             }
         }
+        Ok::<_, anyhow::Error>(())
     };
-    result
+
+    tokio::select! {
+        _ = incoming_to_ws => {}
+        _ = ws_to_incoming => {}
+    }
+
+    // tokio::try_join!(incoming_to_ws, ws_to_incoming,)?;
+    Ok(())
 }
