@@ -10,14 +10,14 @@ async fn main() -> anyhow::Result<()> {
         cmdopt::CmdOpt::Client { config, verbose } => (config, verbose),
     };
 
-    if let Err(_) = std::env::var("RUST_LOG") {
+    if std::env::var("RUST_LOG").is_err() {
         let name = program_name();
         if verbose {
             std::env::set_var("RUST_LOG", format!("{}=trace", name));
         } else {
             std::env::set_var("RUST_LOG", format!("{}=info", name));
         }
-    };
+    }
 
     env_logger::init();
 

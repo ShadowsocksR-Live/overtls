@@ -49,11 +49,7 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
         None
     };
 
-    let acceptor = if let Some(svr_cfg) = svr_cfg {
-        Some(TlsAcceptor::from(std::sync::Arc::new(svr_cfg)))
-    } else {
-        None
-    };
+    let acceptor = svr_cfg.map(|svr_cfg| TlsAcceptor::from(std::sync::Arc::new(svr_cfg)));
 
     let listener = TcpListener::bind(&addr).await?;
 
@@ -68,10 +64,8 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
                 if let Err(e) = handle_tls_incoming(stream, config).await {
                     error!("{}: {}", peer_addr, e);
                 }
-            } else {
-                if let Err(e) = handle_incoming(stream, config).await {
-                    error!("{}: {}", peer_addr, e);
-                }
+            } else if let Err(e) = handle_incoming(stream, config).await {
+                error!("{}: {}", peer_addr, e);
             }
             Ok::<_, anyhow::Error>(())
         };
@@ -126,11 +120,11 @@ async fn handle_connection(stream: TcpStream, config: Config) -> anyhow::Result<
 
     let check_headers_callback = |req: &Request, res: Response| -> anyhow::Result<Response, ErrorResponse> {
         uri_path = req.uri().path().to_string();
-        req.headers().get(TARGET_ADDRESS).map(|value| {
+        if let Some(value) = req.headers().get(TARGET_ADDRESS) {
             if let Ok(value) = value.to_str() {
                 target_address = value.to_string();
             }
-        });
+        }
         Ok(res)
     };
 
@@ -153,7 +147,6 @@ async fn handle_connection(stream: TcpStream, config: Config) -> anyhow::Result<
                 Some(msg) = ws_stream.next() => {
                     let msg = msg?;
                     if msg.is_close() {
-                        trace!("{} -> {} ws connection closed.", peer, target_address);
                         break;
                     }
                     if msg.is_text() || msg.is_binary() {
@@ -200,9 +193,10 @@ async fn handle_connection(stream: TcpStream, config: Config) -> anyhow::Result<
     };
 
     tokio::select! {
-        _ = ws_stream_to_outgoing => {}
-        _ = outgoing_to_ws_stream => {}
+        r = ws_stream_to_outgoing => { if let Err(e) = r { debug!("{} ws_stream_to_outgoing \"{}\"", peer, e); } }
+        r = outgoing_to_ws_stream => { if let Err(e) = r { debug!("{} outgoing_to_ws_stream \"{}\"", peer, e); } }
     }
+    trace!("{} <-> {} connection closed.", peer, target_address);
 
     Ok(())
 }
