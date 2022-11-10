@@ -108,12 +108,13 @@ impl Config {
             }
 
             let addr = format!("{}:{}", client.server_host, client.server_port);
-            let mut addr = addr.to_socket_addrs()?;
+            let mut addr = addr
+                .to_socket_addrs()
+                .map_err(|e| anyhow::anyhow!("server {addr} error \"{e}\""))?;
             let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
             let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
-            if let Err(e) = TcpStream::connect_timeout(&addr, timeout) {
-                return Err(anyhow::anyhow!("server {} error \"{}\"", addr, e));
-            }
+            TcpStream::connect_timeout(&addr, timeout)
+                .map_err(|e| anyhow::anyhow!("server {} error \"{}\"", addr, e))?;
             client.server_host = addr.ip().to_string();
         }
         Ok(())
