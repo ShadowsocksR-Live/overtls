@@ -1,7 +1,6 @@
 use crate::{config::Config, parseresponse::parse_response_data, program_name, tls::*, weirduri::WeirdUri};
 use bytes::BytesMut;
-use futures_util::SinkExt;
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use log::*;
 use socks5_proto::{Address, Reply};
 use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server};
@@ -150,7 +149,4 @@ async fn handle_socks5_cmd_connection(
         result = incoming_to_ws => { result }
         result = ws_to_incoming => { result }
     }
-
-    // tokio::try_join!(incoming_to_ws, ws_to_incoming,)?;
-    // Ok(())
 }

@@ -6,11 +6,7 @@ use socks5_proto::Address;
 use std::net::ToSocketAddrs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_rustls::{
-    rustls::{self},
-    server::TlsStream,
-    TlsAcceptor,
-};
+use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
 use tokio_tungstenite::accept_hdr_async;
 use tungstenite::{
     handshake::server::{ErrorResponse, Request, Response},

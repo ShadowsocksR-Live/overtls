@@ -1,4 +1,3 @@
-use log::*;
 use std::io::Write;
 use tungstenite::{
     client::IntoClientRequest,
@@ -131,7 +130,6 @@ impl WeirdUri<'_> {
         }
 
         writeln!(req, "\r")?;
-        trace!("Request: {:?}", String::from_utf8_lossy(&req));
 
         assert_eq!(key, self.sec_websocket_key);
 
