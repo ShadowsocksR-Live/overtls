@@ -111,7 +111,9 @@ impl Config {
             let mut addr = addr.to_socket_addrs()?;
             let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
             let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
-            let _ = TcpStream::connect_timeout(&addr, timeout)?;
+            if let Err(e) = TcpStream::connect_timeout(&addr, timeout) {
+                return Err(anyhow::anyhow!("server {} error \"{}\"", addr, e));
+            }
             client.server_host = addr.ip().to_string();
         }
         Ok(())
