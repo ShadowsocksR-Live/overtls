@@ -1,4 +1,4 @@
-use crate::{config::Config, parseresponse::parse_response_data, tls::*, weirduri::WeirdUri};
+use crate::{config::Config, parseresponse::parse_response_data, program_name, tls::*, weirduri::WeirdUri};
 use bytes::BytesMut;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
@@ -11,7 +11,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_tungstenite::{tungstenite::protocol::Role, WebSocketStream};
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
-    println!("starting viatls client...");
+    info!("starting {} client...", program_name());
     trace!("with following settings:");
     trace!("{}", serde_json::to_string_pretty(config)?);
 

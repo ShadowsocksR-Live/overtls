@@ -1,5 +1,5 @@
 use std::fs::File;
-use viatls::{client, cmdopt, config, server};
+use viatls::{client, cmdopt, config, program_name, server};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -11,10 +11,11 @@ async fn main() -> anyhow::Result<()> {
     };
 
     if let Err(_) = std::env::var("RUST_LOG") {
+        let name = program_name();
         if verbose {
-            std::env::set_var("RUST_LOG", "trace");
+            std::env::set_var("RUST_LOG", format!("{}=trace", name));
         } else {
-            std::env::set_var("RUST_LOG", "warn");
+            std::env::set_var("RUST_LOG", format!("{}=warn", name));
         }
     };
 
