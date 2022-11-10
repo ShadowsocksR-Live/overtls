@@ -1,6 +1,5 @@
-use log::*;
 use std::fs::File;
-use viatls::{client, cmdopt, config};
+use viatls::{client, cmdopt, config, server};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -11,9 +10,13 @@ async fn main() -> anyhow::Result<()> {
         cmdopt::CmdOpt::Client { config, verbose } => (config, verbose),
     };
 
-    if verbose {
-        std::env::set_var("RUST_LOG", "info");
-    }
+    if let Err(_) = std::env::var("RUST_LOG") {
+        if verbose {
+            std::env::set_var("RUST_LOG", "trace");
+        } else {
+            std::env::set_var("RUST_LOG", "warn");
+        }
+    };
 
     env_logger::init();
 
@@ -22,8 +25,7 @@ async fn main() -> anyhow::Result<()> {
     config.check_correctness()?;
     if is_server {
         if config.exist_server() {
-            info!("Server config: {:?}", config);
-            unimplemented!();
+            server::run_server(&config).await?;
         } else {
             anyhow::bail!("Config is not a server config");
         }

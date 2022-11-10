@@ -6,7 +6,7 @@ use tungstenite::{
     handshake::client::{generate_key, Request},
 };
 
-const TARGET_ADDRESS_STR: &str = "Target-Address";
+pub const TARGET_ADDRESS: &str = "Target-Address";
 
 /// A wrapper around `tungstenite::Url` that allows us to add custom headers.
 /// This is useful for passing additional information to the server.
@@ -45,7 +45,7 @@ impl<'a> IntoClientRequest for WeirdUri<'a> {
             .header("Sec-WebSocket-Key", self.sec_websocket_key);
         if let Some(ref target_address) = self.target_address {
             if !target_address.is_empty() {
-                builder = builder.header(TARGET_ADDRESS_STR, target_address);
+                builder = builder.header(TARGET_ADDRESS, target_address);
             }
         }
         let req = builder.uri(uri.as_str()).body(())?;

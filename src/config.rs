@@ -19,8 +19,8 @@ pub struct Config {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Server {
-    pub certfile: PathBuf,
-    pub keyfile: PathBuf,
+    pub certfile: Option<PathBuf>,
+    pub keyfile: Option<PathBuf>,
     pub listen_host: String,
     pub listen_port: u16,
 }
@@ -81,17 +81,6 @@ impl Config {
             let server = self.server.as_mut();
             let server = server.ok_or_else(|| anyhow::anyhow!("server settings"))?;
 
-            let certfile = server.certfile.to_str();
-            let certfile = certfile.ok_or_else(|| anyhow::anyhow!("certfile"))?;
-            if certfile.is_empty() {
-                return Err(anyhow::anyhow!("We need certfile in server settings"));
-            }
-
-            let keyfile = server.keyfile.to_str();
-            let keyfile = keyfile.ok_or_else(|| anyhow::anyhow!("keyfile"))?;
-            if keyfile.is_empty() {
-                return Err(anyhow::anyhow!("We need keyfile in server settings"));
-            }
             if server.listen_host.is_empty() {
                 server.listen_host = "0.0.0.0".to_string();
             }

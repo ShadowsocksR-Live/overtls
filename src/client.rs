@@ -11,8 +11,9 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_tungstenite::{tungstenite::protocol::Role, WebSocketStream};
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
-    info!("starting viatls client with following settings:");
-    info!("{}", serde_json::to_string_pretty(config)?);
+    println!("starting viatls client...");
+    trace!("with following settings:");
+    trace!("{}", serde_json::to_string_pretty(config)?);
 
     let client = config.client.as_ref();
     let client = client.ok_or_else(|| anyhow::anyhow!("client settings"))?;
@@ -51,7 +52,7 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
         }
     }
 
-    info!("{} disconnected", peer_addr);
+    trace!("{} disconnected", peer_addr);
 
     Ok(())
 }
@@ -70,7 +71,7 @@ async fn handle_socks5_cmd_connection(
     let tunnel_path = config.tunnel_path.clone();
     let tunnel_path = tunnel_path.trim().trim_matches('/');
 
-    info!("{} -> {} tunnel establishing", peer_addr, target_addr);
+    trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
 
     let mut buf = BytesMut::with_capacity(1024);
     target_addr.write_to_buf(&mut buf);
@@ -103,7 +104,7 @@ async fn handle_socks5_cmd_connection(
     let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
 
     if accept_key.as_str() != remote_key.to_str()? {
-        info!("{} -> {} accept key error", peer_addr, target_addr);
+        error!("{} -> {} accept key error", peer_addr, target_addr);
         return Ok(());
     }
 
@@ -117,11 +118,11 @@ async fn handle_socks5_cmd_connection(
         loop {
             let len = incoming_r.read_buf(&mut buf).await?;
             if len == 0 {
-                info!("{} -> {} incoming closed", peer_addr, target_addr);
+                trace!("{} -> {} incoming closed", peer_addr, target_addr);
                 break;
             }
             ws_stream_w.send(Message::Binary(buf.to_vec())).await?;
-            info!("{} -> {} sending message length {}", peer_addr, target_addr, buf.len());
+            trace!("{} -> {} sending message length {}", peer_addr, target_addr, buf.len());
             buf.clear();
         }
         Ok::<_, anyhow::Error>(())
@@ -133,10 +134,10 @@ async fn handle_socks5_cmd_connection(
             match msg {
                 Message::Binary(v) => {
                     incoming_w.write_all(&v).await?;
-                    info!("{} <- {} message from server lenth {}", peer_addr, target_addr, v.len());
+                    trace!("{} <- {} message from server lenth {}", peer_addr, target_addr, v.len());
                 }
                 Message::Close(_) => {
-                    info!("{} <- {} tunnel closing", peer_addr, target_addr);
+                    trace!("{} <- {} tunnel closing", peer_addr, target_addr);
                     break;
                 }
                 _ => {}
