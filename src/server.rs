@@ -1,27 +1,21 @@
-use crate::{config::Config, parseresponse::parse_response_data, tls::*, weirduri::TARGET_ADDRESS};
-use bytes::BytesMut;
-use env_logger;
-use futures_util::{SinkExt, StreamExt, Stream};
+use crate::{config::Config, tls::*, weirduri::TARGET_ADDRESS};
+use futures_util::{SinkExt, StreamExt};
 use httparse;
 use log::*;
-use log::*;
-use socks5_proto::{Address, Reply};
-use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server};
-use std::net::{SocketAddr, ToSocketAddrs};
-use tokio::io::{AsyncRead, AsyncWrite};
+use socks5_proto::Address;
+use std::net::ToSocketAddrs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_rustls::TlsAcceptor;
 use tokio_rustls::{
-    rustls::{self, Certificate, OwnedTrustAnchor, PrivateKey},
+    rustls::{self},
     server::TlsStream,
-    webpki, TlsConnector,
+    TlsAcceptor,
 };
 use tokio_tungstenite::accept_hdr_async;
-use tokio_tungstenite::WebSocketStream;
-use tungstenite::handshake::server::{ErrorResponse, Request, Response};
-use tungstenite::protocol::{Message, Role};
-use futures_util::future::join_all;
+use tungstenite::{
+    handshake::server::{ErrorResponse, Request, Response},
+    protocol::Message,
+};
 
 pub async fn run_server(config: &Config) -> anyhow::Result<()> {
     info!("starting {} server...", crate::program_name());
@@ -100,38 +94,7 @@ async fn handle_tls_incoming(stream: TlsStream<TcpStream>, config: Config) -> an
 }
 
 async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()> {
-    // let peer_addr = stream.peer_addr()?;
-    // info!("Echo: {} - {:?}", peer_addr, config);
     let _ = handle_connection(stream, config).await;
-    // let (mut reader, mut writer) = tokio::io::split(stream);
-    // let _n = tokio::io::copy(&mut reader, &mut writer).await?;
-    // writer.flush().await?;
-
-    {
-        // stream
-        //     .write_all(
-        //         &b"HTTP/1.0 200 ok\r\n\
-        //     Connection: close\r\n\
-        //     Content-length: 12\r\n\
-        //     \r\n\
-        //     Hello world!"[..],
-        //     )
-        //     .await?;
-        // stream.shutdown().await?;
-        // println!("Hello: {}", peer_addr);
-    }
-
-    // let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
-
-    // while let Ok((conn, _)) = server.accept().await {
-    //     let config = config.clone();
-    //     tokio::spawn(async move {
-    //         if let Err(e) = handle_incoming(conn, config).await {
-    //             error!("{}", e);
-    //         }
-    //     });
-    // }
-
     Ok(())
 }
 
@@ -171,10 +134,6 @@ async fn handle_connection(stream: TcpStream, config: Config) -> anyhow::Result<
         Ok(res)
     };
 
-    use futures::channel::mpsc;
-    use futures::sink::SinkExt;
-    use futures::stream::{self, StreamExt};
-    
     let mut ws_stream = accept_hdr_async(stream, check_headers_callback).await?;
 
     let target_address = base64::decode(target_address)?;
@@ -185,54 +144,65 @@ async fn handle_connection(stream: TcpStream, config: Config) -> anyhow::Result<
 
     let mut outgoing = TcpStream::connect(target_address).await?;
 
-    let (mut ws_r, mut ws_w) = ws_stream.split();
-    let (mut outging_r, mut outgoing_w) = outgoing.split();
+    let (ws_stream_tx, mut ws_stream_rx) = tokio::sync::mpsc::channel(1024);
+    let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel(1024);
 
-    let ws_to_outgoing = async {
-        let mut buf = [0u8; 1024 * 8];
-        while let Some(msg) = ws_r.next().await {
-            let msg = msg?;
-            if msg.is_close() {
-                trace!("{} -> {} ws connection closed.", peer, target_address);
-                break;
-            }
-            if msg.is_text() || msg.is_binary() {
-                outgoing_w.write_all(&msg.into_data()).await?;
+    let ws_stream_to_outgoing = async move {
+        loop {
+            tokio::select! {
+                Some(msg) = ws_stream.next() => {
+                    let msg = msg?;
+                    if msg.is_close() {
+                        trace!("{} -> {} ws connection closed.", peer, target_address);
+                        break;
+                    }
+                    if msg.is_text() || msg.is_binary() {
+                        outgoing_tx.send(msg.into_data()).await?;
+                    }
+                }
+                Some(data) = ws_stream_rx.recv() => {
+                    ws_stream.send(Message::binary(data)).await?;
+                }
+                else => {
+                    break;
+                }
             }
         }
         Ok::<_, anyhow::Error>(())
     };
 
-    let outgoing_to_ws = async {
-        let mut buf = [0u8; 1024 * 8];
+    let outgoing_to_ws_stream = async move {
         loop {
-            let n = outging_r.try_read(&mut buf)?;
-            if n == 0 {
-                break;
+            tokio::select! {
+                Ok(data) = async {
+                    let mut b2 = [0; 2048];
+                    let n = outgoing.read(&mut b2).await?;
+                    Ok::<_, anyhow::Error>(Some(b2[..n].to_vec()))
+                 } => {
+                    if let Some(data) = data {
+                        if data.is_empty() {
+                            break;
+                        }
+                        ws_stream_tx.send(data).await?;
+                    } else {
+                        break;
+                    }
+                }
+                Some(msg) = outgoing_rx.recv() => {
+                    outgoing.write_all(&msg).await?;
+                }
+                else => {
+                    break;
+                }
             }
-            ws_w.send(Message::Binary(buf.to_vec())).await?;
-            // ws_w.write_all(&buf[..n]).await?;
         }
-        Ok::<(), anyhow::Error>(())
+        Ok::<_, anyhow::Error>(())
     };
 
     tokio::select! {
-        result = ws_to_outgoing => { result }
-        result = outgoing_to_ws => { result }
+        _ = ws_stream_to_outgoing => {}
+        _ = outgoing_to_ws_stream => {}
     }
 
-    // let (_ws_to_outgoing, _outgoing_to_ws) = tokio::join!(ws_to_outgoing, outgoing_to_ws);
-
-    // while let Some(msg) = ws_stream.next().await {
-    //     let msg = msg?;
-    //     if msg.is_close() {
-    //         trace!("{} -> {} ws connection closed.", peer, target_address);
-    //         break;
-    //     }
-    //     if msg.is_text() || msg.is_binary() {
-    //         ws_stream.send(msg).await?;
-    //     }
-    // }
-
-    // Ok(())
+    Ok(())
 }
