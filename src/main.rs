@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
         if verbose {
             std::env::set_var("RUST_LOG", format!("{}=trace", name));
         } else {
-            std::env::set_var("RUST_LOG", format!("{}=warn", name));
+            std::env::set_var("RUST_LOG", format!("{}=info", name));
         }
     };
 

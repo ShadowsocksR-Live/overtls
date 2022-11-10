@@ -7,8 +7,8 @@ use socks5_proto::{Address, Reply};
 use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server};
 use std::net::ToSocketAddrs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio_tungstenite::tungstenite::protocol::Message;
-use tokio_tungstenite::{tungstenite::protocol::Role, WebSocketStream};
+use tokio_tungstenite::WebSocketStream;
+use tungstenite::protocol::{Message, Role};
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     info!("starting {} client...", program_name());
