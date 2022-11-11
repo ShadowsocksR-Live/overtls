@@ -58,10 +58,10 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
             if let Some(acceptor) = acceptor {
                 let stream = acceptor.accept(stream).await?;
                 if let Err(e) = handle_tls_incoming(stream, config).await {
-                    error!("{}: {}", peer_addr, e);
+                    debug!("{}: {}", peer_addr, e);
                 }
             } else if let Err(e) = handle_incoming(stream, config).await {
-                error!("{}: {}", peer_addr, e);
+                debug!("{}: {}", peer_addr, e);
             }
             Ok::<_, anyhow::Error>(())
         };
@@ -80,11 +80,6 @@ async fn handle_tls_incoming(stream: TlsStream<TcpStream>, config: Config) -> an
         stream.get_ref().0.peer_addr()?,
         config
     );
-    Ok(())
-}
-
-async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()> {
-    let _ = handle_connection(stream, config).await;
     Ok(())
 }
 
@@ -120,7 +115,7 @@ async fn check_uri_path(stream: &TcpStream, path: &str) -> anyhow::Result<bool> 
     Ok(false)
 }
 
-async fn handle_connection(stream: TcpStream, config: Config) -> anyhow::Result<()> {
+async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()> {
     if !check_uri_path(&stream, &config.tunnel_path).await? {
         let forword_addr = config
             .server
@@ -129,7 +124,7 @@ async fn handle_connection(stream: TcpStream, config: Config) -> anyhow::Result<
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("forward address not exists"))?
             .clone();
-        trace!("not match path \"{}\", forward traffic directly", config.tunnel_path);
+        debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
         let to_stream = TcpStream::connect(forword_addr).await?;
         forward_traffic(stream, to_stream).await?;
         return Ok(());
