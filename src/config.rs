@@ -62,7 +62,7 @@ impl Config {
         self.client.is_some()
     }
 
-    pub fn check_correctness(&mut self) -> anyhow::Result<()> {
+    pub fn check_correctness(&mut self, running_server: bool) -> anyhow::Result<()> {
         if self.test_timeout_secs == 0 {
             self.test_timeout_secs = 5;
         }
@@ -110,15 +110,17 @@ impl Config {
                 client.listen_port = 1080;
             }
 
-            let addr = format!("{}:{}", client.server_host, client.server_port);
-            let mut addr = addr
-                .to_socket_addrs()
-                .map_err(|e| anyhow::anyhow!("server {addr} error \"{e}\""))?;
-            let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
-            let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
-            TcpStream::connect_timeout(&addr, timeout)
-                .map_err(|e| anyhow::anyhow!("server {} error \"{}\"", addr, e))?;
-            client.server_host = addr.ip().to_string();
+            if !running_server {
+                let addr = format!("{}:{}", client.server_host, client.server_port);
+                let mut addr = addr
+                    .to_socket_addrs()
+                    .map_err(|e| anyhow::anyhow!("server {addr} error \"{e}\""))?;
+                let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
+                let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
+                TcpStream::connect_timeout(&addr, timeout)
+                    .map_err(|e| anyhow::anyhow!("server {} error \"{}\"", addr, e))?;
+                client.server_host = addr.ip().to_string();
+            }
         }
         Ok(())
     }

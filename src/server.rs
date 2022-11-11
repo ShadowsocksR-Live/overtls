@@ -4,7 +4,7 @@ use futures_util::{SinkExt, StreamExt};
 use httparse;
 use log::*;
 use socks5_proto::Address;
-use std::net::ToSocketAddrs;
+use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
@@ -80,8 +80,8 @@ fn extract_forward_addr(config: &Config) -> Option<String> {
 }
 
 async fn handle_tls_incoming(mut stream: TlsStream<TcpStream>, config: Config) -> anyhow::Result<()> {
-    let peer_addr = stream.get_ref().0.peer_addr()?;
-    trace!("tls incoming connection {} with {:?}", peer_addr, config);
+    let peer = stream.get_ref().0.peer_addr()?;
+    trace!("tls incoming connection {} with {:?}", peer, config);
 
     let mut buf = BytesMut::with_capacity(2048);
     let size = stream.read_buf(&mut buf).await?;
@@ -90,16 +90,10 @@ async fn handle_tls_incoming(mut stream: TlsStream<TcpStream>, config: Config) -
     }
 
     if !check_uri_path(&buf, &config.tunnel_path).await? {
-        debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
-        let forword_addr = extract_forward_addr(&config).ok_or_else(|| anyhow::anyhow!(""))?;
-        let to_stream = TcpStream::connect(forword_addr).await?;
-        forward_traffic(stream, to_stream, &buf).await?;
-        return Ok(());
+        return forward_traffic_wrapper(stream, &config).await;
     }
 
-    // TODO: ws handshake and forward traffic
-
-    Ok(())
+    websocket_traffic_handler(stream, config, peer, &buf).await
 }
 
 async fn forward_traffic<StreamFrom, StreamTo>(from: StreamFrom, mut to: StreamTo, data: &[u8]) -> anyhow::Result<()>
@@ -138,19 +132,35 @@ async fn check_uri_path(buf: &[u8], path: &str) -> anyhow::Result<bool> {
     Ok(false)
 }
 
+async fn forward_traffic_wrapper<S: AsyncRead + AsyncWrite + Unpin>(stream: S, config: &Config) -> anyhow::Result<()> {
+    debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
+    let forword_addr = extract_forward_addr(config).ok_or_else(|| anyhow::anyhow!(""))?;
+    let to_stream = TcpStream::connect(forword_addr).await?;
+    forward_traffic(stream, to_stream, &[]).await
+}
+
 async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()> {
     let mut buf = [0; 512];
     stream.peek(&mut buf).await?;
 
     if !check_uri_path(&buf, &config.tunnel_path).await? {
-        debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
-        let forword_addr = extract_forward_addr(&config).ok_or_else(|| anyhow::anyhow!(""))?;
-        let to_stream = TcpStream::connect(forword_addr).await?;
-        forward_traffic(stream, to_stream, &[]).await?;
-        return Ok(());
+        return forward_traffic_wrapper(stream, &config).await;
     }
 
     let peer = stream.peer_addr()?;
+
+    websocket_traffic_handler(stream, config, peer, &[]).await
+}
+
+async fn websocket_traffic_handler<S>(
+    stream: S,
+    config: Config,
+    peer: SocketAddr,
+    handshake: &[u8],
+) -> anyhow::Result<()>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
 
