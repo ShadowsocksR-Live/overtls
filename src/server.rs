@@ -47,6 +47,11 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
     };
 
     let acceptor = svr_cfg.map(|svr_cfg| TlsAcceptor::from(std::sync::Arc::new(svr_cfg)));
+    if acceptor.is_none() {
+        warn!("no certificate and key file, using plain TCP");
+    } else {
+        info!("using TLS");
+    }
 
     let listener = TcpListener::bind(&addr).await?;
 
