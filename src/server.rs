@@ -1,4 +1,5 @@
 use crate::{config::Config, tls::*, weirduri::TARGET_ADDRESS};
+use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use httparse;
 use log::*;
@@ -74,16 +75,41 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
     }
 }
 
-async fn handle_tls_incoming(stream: TlsStream<TcpStream>, config: Config) -> anyhow::Result<()> {
-    trace!(
-        "tls incoming connection {} with {:?}",
-        stream.get_ref().0.peer_addr()?,
-        config
-    );
+fn extract_forward_addr(config: &Config) -> Option<String> {
+    config.server.as_ref()?.forward_addr.clone()
+}
+
+async fn handle_tls_incoming(mut stream: TlsStream<TcpStream>, config: Config) -> anyhow::Result<()> {
+    let peer_addr = stream.get_ref().0.peer_addr()?;
+    trace!("tls incoming connection {} with {:?}", peer_addr, config);
+
+    let mut buf = BytesMut::with_capacity(2048);
+    let size = stream.read_buf(&mut buf).await?;
+    if size == 0 {
+        return Err(anyhow::anyhow!("empty request"));
+    }
+
+    if !check_uri_path(&buf, &config.tunnel_path).await? {
+        debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
+        let forword_addr = extract_forward_addr(&config).ok_or_else(|| anyhow::anyhow!(""))?;
+        let to_stream = TcpStream::connect(forword_addr).await?;
+        forward_traffic(stream, to_stream, &buf).await?;
+        return Ok(());
+    }
+
+    // TODO: ws handshake and forward traffic
+
     Ok(())
 }
 
-async fn forward_traffic<S: AsyncRead + AsyncWrite + Unpin>(from: S, to: S) -> anyhow::Result<()> {
+async fn forward_traffic<StreamFrom, StreamTo>(from: StreamFrom, mut to: StreamTo, data: &[u8]) -> anyhow::Result<()>
+where
+    StreamFrom: AsyncRead + AsyncWrite + Unpin,
+    StreamTo: AsyncRead + AsyncWrite + Unpin,
+{
+    if !data.is_empty() {
+        to.write_all(data).await?;
+    }
     let (mut from_reader, mut from_writer) = tokio::io::split(from);
     let (mut to_reader, mut to_writer) = tokio::io::split(to);
     tokio::select! {
@@ -99,13 +125,10 @@ async fn forward_traffic<S: AsyncRead + AsyncWrite + Unpin>(from: S, to: S) -> a
     Ok(())
 }
 
-async fn check_uri_path(stream: &TcpStream, path: &str) -> anyhow::Result<bool> {
-    let mut buf = [0; 512];
-    stream.peek(&mut buf).await?;
-
+async fn check_uri_path(buf: &[u8], path: &str) -> anyhow::Result<bool> {
     let mut headers = [httparse::EMPTY_HEADER; 512];
     let mut req = httparse::Request::new(&mut headers);
-    req.parse(&buf)?;
+    req.parse(buf)?;
 
     if let Some(p) = req.path {
         if p == path {
@@ -116,17 +139,14 @@ async fn check_uri_path(stream: &TcpStream, path: &str) -> anyhow::Result<bool> 
 }
 
 async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()> {
-    if !check_uri_path(&stream, &config.tunnel_path).await? {
-        let forword_addr = config
-            .server
-            .ok_or_else(|| anyhow::anyhow!("server settings not exists"))?
-            .forward_addr
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("forward address not exists"))?
-            .clone();
+    let mut buf = [0; 512];
+    stream.peek(&mut buf).await?;
+
+    if !check_uri_path(&buf, &config.tunnel_path).await? {
         debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
+        let forword_addr = extract_forward_addr(&config).ok_or_else(|| anyhow::anyhow!(""))?;
         let to_stream = TcpStream::connect(forword_addr).await?;
-        forward_traffic(stream, to_stream).await?;
+        forward_traffic(stream, to_stream, &[]).await?;
         return Ok(());
     }
 
