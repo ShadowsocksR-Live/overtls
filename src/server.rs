@@ -4,7 +4,7 @@ use httparse;
 use log::*;
 use socks5_proto::Address;
 use std::net::ToSocketAddrs;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
 use tokio_tungstenite::accept_hdr_async;
@@ -88,6 +88,22 @@ async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()
     Ok(())
 }
 
+async fn forward_traffic<S: AsyncRead + AsyncWrite + Unpin>(from: S, to: S) -> anyhow::Result<()> {
+    let (mut from_reader, mut from_writer) = tokio::io::split(from);
+    let (mut to_reader, mut to_writer) = tokio::io::split(to);
+    tokio::select! {
+        ret = tokio::io::copy(&mut from_reader, &mut to_writer) => {
+            ret?;
+            to_writer.shutdown().await?;
+        },
+        ret = tokio::io::copy(&mut to_reader, &mut from_writer) => {
+            ret?;
+            from_writer.shutdown().await?
+        }
+    }
+    Ok(())
+}
+
 async fn check_uri_path(stream: &TcpStream, path: &str) -> anyhow::Result<bool> {
     let mut buf = [0; 512];
     stream.peek(&mut buf).await?;
@@ -106,8 +122,17 @@ async fn check_uri_path(stream: &TcpStream, path: &str) -> anyhow::Result<bool> 
 
 async fn handle_connection(stream: TcpStream, config: Config) -> anyhow::Result<()> {
     if !check_uri_path(&stream, config.tunnel_path.as_str()).await? {
-        warn!("invalid path \"{}\"", config.tunnel_path);
-        // TODO: go anthor precess for nomal http request, not a ws proxy request
+        let forword_addr = config
+            .server
+            .ok_or_else(|| anyhow::anyhow!("server settings not exists"))?
+            .forward_addr
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("forward address not exists"))?
+            .clone();
+        trace!("not match path \"{}\", forward traffic directly", config.tunnel_path);
+        let to_stream = TcpStream::connect(forword_addr).await?;
+        forward_traffic(stream, to_stream).await?;
+        return Ok(());
     }
 
     let peer = stream.peer_addr()?;

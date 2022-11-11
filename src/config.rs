@@ -21,6 +21,7 @@ pub struct Config {
 pub struct Server {
     pub certfile: Option<PathBuf>,
     pub keyfile: Option<PathBuf>,
+    pub forward_addr: Option<String>,
     pub listen_host: String,
     pub listen_port: u16,
 }
