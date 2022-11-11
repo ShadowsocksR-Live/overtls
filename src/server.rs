@@ -81,7 +81,6 @@ fn extract_forward_addr(config: &Config) -> Option<String> {
 
 async fn handle_tls_incoming(mut stream: TlsStream<TcpStream>, config: Config) -> anyhow::Result<()> {
     let peer = stream.get_ref().0.peer_addr()?;
-    trace!("tls incoming connection {} with {:?}", peer, config);
 
     let mut buf = BytesMut::with_capacity(2048);
     let size = stream.read_buf(&mut buf).await?;
@@ -161,6 +160,8 @@ async fn websocket_traffic_handler<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
+    trace!("incoming connection {}", peer);
+
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
 
