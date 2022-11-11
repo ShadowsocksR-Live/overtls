@@ -67,8 +67,7 @@ async fn handle_socks5_cmd_connection(
     let (mut incoming_r, mut incoming_w) = incoming.into_split();
 
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
-    let tunnel_path = config.tunnel_path.clone();
-    let tunnel_path = tunnel_path.trim().trim_matches('/');
+    let tunnel_path = config.tunnel_path.trim_matches('/');
 
     trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
 

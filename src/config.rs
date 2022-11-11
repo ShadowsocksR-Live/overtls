@@ -74,6 +74,8 @@ impl Config {
         }
         if self.tunnel_path.is_empty() {
             self.tunnel_path = "/tunnel/".to_string();
+        } else {
+            self.tunnel_path = format!("/{}/", self.tunnel_path.trim().trim_matches('/'));
         }
         if !self.exist_server() && !self.exist_client() {
             return Err(anyhow::anyhow!("Need server or client settings"));

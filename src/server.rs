@@ -121,7 +121,7 @@ async fn check_uri_path(stream: &TcpStream, path: &str) -> anyhow::Result<bool> 
 }
 
 async fn handle_connection(stream: TcpStream, config: Config) -> anyhow::Result<()> {
-    if !check_uri_path(&stream, config.tunnel_path.as_str()).await? {
+    if !check_uri_path(&stream, &config.tunnel_path).await? {
         let forword_addr = config
             .server
             .ok_or_else(|| anyhow::anyhow!("server settings not exists"))?
