@@ -2,14 +2,14 @@ use http::{header::HeaderName, HeaderMap, HeaderValue, StatusCode};
 use httparse::Status;
 use tungstenite::{
     error::{Error, ProtocolError, Result},
-    handshake::{client::Response, headers::MAX_HEADERS},
+    handshake::{client::Response, headers::MAX_HEADERS, server::Request},
 };
 
 /// Parse the response data from the server.
 /// stolen from https://github.com/snapview/tungstenite-rs/blob/80d0547fab5e4e510c73fb0c30f53d731864c37b/src/handshake/client.rs#L240
 /// hopefully this will be fixed in tungstenite-rs
 pub fn parse_response_data(data: &[u8]) -> Result<Response> {
-    let response = try_parse(data)?
+    let response = try_parse_response(data)?
         .ok_or(Error::Protocol(ProtocolError::HandshakeIncomplete))?
         .1;
     let key = response
@@ -22,7 +22,7 @@ pub fn parse_response_data(data: &[u8]) -> Result<Response> {
     data.verify_response(response)
 }
 
-fn try_parse(buf: &[u8]) -> Result<Option<(usize, Response)>> {
+fn try_parse_response(buf: &[u8]) -> Result<Option<(usize, Response)>> {
     let mut hbuffer = [httparse::EMPTY_HEADER; MAX_HEADERS];
     let mut req = httparse::Response::new(&mut hbuffer);
     Ok(match req.parse(buf)? {
@@ -128,4 +128,55 @@ impl VerifyData {
 
         Ok(response)
     }
+}
+
+/// Parse the request data from the client.
+/// stolen from https://github.com/snapview/tungstenite-rs/blob/80d0547fab5e4e510c73fb0c30f53d731864c37b/src/handshake/server.rs#L115
+/// hopefully this will be fixed in tungstenite-rs
+pub fn try_parse_request(buf: &[u8]) -> Result<Option<(usize, Request)>> {
+    let mut hbuffer = [httparse::EMPTY_HEADER; MAX_HEADERS];
+    let mut req = httparse::Request::new(&mut hbuffer);
+    Ok(match req.parse(buf)? {
+        Status::Partial => None,
+        Status::Complete(size) => Some((size, request_from_httparse(req)?)),
+    })
+}
+
+fn request_from_httparse<'h, 'b: 'h>(raw: httparse::Request<'h, 'b>) -> Result<Request> {
+    if raw.method.expect("Bug: no method in header") != "GET" {
+        return Err(Error::Protocol(ProtocolError::WrongHttpMethod));
+    }
+
+    if raw.version.expect("Bug: no HTTP version") < /*1.*/1 {
+        return Err(Error::Protocol(ProtocolError::WrongHttpVersion));
+    }
+
+    let headers = header_map_from_httparse(raw.headers)?;
+
+    let mut request = Request::new(());
+    *request.method_mut() = http::Method::GET;
+    *request.headers_mut() = headers;
+    *request.uri_mut() = raw.path.expect("Bug: no path in header").parse()?;
+    // TODO: httparse only supports HTTP 0.9/1.0/1.1 but not HTTP 2.0
+    // so the only valid value we could get in the response would be 1.1.
+    *request.version_mut() = http::Version::HTTP_11;
+
+    Ok(request)
+}
+
+pub fn write_response(mut w: impl std::io::Write, response: &Response) -> Result<()> {
+    writeln!(
+        w,
+        "{version:?} {status}\r",
+        version = response.version(),
+        status = response.status()
+    )?;
+
+    for (k, v) in response.headers() {
+        writeln!(w, "{}: {}\r", k, v.to_str()?)?;
+    }
+
+    writeln!(w, "\r")?;
+
+    Ok(())
 }

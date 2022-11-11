@@ -1,4 +1,4 @@
-use crate::{config::Config, tls::*, weirduri::TARGET_ADDRESS};
+use crate::{config::Config, parseresponse::*, tls::*, weirduri::TARGET_ADDRESS};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use httparse;
@@ -8,10 +8,10 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
-use tokio_tungstenite::accept_hdr_async;
+use tokio_tungstenite::{accept_hdr_async, WebSocketStream};
 use tungstenite::{
-    handshake::server::{ErrorResponse, Request, Response},
-    protocol::Message,
+    handshake::server::{create_response, ErrorResponse, Request, Response},
+    protocol::{Message, Role},
 };
 
 pub async fn run_server(config: &Config) -> anyhow::Result<()> {
@@ -94,7 +94,7 @@ async fn handle_tls_incoming(mut stream: TlsStream<TcpStream>, config: Config) -
     }
 
     if !check_uri_path(&buf, &config.tunnel_path).await? {
-        return forward_traffic_wrapper(stream, &config).await;
+        return forward_traffic_wrapper(stream, &buf, &config).await;
     }
 
     websocket_traffic_handler(stream, config, peer, &buf).await
@@ -136,11 +136,14 @@ async fn check_uri_path(buf: &[u8], path: &str) -> anyhow::Result<bool> {
     Ok(false)
 }
 
-async fn forward_traffic_wrapper<S: AsyncRead + AsyncWrite + Unpin>(stream: S, config: &Config) -> anyhow::Result<()> {
+async fn forward_traffic_wrapper<S>(stream: S, data: &[u8], config: &Config) -> anyhow::Result<()>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
     let forword_addr = extract_forward_addr(config).ok_or_else(|| anyhow::anyhow!(""))?;
     let to_stream = TcpStream::connect(forword_addr).await?;
-    forward_traffic(stream, to_stream, &[]).await
+    forward_traffic(stream, to_stream, data).await
 }
 
 async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()> {
@@ -148,7 +151,7 @@ async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()
     stream.peek(&mut buf).await?;
 
     if !check_uri_path(&buf, &config.tunnel_path).await? {
-        return forward_traffic_wrapper(stream, &config).await;
+        return forward_traffic_wrapper(stream, &[], &config).await;
     }
 
     let peer = stream.peer_addr()?;
@@ -156,31 +159,48 @@ async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()
     websocket_traffic_handler(stream, config, peer, &[]).await
 }
 
-async fn websocket_traffic_handler<S>(
-    stream: S,
+async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
+    mut stream: S,
     config: Config,
     peer: SocketAddr,
     handshake: &[u8],
-) -> anyhow::Result<()>
-where
-    S: AsyncRead + AsyncWrite + Unpin,
-{
-    trace!("incoming connection {}", peer);
+) -> anyhow::Result<()> {
+    trace!("{} -> tunnel_path {}", peer, config.tunnel_path);
 
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
 
-    let check_headers_callback = |req: &Request, res: Response| -> anyhow::Result<Response, ErrorResponse> {
+    let mut retrieve_values = |req: &Request| {
         uri_path = req.uri().path().to_string();
         if let Some(value) = req.headers().get(TARGET_ADDRESS) {
             if let Ok(value) = value.to_str() {
                 target_address = value.to_string();
             }
         }
-        Ok(res)
     };
 
-    let mut ws_stream = accept_hdr_async(stream, check_headers_callback).await?;
+    let mut ws_stream: WebSocketStream<S>;
+
+    if !handshake.is_empty() {
+        if let Some((_, req)) = try_parse_request(handshake)? {
+            retrieve_values(&req);
+
+            let res = create_response(&req)?;
+            let mut output = vec![];
+            write_response(&mut output, &res)?;
+            stream.write_buf(&mut &output[..]).await?;
+
+            ws_stream = WebSocketStream::from_raw_socket(stream, Role::Server, None).await;
+        } else {
+            return Err(anyhow::anyhow!("invalid handshake"));
+        }
+    } else {
+        let check_headers_callback = |req: &Request, res: Response| -> anyhow::Result<Response, ErrorResponse> {
+            retrieve_values(req);
+            Ok(res)
+        };
+        ws_stream = accept_hdr_async(stream, check_headers_callback).await?;
+    }
 
     let target_address = base64::decode(target_address)?;
     let target_address = Address::read_from(&mut &target_address[..]).await?;
