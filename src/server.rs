@@ -1,8 +1,6 @@
 use crate::{config::Config, tls::*, weirduri::TARGET_ADDRESS};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
-use httparse;
-use log::*;
 use socks5_proto::Address;
 use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -16,9 +14,9 @@ use tungstenite::{
 };
 
 pub async fn run_server(config: &Config) -> anyhow::Result<()> {
-    info!("starting {} server...", crate::program_name());
-    trace!("with following settings:");
-    trace!("{}", serde_json::to_string_pretty(config)?);
+    log::info!("starting {} server...", crate::program_name());
+    log::trace!("with following settings:");
+    log::trace!("{}", serde_json::to_string_pretty(config)?);
 
     let server = config.server.as_ref();
     let server = server.ok_or_else(|| anyhow::anyhow!("server settings"))?;
@@ -49,9 +47,9 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
 
     let acceptor = svr_cfg.map(|svr_cfg| TlsAcceptor::from(std::sync::Arc::new(svr_cfg)));
     if acceptor.is_none() {
-        warn!("no certificate and key file, using plain TCP");
+        log::warn!("no certificate and key file, using plain TCP");
     } else {
-        info!("using TLS");
+        log::info!("using TLS");
     }
 
     let listener = TcpListener::bind(&addr).await?;
@@ -65,17 +63,17 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
             if let Some(acceptor) = acceptor {
                 let stream = acceptor.accept(stream).await?;
                 if let Err(e) = handle_tls_incoming(stream, config).await {
-                    debug!("{}: {}", peer_addr, e);
+                    log::debug!("{}: {}", peer_addr, e);
                 }
             } else if let Err(e) = handle_incoming(stream, config).await {
-                debug!("{}: {}", peer_addr, e);
+                log::debug!("{}: {}", peer_addr, e);
             }
             Ok::<_, anyhow::Error>(())
         };
 
         tokio::spawn(async move {
             if let Err(err) = incoming_task.await {
-                eprintln!("{:?}", err);
+                log::debug!("{:?}", err);
             }
         });
     }
@@ -141,7 +139,7 @@ async fn forward_traffic_wrapper<S>(stream: S, data: &[u8], config: &Config) -> 
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
+    log::debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
     let forword_addr = extract_forward_addr(config).ok_or_else(|| anyhow::anyhow!(""))?;
     let to_stream = TcpStream::connect(forword_addr).await?;
     forward_traffic(stream, to_stream, data).await
@@ -166,7 +164,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     peer: SocketAddr,
     handshake: &[u8],
 ) -> anyhow::Result<()> {
-    trace!("{} -> tunnel_path {}", peer, config.tunnel_path);
+    log::trace!("{} -> tunnel_path {}", peer, config.tunnel_path);
 
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
@@ -207,7 +205,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     let addr_str = Address::read_from(&mut &target_address[..]).await?.to_string();
     let target_address = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
 
-    trace!("{} -> {}  uri path: \"{}\"", peer, addr_str, uri_path);
+    log::trace!("{} -> {}  uri path: \"{}\"", peer, addr_str, uri_path);
 
     let mut outgoing = TcpStream::connect(target_address).await?;
 
@@ -266,10 +264,10 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     };
 
     tokio::select! {
-        r = ws_stream_to_outgoing => { if let Err(e) = r { debug!("{} ws_stream_to_outgoing \"{}\"", peer, e); } }
-        r = outgoing_to_ws_stream => { if let Err(e) = r { debug!("{} outgoing_to_ws_stream \"{}\"", peer, e); } }
+        r = ws_stream_to_outgoing => { if let Err(e) = r { log::debug!("{} ws_stream_to_outgoing \"{}\"", peer, e); } }
+        r = outgoing_to_ws_stream => { if let Err(e) = r { log::debug!("{} outgoing_to_ws_stream \"{}\"", peer, e); } }
     }
-    trace!("{} <-> {} connection closed.", peer, addr_str);
+    log::trace!("{} <-> {} connection closed.", peer, addr_str);
 
     Ok(())
 }

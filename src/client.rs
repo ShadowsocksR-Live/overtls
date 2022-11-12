@@ -1,7 +1,6 @@
 use crate::{config::Config, program_name, tls::*, weirduri::WeirdUri};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
-use log::*;
 use socks5_proto::{Address, Reply};
 use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server};
 use std::net::ToSocketAddrs;
@@ -17,9 +16,9 @@ use tungstenite::{
 };
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
-    info!("starting {} client...", program_name());
-    trace!("with following settings:");
-    trace!("{}", serde_json::to_string_pretty(config)?);
+    log::info!("starting {} client...", program_name());
+    log::trace!("with following settings:");
+    log::trace!("{}", serde_json::to_string_pretty(config)?);
 
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("client"))?;
     let addr = format!("{}:{}", client.listen_host, client.listen_port);
@@ -29,7 +28,7 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
         let config = config.clone();
         tokio::spawn(async move {
             if let Err(e) = handle_incoming(conn, config).await {
-                debug!("{}", e);
+                log::debug!("{}", e);
             }
         });
     }
@@ -52,12 +51,12 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
         }
         Connection::Connect(connect, addr) => {
             if let Err(e) = handle_socks5_cmd_connection(connect, addr, config).await {
-                debug!("{}: {}", peer_addr, e);
+                log::debug!("{}: {}", peer_addr, e);
             }
         }
     }
 
-    trace!("{} disconnected", peer_addr);
+    log::trace!("{} disconnected", peer_addr);
 
     Ok(())
 }
@@ -75,7 +74,7 @@ async fn handle_socks5_cmd_connection(
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
     let tunnel_path = config.tunnel_path.trim_matches('/');
 
-    trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
+    log::trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
 
     let mut buf = BytesMut::with_capacity(1024);
     target_addr.write_to_buf(&mut buf);
@@ -108,7 +107,7 @@ async fn handle_socks5_cmd_connection(
     let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
 
     if accept_key.as_str() != remote_key.to_str()? {
-        debug!("{} -> {} accept key error", peer_addr, target_addr);
+        log::debug!("{} -> {} accept key error", peer_addr, target_addr);
         return Ok(());
     }
 
@@ -122,11 +121,11 @@ async fn handle_socks5_cmd_connection(
         loop {
             let len = incoming_r.read_buf(&mut buf).await?;
             if len == 0 {
-                trace!("{} -> {} incoming closed", peer_addr, target_addr);
+                log::trace!("{} -> {} incoming closed", peer_addr, target_addr);
                 break;
             }
             ws_stream_w.send(Message::Binary(buf.to_vec())).await?;
-            trace!("{} -> {} sending message length {}", peer_addr, target_addr, buf.len());
+            log::trace!("{} -> {} sending message length {}", peer_addr, target_addr, buf.len());
             buf.clear();
         }
         Ok::<_, anyhow::Error>(())
@@ -138,10 +137,10 @@ async fn handle_socks5_cmd_connection(
             match msg {
                 Message::Binary(v) => {
                     incoming_w.write_all(&v).await?;
-                    trace!("{} <- {} message from server lenth {}", peer_addr, target_addr, v.len());
+                    log::trace!("{} <- {} message from server lenth {}", peer_addr, target_addr, v.len());
                 }
                 Message::Close(_) => {
-                    trace!("{} <- {} tunnel closing", peer_addr, target_addr);
+                    log::trace!("{} <- {} tunnel closing", peer_addr, target_addr);
                     break;
                 }
                 _ => {}
