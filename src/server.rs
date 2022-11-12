@@ -204,10 +204,10 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     let target_address = base64::decode(target_address)?;
-    let target_address = Address::read_from(&mut &target_address[..]).await?;
-    let target_address = target_address.to_string().to_socket_addrs()?.next().unwrap();
+    let addr_str = Address::read_from(&mut &target_address[..]).await?.to_string();
+    let target_address = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
 
-    trace!("{} -> {}  uri path: \"{}\"", peer, target_address, uri_path);
+    trace!("{} -> {}  uri path: \"{}\"", peer, addr_str, uri_path);
 
     let mut outgoing = TcpStream::connect(target_address).await?;
 
@@ -269,7 +269,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         r = ws_stream_to_outgoing => { if let Err(e) = r { debug!("{} ws_stream_to_outgoing \"{}\"", peer, e); } }
         r = outgoing_to_ws_stream => { if let Err(e) = r { debug!("{} outgoing_to_ws_stream \"{}\"", peer, e); } }
     }
-    trace!("{} <-> {} connection closed.", peer, target_address);
+    trace!("{} <-> {} connection closed.", peer, addr_str);
 
     Ok(())
 }

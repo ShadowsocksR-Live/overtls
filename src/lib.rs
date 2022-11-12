@@ -13,5 +13,9 @@ pub fn program_name() -> String {
         .and_then(std::path::Path::file_name)
         .and_then(std::ffi::OsStr::to_str)
         .map(String::from);
-    name.unwrap().split('.').next().unwrap().to_string()
+    name.unwrap_or_default()
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_string()
 }

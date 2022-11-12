@@ -21,8 +21,11 @@ pub fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> anyhow::
             let mut pem = BufReader::new(File::open(cafile)?);
             let certs = rustls_pemfile::certs(&mut pem)?;
             let trust_anchors = certs.iter().map(|cert| {
-                let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap();
-                OwnedTrustAnchor::from_subject_spki_name_constraints(ta.subject, ta.spki, ta.name_constraints)
+                if let Ok(ta) = webpki::TrustAnchor::try_from_cert_der(&cert[..]) {
+                    OwnedTrustAnchor::from_subject_spki_name_constraints(ta.subject, ta.spki, ta.name_constraints)
+                } else {
+                    OwnedTrustAnchor::from_subject_spki_name_constraints(vec![], vec![], Some(vec![]))
+                }
             });
             root_cert_store.add_server_trust_anchors(trust_anchors);
             done = true;

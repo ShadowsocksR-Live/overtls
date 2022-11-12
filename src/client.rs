@@ -21,8 +21,7 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     trace!("with following settings:");
     trace!("{}", serde_json::to_string_pretty(config)?);
 
-    let client = config.client.as_ref();
-    let client = client.ok_or_else(|| anyhow::anyhow!("client settings"))?;
+    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("client"))?;
     let addr = format!("{}:{}", client.listen_host, client.listen_port);
     let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
 

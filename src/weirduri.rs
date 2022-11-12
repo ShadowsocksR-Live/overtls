@@ -53,7 +53,10 @@ impl<'a> IntoClientRequest for WeirdUri<'a> {
 
 impl std::fmt::Display for WeirdUri<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let req = self.clone().into_client_request().unwrap();
-        write!(f, "{:?}", req)
+        if let Ok(req) = self.clone().into_client_request() {
+            write!(f, "{:?}", req)
+        } else {
+            write!(f, "{}", self.uri)
+        }
     }
 }

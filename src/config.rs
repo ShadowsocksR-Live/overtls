@@ -75,10 +75,10 @@ impl Config {
         if self.test_timeout_secs == 0 {
             self.test_timeout_secs = 5;
         }
-        if self.method.is_none() || self.method.as_ref().unwrap().is_empty() {
+        if self.method.is_none() || self.method.as_ref().unwrap_or(&"".to_owned()).is_empty() {
             self.method = Some("none".to_string());
         }
-        if self.password.is_none() || self.password.as_ref().unwrap().is_empty() {
+        if self.password.is_none() || self.password.as_ref().unwrap_or(&"".to_owned()).is_empty() {
             self.password = Some("password".to_string());
         }
         if self.tunnel_path.is_empty() {
@@ -102,7 +102,7 @@ impl Config {
             if client.server_port == 0 {
                 client.server_port = 443;
             }
-            if client.server_domain.is_none() || client.server_domain.as_ref().unwrap().is_empty() {
+            if client.server_domain.is_none() || client.server_domain.as_ref().unwrap_or(&"".to_string()).is_empty() {
                 client.server_domain = Some(client.server_host.clone());
             }
             if client.listen_host.is_empty() {
