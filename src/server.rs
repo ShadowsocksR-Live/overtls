@@ -1,4 +1,4 @@
-use crate::{config::Config, parseresponse::*, tls::*, weirduri::TARGET_ADDRESS};
+use crate::{config::Config, tls::*, weirduri::TARGET_ADDRESS};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use httparse;
@@ -11,6 +11,7 @@ use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
 use tokio_tungstenite::{accept_hdr_async, WebSocketStream};
 use tungstenite::{
     handshake::server::{create_response, ErrorResponse, Request, Response},
+    handshake::{machine::TryParse, server},
     protocol::{Message, Role},
 };
 
@@ -182,12 +183,12 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     let mut ws_stream: WebSocketStream<S>;
 
     if !handshake.is_empty() {
-        if let Some((_, req)) = try_parse_request(handshake)? {
+        if let Some((_, req)) = Request::try_parse(handshake)? {
             retrieve_values(&req);
 
             let res = create_response(&req)?;
             let mut output = vec![];
-            write_response(&mut output, &res)?;
+            server::write_response(&mut output, &res)?;
             stream.write_buf(&mut &output[..]).await?;
 
             ws_stream = WebSocketStream::from_raw_socket(stream, Role::Server, None).await;

@@ -1,7 +1,6 @@
 pub mod client;
 pub mod cmdopt;
 pub mod config;
-pub mod parseresponse;
 pub mod server;
 pub mod tls;
 pub mod weirduri;

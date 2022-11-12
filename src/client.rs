@@ -1,4 +1,4 @@
-use crate::{config::Config, parseresponse::parse_response_data, program_name, tls::*, weirduri::WeirdUri};
+use crate::{config::Config, program_name, tls::*, weirduri::WeirdUri};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use log::*;
@@ -7,7 +7,14 @@ use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Conne
 use std::net::ToSocketAddrs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::WebSocketStream;
-use tungstenite::protocol::{Message, Role};
+use tungstenite::{
+    client::IntoClientRequest,
+    handshake::{
+        client::{self, Response},
+        machine::TryParse,
+    },
+    protocol::{Message, Role},
+};
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     info!("starting {} client...", program_name());
@@ -23,7 +30,7 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
         let config = config.clone();
         tokio::spawn(async move {
             if let Err(e) = handle_incoming(conn, config).await {
-                error!("{}", e);
+                debug!("{}", e);
             }
         });
     }
@@ -46,7 +53,7 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
         }
         Connection::Connect(connect, addr) => {
             if let Err(e) = handle_socks5_cmd_connection(connect, addr, config).await {
-                error!("{}: {}", peer_addr, e);
+                debug!("{}: {}", peer_addr, e);
             }
         }
     }
@@ -87,13 +94,13 @@ async fn handle_socks5_cmd_connection(
 
     let mut outgoing = create_tls_cliet_stream(cert_store, &addr, domain).await?;
 
-    let (v, key) = uri.generate_request()?;
+    let (v, key) = client::generate_request(uri.into_client_request()?)?;
     outgoing.write_all(&v).await?;
 
     let mut buf = BytesMut::with_capacity(2048);
     outgoing.read_buf(&mut buf).await?;
 
-    let response = parse_response_data(&buf)?;
+    let response = Response::try_parse(&buf)?.ok_or_else(|| anyhow::anyhow!("response"))?.1;
     let remote_key = response
         .headers()
         .get("Sec-WebSocket-Accept")
@@ -102,7 +109,7 @@ async fn handle_socks5_cmd_connection(
     let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
 
     if accept_key.as_str() != remote_key.to_str()? {
-        error!("{} -> {} accept key error", peer_addr, target_addr);
+        debug!("{} -> {} accept key error", peer_addr, target_addr);
         return Ok(());
     }
 

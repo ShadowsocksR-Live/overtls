@@ -19,8 +19,8 @@ socks5-server = { version = "0.8.3", git = "https://github.com/ssrlive/socks5-se
 bytes = "1.2.1"
 futures = "0.3.25"
 futures-util = { version = "0.3.25", default-features = false, features = ["sink", "std"] }
-tungstenite = { version ="0.17.3", features = [ "rustls-tls-webpki-roots" ] }
-tokio-tungstenite = { version = "0.17.2", features = [ "rustls-tls-webpki-roots" ]  }
+tungstenite = { git = "https://github.com/ssrlive/tungstenite-rs.git", branch = "mychange", features = [ "rustls-tls-webpki-roots" ] }
+tokio-tungstenite = { git = "https://github.com/ssrlive/tokio-tungstenite.git", branch = "mychange", features = [ "rustls-tls-webpki-roots" ]  }
 tokio-stream = "0.1.8"
 futures-channel = "0.3.25"
 rustls = "0.20.1"
