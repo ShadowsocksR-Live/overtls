@@ -66,10 +66,10 @@ async fn handle_socks5_cmd_connection(
     target_addr: Address,
     config: Config,
 ) -> anyhow::Result<()> {
-    let incoming = connect.reply(Reply::Succeeded, Address::unspecified()).await?.stream;
+    let mut incoming = connect.reply(Reply::Succeeded, Address::unspecified()).await?;
 
     let peer_addr = incoming.peer_addr()?;
-    let (mut incoming_r, mut incoming_w) = incoming.into_split();
+    let (mut incoming_r, mut incoming_w) = incoming.split();
 
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
     let tunnel_path = config.tunnel_path.trim_matches('/');
