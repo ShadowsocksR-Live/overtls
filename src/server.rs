@@ -164,7 +164,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     peer: SocketAddr,
     handshake: &[u8],
 ) -> anyhow::Result<()> {
-    log::trace!("{} -> tunnel_path {}", peer, config.tunnel_path);
+    log::trace!("{} -> tunnel path \"{}\"", peer, config.tunnel_path);
 
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
@@ -267,7 +267,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         r = ws_stream_to_outgoing => { if let Err(e) = r { log::debug!("{} ws_stream_to_outgoing \"{}\"", peer, e); } }
         r = outgoing_to_ws_stream => { if let Err(e) = r { log::debug!("{} outgoing_to_ws_stream \"{}\"", peer, e); } }
     }
-    log::trace!("{} <-> {} connection closed.", peer, addr_str);
+    log::trace!("{} <> {} connection closed.", peer, addr_str);
 
     Ok(())
 }
