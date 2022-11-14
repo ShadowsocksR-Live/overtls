@@ -108,9 +108,6 @@ impl Config {
             if client.listen_host.is_empty() {
                 client.listen_host = "127.0.0.1".to_string();
             }
-            if client.listen_port == 0 {
-                client.listen_port = 1080;
-            }
 
             if !running_server {
                 let addr = format!("{}:{}", client.server_host, client.server_port);
