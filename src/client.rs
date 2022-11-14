@@ -3,8 +3,12 @@ use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_proto::{Address, Reply};
 use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server};
-use std::net::ToSocketAddrs;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::net::{SocketAddr, ToSocketAddrs};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
+use tokio_rustls::client::TlsStream;
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::{
     client::IntoClientRequest,
@@ -71,49 +75,7 @@ async fn handle_socks5_cmd_connection(
     let peer_addr = incoming.peer_addr()?;
     let (mut incoming_r, mut incoming_w) = incoming.split();
 
-    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
-    let tunnel_path = config.tunnel_path.trim_matches('/');
-
-    log::trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
-
-    let mut buf = BytesMut::with_capacity(1024);
-    target_addr.write_to_buf(&mut buf);
-    let b64_addr = base64::encode(&buf);
-
-    let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
-
-    let uri = WeirdUri::new(&uri, Some(b64_addr));
-
-    let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
-
-    let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
-    let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
-    let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
-
-    let mut outgoing = create_tls_cliet_stream(cert_store, &addr, domain).await?;
-
-    let (v, key) = client::generate_request(uri.into_client_request()?)?;
-    outgoing.write_all(&v).await?;
-
-    let mut buf = BytesMut::with_capacity(2048);
-    outgoing.read_buf(&mut buf).await?;
-
-    let response = Response::try_parse(&buf)?.ok_or_else(|| anyhow::anyhow!("response"))?.1;
-    let remote_key = response
-        .headers()
-        .get("Sec-WebSocket-Accept")
-        .ok_or_else(|| anyhow::anyhow!("{:?}", response))?;
-
-    let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
-
-    if accept_key.as_str() != remote_key.to_str()? {
-        log::debug!("{} -> {} accept key error", peer_addr, target_addr);
-        return Ok(());
-    }
-
-    let ws_stream = WebSocketStream::from_raw_socket(outgoing, Role::Client, None).await;
-    // let (mut ws_stream, _) = tokio_tungstenite::client_async(uri, outgoing).await?;
-
+    let ws_stream = create_ws_tls_stream(&target_addr, peer_addr, config).await?;
     let (mut ws_stream_w, mut ws_stream_r) = ws_stream.split();
 
     let incoming_to_ws = async {
@@ -153,4 +115,57 @@ async fn handle_socks5_cmd_connection(
         result = incoming_to_ws => { result }
         result = ws_to_incoming => { result }
     }
+}
+
+type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
+
+pub async fn create_ws_tls_stream(
+    target_addr: &Address,
+    incoming_addr: SocketAddr,
+    config: Config,
+) -> anyhow::Result<WsTlsStream> {
+    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
+    let tunnel_path = config.tunnel_path.trim_matches('/');
+
+    log::trace!("{} -> {} tunnel establishing", incoming_addr, target_addr);
+
+    let mut buf = BytesMut::with_capacity(1024);
+    target_addr.write_to_buf(&mut buf);
+    let b64_addr = base64::encode(&buf);
+
+    let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
+
+    let uri = WeirdUri::new(&uri, Some(b64_addr));
+
+    let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
+
+    let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
+    let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
+    let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
+
+    let mut outgoing = create_tls_cliet_stream(cert_store, &addr, domain).await?;
+
+    let (v, key) = client::generate_request(uri.into_client_request()?)?;
+    outgoing.write_all(&v).await?;
+
+    let mut buf = BytesMut::with_capacity(2048);
+    outgoing.read_buf(&mut buf).await?;
+
+    let response = Response::try_parse(&buf)?.ok_or_else(|| anyhow::anyhow!("response"))?.1;
+    let remote_key = response
+        .headers()
+        .get("Sec-WebSocket-Accept")
+        .ok_or_else(|| anyhow::anyhow!("{:?}", response))?;
+
+    let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
+
+    if accept_key.as_str() != remote_key.to_str()? {
+        log::debug!("{} -> {} accept key error", incoming_addr, target_addr);
+        return Err(anyhow::anyhow!("accept key error"));
+    }
+
+    let ws_stream = WebSocketStream::from_raw_socket(outgoing, Role::Client, None).await;
+    // let (mut ws_stream, _) = tokio_tungstenite::client_async(uri, outgoing).await?;
+
+    Ok(ws_stream)
 }
