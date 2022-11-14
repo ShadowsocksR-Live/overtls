@@ -44,9 +44,10 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
     let peer_addr = conn.peer_addr()?;
     match conn.handshake().await? {
         Connection::Associate(associate, _) => {
-            if let Err(e) = udprelay::handle_s5_upd_associate(associate, config).await {
-                log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");
-            }
+            let mut conn = associate
+                .reply(Reply::CommandNotSupported, Address::unspecified())
+                .await?;
+            conn.shutdown().await?;
         }
         Connection::Bind(bind, _) => {
             let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
