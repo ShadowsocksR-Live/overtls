@@ -1,4 +1,4 @@
-use crate::{config::Config, program_name, tls::*, weirduri::WeirdUri};
+use crate::{config::Config, convert_addess_to_string, program_name, tls::*, weirduri::WeirdUri};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_proto::{Address, Reply};
@@ -44,10 +44,9 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
     let peer_addr = conn.peer_addr()?;
     match conn.handshake().await? {
         Connection::Associate(associate, _) => {
-            let mut conn = associate
-                .reply(Reply::CommandNotSupported, Address::unspecified())
-                .await?;
-            conn.shutdown().await?;
+            if let Err(e) = udprelay::handle_s5_upd_associate(associate, config).await {
+                log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");
+            }
         }
         Connection::Bind(bind, _) => {
             let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
@@ -75,7 +74,7 @@ async fn handle_socks5_cmd_connection(
     let peer_addr = incoming.peer_addr()?;
     let (mut incoming_r, mut incoming_w) = incoming.split();
 
-    let ws_stream = create_ws_tls_stream(&target_addr, peer_addr, config).await?;
+    let ws_stream = create_ws_tls_stream(&target_addr, peer_addr, &config, None).await?;
     let (mut ws_stream_w, mut ws_stream_r) = ws_stream.split();
 
     let incoming_to_ws = async {
@@ -122,20 +121,19 @@ type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 pub async fn create_ws_tls_stream(
     target_addr: &Address,
     incoming_addr: SocketAddr,
-    config: Config,
+    config: &Config,
+    upd_associate: Option<String>,
 ) -> anyhow::Result<WsTlsStream> {
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
     let tunnel_path = config.tunnel_path.trim_matches('/');
 
     log::trace!("{} -> {} tunnel establishing", incoming_addr, target_addr);
 
-    let mut buf = BytesMut::with_capacity(1024);
-    target_addr.write_to_buf(&mut buf);
-    let b64_addr = base64::encode(&buf);
+    let b64_addr = convert_addess_to_string(target_addr, false);
 
     let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
 
-    let uri = WeirdUri::new(&uri, Some(b64_addr));
+    let uri = WeirdUri::new(&uri, Some(b64_addr), upd_associate);
 
     let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
 
