@@ -1,4 +1,4 @@
-use crate::{config::Config, convert_addess_to_string, program_name, tls::*, weirduri::WeirdUri};
+use crate::{config::Config, convert_addess_to_string, program_name, tls::*, udprelay, weirduri::WeirdUri};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_proto::{Address, Reply};
@@ -44,10 +44,9 @@ async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Re
     let peer_addr = conn.peer_addr()?;
     match conn.handshake().await? {
         Connection::Associate(associate, _) => {
-            let mut conn = associate
-                .reply(Reply::CommandNotSupported, Address::unspecified())
-                .await?;
-            conn.shutdown().await?;
+            if let Err(e) = udprelay::handle_s5_upd_associate(associate, config).await {
+                log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");
+            }
         }
         Connection::Bind(bind, _) => {
             let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
