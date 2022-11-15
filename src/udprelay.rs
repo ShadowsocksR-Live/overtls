@@ -23,14 +23,14 @@ pub async fn handle_s5_upd_associate(associate: Associate<UdpNeedReply>, config:
     // listen on a random port
     let udp_listener = UdpSocket::bind(SocketAddr::from((listen_ip, 0))).await;
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
-        Ok((socket, listen_addr)) => {
+        Ok((listen_socket, listen_addr)) => {
             let mut reply_listener = associate
                 .reply(Reply::Succeeded, Address::SocketAddress(listen_addr))
                 .await?;
 
             let buf_size = MAX_UDP_RELAY_PACKET_SIZE.load(Ordering::Acquire)
                 - (command_max_serialized_len() - UdpHeader::max_serialized_len());
-            let socket = Arc::new(AssociatedUdpSocket::from((socket, buf_size)));
+            let listen_socket = Arc::new(AssociatedUdpSocket::from((listen_socket, buf_size)));
             let ctrl_addr = reply_listener.peer_addr()?;
 
             log::info!("[socks5] {} UDP associate listen_addr {}", ctrl_addr, listen_addr);
@@ -43,8 +43,8 @@ pub async fn handle_s5_upd_associate(associate: Associate<UdpNeedReply>, config:
 
             let res = tokio::select! {
                 _ = reply_listener.wait_until_closed() => Ok::<_, anyhow::Error>(()),
-                res = socks5_to_relay(socket.clone(),ctrl_addr, pkt_send_tx) => res,
-                res = relay_to_socks5(socket,ctrl_addr, pkt_recv_rx) => res,
+                res = socks5_to_relay(listen_socket.clone(),ctrl_addr, pkt_send_tx) => res,
+                res = relay_to_socks5(listen_socket,ctrl_addr, pkt_recv_rx) => res,
             };
 
             reply_listener.shutdown().await?;
