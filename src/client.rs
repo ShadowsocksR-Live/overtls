@@ -123,18 +123,20 @@ type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 pub async fn create_ws_tls_stream(
     target_addr: Option<Address>,
     config: &Config,
-    upd_associate: Option<Address>,
+    udp: Option<&[u8]>,
 ) -> anyhow::Result<WsTlsStream> {
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
     let tunnel_path = config.tunnel_path.trim_matches('/');
 
-    let b64_dst = if let Some(target_addr) = &target_addr {
-        Some(addess_to_b64str(target_addr, false))
-    } else {
-        None
-    };
-    let b64_udp = if let Some(upd_associate) = &upd_associate {
-        Some(addess_to_b64str(upd_associate, true))
+    let b64_dst = target_addr
+        .as_ref()
+        .map(|target_addr| addess_to_b64str(target_addr, false));
+    let b64_udp = if let Some(udp) = udp {
+        if !udp.is_empty() {
+            Some(base64::encode_config(udp, base64::URL_SAFE_NO_PAD))
+        } else {
+            None
+        }
     } else {
         None
     };
