@@ -1,4 +1,4 @@
-use crate::{config::Config, convert_string_to_address, tls::*, weirduri::TARGET_ADDRESS};
+use crate::{b64str_to_address, config::Config, tls::*, weirduri::TARGET_ADDRESS};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -200,7 +200,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         ws_stream = accept_hdr_async(stream, check_headers_callback).await?;
     }
 
-    let addr_str = convert_string_to_address(&target_address, false).await?.to_string();
+    let addr_str = b64str_to_address(&target_address, false).await?.to_string();
     let target_address = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
 
     log::trace!("{} -> {}  uri path: \"{}\"", peer, addr_str, uri_path);
