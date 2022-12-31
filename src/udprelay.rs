@@ -133,8 +133,6 @@ async fn relay_to_socks5(
         if *incoming_addr.lock().await == to_addr {
             log::debug!("UDP associate. feedback to incoming {to_addr}");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
-        } else {
-            log::warn!("UDP associate. unexpected packet {to_addr}");
         }
     }
     log::info!("UDP associate. relay_to_socks5 exiting.");
@@ -185,7 +183,7 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
                         udp_tx.send((Bytes::from(pkt), dst_addr, src_addr))?;
                     },
                     Some(Ok(Message::Close(_))) => {
-                        log::info!("UDP associate. ws stream closed");
+                        log::info!("UDP associate. ws stream closed by remote");
                         break;
                     },
                     Some(Ok(_)) => {
@@ -196,7 +194,7 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
                         break;
                     },
                     None => {
-                        log::info!("UDP associate. ws stream closed");
+                        log::info!("UDP associate. ws stream closed by local");
                         break;
                     }
                 }
