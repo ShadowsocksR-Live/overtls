@@ -169,11 +169,13 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
             msg = ws_stream_r.next() => {
                 match msg {
                     Some(Ok(Message::Binary(buf))) => {
-                        let buf = BytesMut::from(&buf[..]);
+                        let mut buf = BytesMut::from(&buf[..]);
                         let dst_addr = Address::read_from(&mut &buf[..]).await?;
+                        let _ = buf.split_to(dst_addr.serialized_len());
                         let src_addr = Address::read_from(&mut &buf[..]).await?;
+                        let _ = buf.split_to(src_addr.serialized_len());
                         let pkt = buf.to_vec();
-                        log::debug!("[UDP] recv from remote {src_addr} -> {dst_addr} {} bytes", pkt.len());
+                        log::trace!("[UDP] recv from remote {src_addr} -> {dst_addr} {} bytes", pkt.len());
                         udp_tx.send((Bytes::from(pkt), dst_addr, src_addr))?;
                     },
                     Some(Ok(Message::Close(_))) => {

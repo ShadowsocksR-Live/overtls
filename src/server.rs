@@ -308,11 +308,13 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 }
                 if msg.is_text() || msg.is_binary() {
                     let data = msg.into_data();
-                    let buf = BytesMut::from(&data[..]);
+                    let mut buf = BytesMut::from(&data[..]);
                     let dst_addr = Address::read_from(&mut &buf[..]).await?;
+                    let _ = buf.split_to(dst_addr.serialized_len());
                     let src_addr = Address::read_from(&mut &buf[..]).await?;
+                    let _ = buf.split_to(src_addr.serialized_len());
                     let pkt = buf.to_vec();
-                    // log::debug!("[UDP] packet from {src_addr} -> {dst_addr} {} bytes", pkt.len());
+                    log::trace!("[UDP] packet from {src_addr} -> {dst_addr} {} bytes", pkt.len());
 
                     addresses.lock().await.insert(dst_addr.clone(), src_addr);
 
@@ -355,6 +357,8 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
         src_addr.write_to_buf(&mut buf);
         dst_addr.write_to_buf(&mut buf);
         buf.put_slice(pkt);
+
+        log::trace!("[UDP] remote packet from {src_addr} -> {dst_addr} {} bytes", pkt.len());
 
         ws_stream.send(Message::binary(buf.to_vec())).await?;
     }
