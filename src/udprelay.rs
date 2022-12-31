@@ -32,7 +32,7 @@ pub async fn handle_s5_upd_associate(
     let udp_listener = UdpSocket::bind(SocketAddr::from((listen_ip, 0))).await;
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
         Ok((listen_udp, listen_addr)) => {
-            log::info!("UDP associate. listen on {listen_addr}");
+            log::info!("[UDP] listen on {listen_addr}");
 
             let s5_listen_addr = Address::SocketAddress(listen_addr);
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
@@ -52,7 +52,7 @@ pub async fn handle_s5_upd_associate(
 
             reply_listener.shutdown().await?;
 
-            log::info!("UDP associate. listener {listen_addr} closed with {res:?}");
+            log::info!("[UDP] listener {listen_addr} closed with {res:?}");
 
             {
                 let incoming = *incoming_addr.lock().await;
@@ -82,26 +82,25 @@ async fn socks5_to_relay(
     udp_tx: UdpRequestSender,
 ) -> anyhow::Result<()> {
     loop {
-        log::info!("UDP associate. waiting for incoming packet");
+        log::info!("[UDP] waiting for incoming packet");
 
         let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();
         listen_udp.set_max_packet_size(buf_size);
 
         let (pkt, frag, dst_addr, src_addr) = listen_udp.recv_from().await?;
         if frag != 0 {
-            log::warn!("UDP associate. packet fragment is not supported");
+            log::warn!("[UDP] packet fragment is not supported");
             break;
         }
 
         incoming.lock().await.clone_from(&src_addr);
         incomings.lock().await.insert(src_addr);
 
-        let len = pkt.len();
-        log::debug!("UDP associate. incoming packet {src_addr} -> {dst_addr} {len} bytes");
+        log::debug!("[UDP] incoming packet {src_addr} -> {dst_addr} {} bytes", pkt.len());
         let src_addr = Address::SocketAddress(src_addr);
         let _ = udp_tx.send((pkt, dst_addr, src_addr));
     }
-    log::info!("UDP associate. socks5_to_relay exiting.");
+    log::info!("[UDP] socks5_to_relay exiting.");
     Ok(())
 }
 
@@ -128,11 +127,11 @@ async fn relay_to_socks5(
     while let Ok((pkt, addr, _)) = udp_rx.recv().await {
         let to_addr = to_socket_addr(&addr)?;
         if *incoming_addr.lock().await == to_addr {
-            log::debug!("UDP associate. feedback to incoming {to_addr}");
+            log::debug!("[UDP] feedback to incoming {to_addr}");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
         }
     }
-    log::info!("UDP associate. relay_to_socks5 exiting.");
+    log::info!("[UDP] relay_to_socks5 exiting.");
     Ok(())
 }
 
@@ -159,12 +158,11 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
                     src_addr.write_to_buf(&mut buf);
                     buf.put_slice(&pkt);
 
-                    let len = buf.len();
-                    log::debug!("UDP associate. send to remote {src_addr} -> {dst_addr} {len} bytes");
+                    log::debug!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
                     let msg = Message::Binary(buf.freeze().to_vec());
                     ws_stream_w.send(msg).await?;
                 } else {
-                    log::trace!("UDP associate. skip feedback packet {src_addr} -> {dst_addr}");
+                    log::trace!("[UDP] skip feedback packet {src_addr} -> {dst_addr}");
                 }
                  Ok::<_, anyhow::Error>(())
             },
@@ -175,23 +173,22 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
                         let dst_addr = Address::read_from(&mut &buf[..]).await?;
                         let src_addr = Address::read_from(&mut &buf[..]).await?;
                         let pkt = buf.to_vec();
-                        let len = pkt.len();
-                        log::debug!("UDP associate. recv from remote {src_addr} -> {dst_addr} {len} bytes");
+                        log::debug!("[UDP] recv from remote {src_addr} -> {dst_addr} {} bytes", pkt.len());
                         udp_tx.send((Bytes::from(pkt), dst_addr, src_addr))?;
                     },
                     Some(Ok(Message::Close(_))) => {
-                        log::info!("UDP associate. ws stream closed by remote");
+                        log::info!("[UDP] ws stream closed by remote");
                         break;
                     },
                     Some(Ok(_)) => {
-                        log::warn!("UDP associate. unexpected ws message");
+                        log::warn!("[UDP] unexpected ws message");
                     },
                     Some(Err(err)) => {
-                        log::warn!("UDP associate. ws stream error {}", err);
+                        log::warn!("[UDP] ws stream error {}", err);
                         break;
                     },
                     None => {
-                        log::info!("UDP associate. ws stream closed by local");
+                        log::info!("[UDP] ws stream closed by local");
                         break;
                     }
                 }
@@ -200,7 +197,7 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
         };
     }
 
-    log::info!("UDP associate. run_udp_loop exiting.");
+    log::info!("[UDP] run_udp_loop exiting.");
 
     Ok(())
 }
