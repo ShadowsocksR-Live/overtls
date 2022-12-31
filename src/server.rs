@@ -1,9 +1,12 @@
-use crate::{config::Config, convert_string_to_address, tls::*, weirduri::TARGET_ADDRESS};
-use bytes::BytesMut;
+use crate::{b64str_to_address, config::Config, tls::*, udprelay, weirduri::TARGET_ADDRESS, weirduri::UDP};
+use bytes::{BufMut, BytesMut};
 use futures_util::{SinkExt, StreamExt};
+use socks5_proto::Address;
 use std::net::{SocketAddr, ToSocketAddrs};
+use std::{collections::HashMap, sync::Arc};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::{net::UdpSocket, sync::Mutex};
 use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
 use tokio_tungstenite::{accept_hdr_async, WebSocketStream};
 use tungstenite::{
@@ -167,12 +170,18 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
+    let mut udp = false;
 
     let mut retrieve_values = |req: &Request| {
         uri_path = req.uri().path().to_string();
         if let Some(value) = req.headers().get(TARGET_ADDRESS) {
             if let Ok(value) = value.to_str() {
                 target_address = value.to_string();
+            }
+        }
+        if let Some(value) = req.headers().get(UDP) {
+            if let Ok(value) = value.to_str() {
+                udp = value.parse::<bool>().unwrap_or(false);
             }
         }
     };
@@ -200,7 +209,11 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         ws_stream = accept_hdr_async(stream, check_headers_callback).await?;
     }
 
-    let addr_str = convert_string_to_address(&target_address, false).await?.to_string();
+    if udp {
+        return udp_tunnel(ws_stream, peer, uri_path, config).await;
+    }
+
+    let addr_str = b64str_to_address(&target_address, false).await?.to_string();
     let target_address = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
 
     log::trace!("{} -> {}  uri path: \"{}\"", peer, addr_str, uri_path);
@@ -267,5 +280,87 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     }
     log::trace!("{} <> {} connection closed.", peer, addr_str);
 
+    Ok(())
+}
+
+async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
+    mut ws_stream: WebSocketStream<S>,
+    peer: SocketAddr,
+    uri_path: String,
+    _config: Config,
+) -> anyhow::Result<()> {
+    log::trace!("{} -> udp target uri path: \"{}\"", peer, uri_path);
+
+    let udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
+    let udp_socket_v6 = UdpSocket::bind("[::]:0").await?;
+
+    let mut buf = vec![0u8; 2048];
+    let mut buf_v6 = vec![0u8; 2048];
+
+    let addresses = Arc::new(Mutex::new(HashMap::new()));
+
+    loop {
+        tokio::select! {
+            Some(msg) = ws_stream.next() => {
+                let msg = msg?;
+                if msg.is_close() {
+                    break;
+                }
+                if msg.is_text() || msg.is_binary() {
+                    let data = msg.into_data();
+                    let mut buf = BytesMut::from(&data[..]);
+                    let dst_addr = Address::read_from(&mut &buf[..]).await?;
+                    let _ = buf.split_to(dst_addr.serialized_len());
+                    let src_addr = Address::read_from(&mut &buf[..]).await?;
+                    let _ = buf.split_to(src_addr.serialized_len());
+                    let pkt = buf.to_vec();
+                    log::trace!("[UDP] packet from {src_addr} -> {dst_addr} {} bytes", pkt.len());
+
+                    addresses.lock().await.insert(dst_addr.clone(), src_addr);
+
+                    let dst_addr = udprelay::to_socket_addr(&dst_addr)?;
+
+                    if dst_addr.is_ipv4() {
+                        udp_socket.send_to(&pkt, &dst_addr).await?;
+                    } else {
+                        udp_socket_v6.send_to(&pkt, dst_addr).await?;
+                    }
+                }
+            }
+            Ok((len, addr)) = udp_socket.recv_from(&mut buf) => {
+                let pkt = buf[..len].to_vec();
+                _write_ws_stream(&pkt, &mut ws_stream, &addresses, addr).await?;
+            }
+            Ok((len, addr)) = udp_socket_v6.recv_from(&mut buf_v6) => {
+                let pkt = buf_v6[..len].to_vec();
+                _write_ws_stream(&pkt, &mut ws_stream, &addresses, addr).await?;
+            }
+            else => {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
+    pkt: &[u8],
+    ws_stream: &mut WebSocketStream<S>,
+    addresses: &Arc<Mutex<HashMap<Address, Address>>>,
+    addr: SocketAddr,
+) -> anyhow::Result<()> {
+    let dst_addr = Address::SocketAddress(addr);
+    let src_addr = addresses.lock().await.get(&dst_addr).cloned();
+    if let Some(src_addr) = src_addr {
+        // write back to client, data format: src_addr + dst_addr + payload
+        let mut buf = BytesMut::new();
+        src_addr.write_to_buf(&mut buf);
+        dst_addr.write_to_buf(&mut buf);
+        buf.put_slice(pkt);
+
+        log::trace!("[UDP] remote packet from {src_addr} -> {dst_addr} {} bytes", pkt.len());
+
+        ws_stream.send(Message::binary(buf.to_vec())).await?;
+    }
     Ok(())
 }

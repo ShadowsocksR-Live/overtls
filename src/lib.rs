@@ -3,6 +3,7 @@ pub mod cmdopt;
 pub mod config;
 pub mod server;
 pub mod tls;
+pub mod udprelay;
 pub mod weirduri;
 
 use bytes::BytesMut;
@@ -23,7 +24,7 @@ pub fn program_name() -> String {
         .to_string()
 }
 
-pub fn convert_addess_to_string(addr: &Address, url_safe: bool) -> String {
+pub fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     let mut buf = BytesMut::with_capacity(1024);
     addr.write_to_buf(&mut buf);
     let config = if url_safe {
@@ -34,7 +35,7 @@ pub fn convert_addess_to_string(addr: &Address, url_safe: bool) -> String {
     base64::encode_config(&buf, config)
 }
 
-pub async fn convert_string_to_address(s: &str, url_safe: bool) -> anyhow::Result<Address> {
+pub async fn b64str_to_address(s: &str, url_safe: bool) -> anyhow::Result<Address> {
     let config = if url_safe {
         base64::URL_SAFE_NO_PAD
     } else {

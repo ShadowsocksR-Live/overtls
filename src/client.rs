@@ -1,9 +1,9 @@
-use crate::{config::Config, convert_addess_to_string, program_name, tls::*, weirduri::WeirdUri};
+use crate::{addess_to_b64str, config::Config, program_name, tls::*, udprelay, weirduri::WeirdUri};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_proto::{Address, Reply};
 use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server};
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::ToSocketAddrs;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -28,10 +28,23 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     let addr = format!("{}:{}", client.listen_host, client.listen_port);
     let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
 
+    let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
+    {
+        let config = config.clone();
+        let incomings = incomings.clone();
+        let udp_tx = udp_tx.clone();
+        tokio::spawn(async move {
+            let _ = udprelay::run_udp_loop(udp_tx, incomings, config).await;
+            log::info!("udp loop thread stopped");
+        });
+    }
+
     while let Ok((conn, _)) = server.accept().await {
         let config = config.clone();
+        let udp_tx = udp_tx.clone();
+        let incomings = incomings.clone();
         tokio::spawn(async move {
-            if let Err(e) = handle_incoming(conn, config).await {
+            if let Err(e) = handle_incoming(conn, config, Some(udp_tx), incomings).await {
                 log::debug!("{}", e);
             }
         });
@@ -40,14 +53,23 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn handle_incoming(conn: IncomingConnection, config: Config) -> anyhow::Result<()> {
+async fn handle_incoming(
+    conn: IncomingConnection,
+    config: Config,
+    udp_tx: Option<udprelay::UdpRequestSender>,
+    incomings: udprelay::SocketAddrSet,
+) -> anyhow::Result<()> {
     let peer_addr = conn.peer_addr()?;
     match conn.handshake().await? {
-        Connection::Associate(associate, _) => {
-            let mut conn = associate
-                .reply(Reply::CommandNotSupported, Address::unspecified())
-                .await?;
-            conn.shutdown().await?;
+        Connection::Associate(asso, _) => {
+            if let Some(udp_tx) = udp_tx {
+                if let Err(e) = udprelay::handle_s5_upd_associate(asso, udp_tx, incomings).await {
+                    log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");
+                }
+            } else {
+                let mut conn = asso.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
+                conn.shutdown().await?;
+            }
         }
         Connection::Bind(bind, _) => {
             let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
@@ -75,7 +97,9 @@ async fn handle_socks5_cmd_connection(
     let peer_addr = incoming.peer_addr()?;
     let (mut incoming_r, mut incoming_w) = incoming.split();
 
-    let ws_stream = create_ws_tls_stream(&target_addr, peer_addr, &config, None).await?;
+    log::trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
+
+    let ws_stream = create_ws_tls_stream(Some(target_addr.clone()), &config, None).await?;
     let (mut ws_stream_w, mut ws_stream_r) = ws_stream.split();
 
     let incoming_to_ws = async {
@@ -120,21 +144,20 @@ async fn handle_socks5_cmd_connection(
 type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 
 pub async fn create_ws_tls_stream(
-    target_addr: &Address,
-    incoming_addr: SocketAddr,
+    target_addr: Option<Address>,
     config: &Config,
-    upd_associate: Option<String>,
+    udp: Option<bool>,
 ) -> anyhow::Result<WsTlsStream> {
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
     let tunnel_path = config.tunnel_path.trim_matches('/');
 
-    log::trace!("{} -> {} tunnel establishing", incoming_addr, target_addr);
-
-    let b64_addr = convert_addess_to_string(target_addr, false);
+    let b64_dst = target_addr
+        .as_ref()
+        .map(|target_addr| addess_to_b64str(target_addr, false));
 
     let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
 
-    let uri = WeirdUri::new(&uri, Some(b64_addr), upd_associate);
+    let uri = WeirdUri::new(&uri, b64_dst, udp);
 
     let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
 
@@ -159,7 +182,6 @@ pub async fn create_ws_tls_stream(
     let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
 
     if accept_key.as_str() != remote_key.to_str()? {
-        log::debug!("{} -> {} accept key error", incoming_addr, target_addr);
         return Err(anyhow::anyhow!("accept key error"));
     }
 

@@ -16,11 +16,11 @@ pub struct WeirdUri<'a> {
     pub uri: &'a str,
     pub target_address: Option<String>,
     pub sec_websocket_key: String,
-    pub udp: Option<String>,
+    pub udp: Option<bool>,
 }
 
 impl<'a> WeirdUri<'a> {
-    pub fn new(uri: &'a str, target_address: Option<String>, udp: Option<String>) -> Self {
+    pub fn new(uri: &'a str, target_address: Option<String>, udp: Option<bool>) -> Self {
         Self {
             uri,
             target_address,
@@ -49,9 +49,9 @@ impl<'a> IntoClientRequest for WeirdUri<'a> {
                 builder = builder.header(TARGET_ADDRESS, target_address);
             }
         }
-        if let Some(ref udp) = self.udp {
-            if !udp.is_empty() {
-                builder = builder.header(UDP, udp);
+        if let Some(udp) = self.udp {
+            if udp {
+                builder = builder.header(UDP, udp.to_string());
             }
         }
         let req = builder.uri(uri.as_str()).body(())?;
