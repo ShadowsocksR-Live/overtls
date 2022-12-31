@@ -9,10 +9,7 @@ use socks5_server::{
 use std::{
     collections::HashSet,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::Arc,
 };
 use tokio::{
     net::UdpSocket,
@@ -40,7 +37,7 @@ pub async fn handle_s5_upd_associate(
             let s5_listen_addr = Address::SocketAddress(listen_addr);
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
 
-            let buf_size = MAX_UDP_RELAY_PACKET_SIZE.load(Ordering::Acquire) - UdpHeader::max_serialized_len();
+            let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();
             let listen_udp = Arc::new(AssociatedUdpSocket::from((listen_udp, buf_size)));
 
             let udp_rx = udp_tx.subscribe();
@@ -72,7 +69,7 @@ pub async fn handle_s5_upd_associate(
     }
 }
 
-pub static MAX_UDP_RELAY_PACKET_SIZE: AtomicUsize = AtomicUsize::new(1500);
+pub static MAX_UDP_RELAY_PACKET_SIZE: usize = 1500;
 
 pub const fn command_max_serialized_len() -> usize {
     2 + 6 + Address::max_serialized_len()
@@ -87,7 +84,7 @@ async fn socks5_to_relay(
     loop {
         log::info!("UDP associate. waiting for incoming packet");
 
-        let buf_size = MAX_UDP_RELAY_PACKET_SIZE.load(Ordering::Acquire) - UdpHeader::max_serialized_len();
+        let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();
         listen_udp.set_max_packet_size(buf_size);
 
         let (pkt, frag, dst_addr, src_addr) = listen_udp.recv_from().await?;
@@ -146,7 +143,7 @@ pub fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, SocketAddrS
 }
 
 pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, config: Config) -> anyhow::Result<()> {
-    let ws_stream = client::create_ws_tls_stream(None, &config, Some(&[1])).await?;
+    let ws_stream = client::create_ws_tls_stream(None, &config, Some(true)).await?;
     let (mut ws_stream_w, mut ws_stream_r) = ws_stream.split();
 
     let mut udp_rx = udp_tx.subscribe();

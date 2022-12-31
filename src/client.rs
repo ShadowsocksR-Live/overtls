@@ -146,7 +146,7 @@ type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 pub async fn create_ws_tls_stream(
     target_addr: Option<Address>,
     config: &Config,
-    udp: Option<&[u8]>,
+    udp: Option<bool>,
 ) -> anyhow::Result<WsTlsStream> {
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
     let tunnel_path = config.tunnel_path.trim_matches('/');
@@ -154,19 +154,10 @@ pub async fn create_ws_tls_stream(
     let b64_dst = target_addr
         .as_ref()
         .map(|target_addr| addess_to_b64str(target_addr, false));
-    let b64_udp = if let Some(udp) = udp {
-        if !udp.is_empty() {
-            Some(base64::encode_config(udp, base64::URL_SAFE_NO_PAD))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
 
     let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
 
-    let uri = WeirdUri::new(&uri, b64_dst, b64_udp);
+    let uri = WeirdUri::new(&uri, b64_dst, udp);
 
     let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
 
