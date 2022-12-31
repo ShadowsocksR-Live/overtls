@@ -1,7 +1,7 @@
 use crate::{client, config::Config};
-use bytes::Bytes;
-use socks5_proto::UdpHeader;
-use socks5_proto::{Address, Reply};
+use bytes::{BufMut, Bytes, BytesMut};
+use futures_util::{SinkExt, StreamExt};
+use socks5_proto::{Address, Reply, UdpHeader};
 use socks5_server::{
     connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},
     Associate,
@@ -10,18 +10,15 @@ use std::{
     collections::HashSet,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc,
     },
 };
 use tokio::{
     net::UdpSocket,
-    sync::{
-        broadcast,
-        mpsc::{self, Receiver, Sender},
-        Mutex,
-    },
+    sync::{broadcast, Mutex},
 };
+use tungstenite::protocol::Message;
 
 pub type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Address)>;
 pub type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;
@@ -144,44 +141,71 @@ async fn relay_to_socks5(
     Ok(())
 }
 
-use bytes::{BufMut, BytesMut};
-use futures_util::{SinkExt, StreamExt};
-use tungstenite::{
-    client::IntoClientRequest,
-    handshake::{client::Response, machine::TryParse},
-    protocol::{Message, Role},
-};
-
 pub fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, SocketAddrSet) {
     let incomings = Arc::new(Mutex::new(HashSet::<SocketAddr>::new()));
     let (tx, rx) = tokio::sync::broadcast::channel::<(Bytes, Address, Address)>(10);
     (tx, rx, incomings)
 }
 
-pub async fn run_udp_loop(
-    mut udp_rx: UdpRequestReceiver,
-    incomings: SocketAddrSet,
-    config: Config,
-) -> anyhow::Result<()> {
-    let mut ws_stream = client::create_ws_tls_stream(None, &config, Some(&vec![1])).await?;
+pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, config: Config) -> anyhow::Result<()> {
+    let ws_stream = client::create_ws_tls_stream(None, &config, Some(&[1])).await?;
     let (mut ws_stream_w, mut ws_stream_r) = ws_stream.split();
 
-    while let Ok((pkt, dst_addr, src_addr)) = udp_rx.recv().await {
-        let flag = { incomings.lock().await.contains(&to_socket_addr(&dst_addr)?) };
-        if !flag {
-            // packet send to remote server, format: dst_addr + src_addr + pkt
-            let mut buf = BytesMut::new();
-            dst_addr.write_to_buf(&mut buf);
-            src_addr.write_to_buf(&mut buf);
-            buf.put_slice(&pkt);
+    let mut udp_rx = udp_tx.subscribe();
 
-            let len = buf.len();
-            log::debug!("UDP associate. send to remote {src_addr} -> {dst_addr} {len} bytes");
-            let msg = Message::Binary(buf.freeze().to_vec());
-            ws_stream_w.send(msg).await?;
-        } else {
-            log::debug!("UDP associate. skip feedback packet {src_addr} -> {dst_addr}");
-        }
+    loop {
+        let _res = tokio::select! {
+            Ok((pkt, dst_addr, src_addr)) = udp_rx.recv() => {
+                let flag = { incomings.lock().await.contains(&to_socket_addr(&dst_addr)?) };
+                if !flag {
+                    // packet send to remote server, format: dst_addr + src_addr + pkt
+                    let mut buf = BytesMut::new();
+                    dst_addr.write_to_buf(&mut buf);
+                    src_addr.write_to_buf(&mut buf);
+                    buf.put_slice(&pkt);
+
+                    let len = buf.len();
+                    log::debug!("UDP associate. send to remote {src_addr} -> {dst_addr} {len} bytes");
+                    let msg = Message::Binary(buf.freeze().to_vec());
+                    ws_stream_w.send(msg).await?;
+                } else {
+                    log::trace!("UDP associate. skip feedback packet {src_addr} -> {dst_addr}");
+                }
+                 Ok::<_, anyhow::Error>(())
+            },
+            msg = ws_stream_r.next() => {
+                match msg {
+                    Some(Ok(Message::Binary(buf))) => {
+                        let buf = BytesMut::from(&buf[..]);
+                        let dst_addr = Address::read_from(&mut &buf[..]).await?;
+                        let src_addr = Address::read_from(&mut &buf[..]).await?;
+                        let pkt = buf.to_vec();
+                        let len = pkt.len();
+                        log::debug!("UDP associate. recv from remote {src_addr} -> {dst_addr} {len} bytes");
+                        udp_tx.send((Bytes::from(pkt), dst_addr, src_addr))?;
+                    },
+                    Some(Ok(Message::Close(_))) => {
+                        log::info!("UDP associate. ws stream closed");
+                        break;
+                    },
+                    Some(Ok(_)) => {
+                        log::warn!("UDP associate. unexpected ws message");
+                    },
+                    Some(Err(err)) => {
+                        log::warn!("UDP associate. ws stream error {}", err);
+                        break;
+                    },
+                    None => {
+                        log::info!("UDP associate. ws stream closed");
+                        break;
+                    }
+                }
+                Ok::<_, anyhow::Error>(())
+            },
+        };
     }
+
+    log::info!("UDP associate. run_udp_loop exiting.");
+
     Ok(())
 }

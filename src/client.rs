@@ -28,12 +28,14 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     let addr = format!("{}:{}", client.listen_host, client.listen_port);
     let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
 
-    let (udp_tx, udp_rx, incomings) = udprelay::create_udp_tunnel();
+    let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
     {
         let config = config.clone();
         let incomings = incomings.clone();
+        let udp_tx = udp_tx.clone();
         tokio::spawn(async move {
-            let _ = udprelay::run_udp_loop(udp_rx, incomings, config).await;
+            let _ = udprelay::run_udp_loop(udp_tx, incomings, config).await;
+            log::info!("udp loop thread stopped");
         });
     }
 
