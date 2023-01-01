@@ -25,26 +25,27 @@ pub fn program_name() -> String {
 }
 
 use base64::engine::fast_portable::{FastPortable, NO_PAD};
-const URL_SAFE_ENGINE: FastPortable = FastPortable::from(&base64::alphabet::URL_SAFE, NO_PAD);
+const URL_SAFE_NO_PAD: FastPortable = FastPortable::from(&base64::alphabet::URL_SAFE, NO_PAD);
+const URL_STD_NO_PAD: FastPortable = FastPortable::from(&base64::alphabet::STANDARD, NO_PAD);
 
 pub fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     let mut buf = BytesMut::with_capacity(1024);
     addr.write_to_buf(&mut buf);
 
     let config = if url_safe {
-        &URL_SAFE_ENGINE
+        &URL_SAFE_NO_PAD
     } else {
-        &base64::engine::DEFAULT_ENGINE
+        &URL_STD_NO_PAD
     };
     base64::encode_engine(&buf, config)
 }
 
 pub async fn b64str_to_address(s: &str, url_safe: bool) -> anyhow::Result<Address> {
     let config = if url_safe {
-        &URL_SAFE_ENGINE
+        &URL_SAFE_NO_PAD
     } else {
-        &base64::engine::DEFAULT_ENGINE
+        &URL_STD_NO_PAD
     };
-    let buf = base64::encode_engine(s, config).as_bytes().to_vec();
+    let buf = base64::decode_engine(s, config)?;
     Address::read_from(&mut &buf[..]).await.map_err(|e| e.into())
 }
