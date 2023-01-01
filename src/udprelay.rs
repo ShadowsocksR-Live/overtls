@@ -56,7 +56,7 @@ pub async fn handle_s5_upd_associate(
 
             reply_listener.shutdown().await?;
 
-            log::info!("[UDP] listener {listen_addr} closed with {res:?}");
+            log::trace!("[UDP] listener {listen_addr} closed with {res:?}");
 
             {
                 let incoming = *incoming_addr.lock().await;
@@ -86,7 +86,7 @@ async fn socks5_to_relay(
     udp_tx: UdpRequestSender,
 ) -> anyhow::Result<()> {
     loop {
-        log::info!("[UDP] waiting for incoming packet");
+        log::trace!("[UDP] waiting for incoming packet");
 
         let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();
         listen_udp.set_max_packet_size(buf_size);
@@ -100,11 +100,11 @@ async fn socks5_to_relay(
         incoming.lock().await.clone_from(&src_addr);
         incomings.lock().await.insert(src_addr);
 
-        log::debug!("[UDP] incoming packet {src_addr} -> {dst_addr} {} bytes", pkt.len());
+        log::trace!("[UDP] incoming packet {src_addr} -> {dst_addr} {} bytes", pkt.len());
         let src_addr = Address::SocketAddress(src_addr);
         let _ = udp_tx.send((pkt, dst_addr, src_addr));
     }
-    log::info!("[UDP] socks5_to_relay exiting.");
+    log::trace!("[UDP] socks5_to_relay exiting.");
     Ok(())
 }
 
@@ -131,11 +131,11 @@ async fn relay_to_socks5(
     while let Ok((pkt, addr, _)) = udp_rx.recv().await {
         let to_addr = to_socket_addr(&addr)?;
         if *incoming_addr.lock().await == to_addr {
-            log::debug!("[UDP] feedback to incoming {to_addr}");
+            log::trace!("[UDP] feedback to incoming {to_addr}");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
         }
     }
-    log::info!("[UDP] relay_to_socks5 exiting.");
+    log::trace!("[UDP] relay_to_socks5 exiting.");
     Ok(())
 }
 
@@ -162,7 +162,7 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
                     src_addr.write_to_buf(&mut buf);
                     buf.put_slice(&pkt);
 
-                    log::debug!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
+                    log::trace!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
                     let msg = Message::Binary(buf.freeze().to_vec());
                     ws_stream_w.send(msg).await?;
                 } else {
@@ -183,18 +183,18 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
                         udp_tx.send((Bytes::from(pkt), dst_addr, src_addr))?;
                     },
                     Some(Ok(Message::Close(_))) => {
-                        log::info!("[UDP] ws stream closed by remote");
+                        log::trace!("[UDP] ws stream closed by remote");
                         break;
                     },
                     Some(Ok(_)) => {
-                        log::warn!("[UDP] unexpected ws message");
+                        log::trace!("[UDP] unexpected ws message");
                     },
                     Some(Err(err)) => {
-                        log::warn!("[UDP] ws stream error {}", err);
+                        log::trace!("[UDP] ws stream error {}", err);
                         break;
                     },
                     None => {
-                        log::info!("[UDP] ws stream closed by local");
+                        log::trace!("[UDP] ws stream closed by local");
                         break;
                     }
                 }
@@ -203,7 +203,7 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
         };
     }
 
-    log::info!("[UDP] run_udp_loop exiting.");
+    log::trace!("[UDP] run_udp_loop exiting.");
 
     Ok(())
 }
@@ -231,9 +231,9 @@ pub async fn udp_handler_watchdog(
             let running = running.clone();
             tokio::spawn(async move {
                 *running.lock().await = true;
-                log::info!("[UDP] udp client watchdog thread started");
+                log::trace!("[UDP] udp client watchdog thread started");
                 let _ = run_udp_loop(udp_tx, incomings, config).await;
-                log::info!("[UDP] udp client watchdog thread stopped");
+                log::trace!("[UDP] udp client watchdog thread stopped");
                 *running.lock().await = false;
             });
         }
