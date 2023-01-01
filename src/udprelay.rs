@@ -13,18 +13,20 @@ use std::{
 };
 use tokio::{
     net::UdpSocket,
-    sync::{broadcast, Mutex},
+    sync::{broadcast, mpsc, Mutex},
 };
 use tungstenite::protocol::Message;
 
 pub type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Address)>;
 pub type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;
 pub type SocketAddrSet = Arc<Mutex<HashSet<SocketAddr>>>;
+pub type UdpWaker = mpsc::Sender<()>;
 
 pub async fn handle_s5_upd_associate(
     associate: Associate<UdpNeedReply>,
     udp_tx: UdpRequestSender,
     incomings: SocketAddrSet,
+    udp_waker: UdpWaker,
 ) -> anyhow::Result<()> {
     let listen_ip = associate.local_addr()?.ip();
 
@@ -33,6 +35,8 @@ pub async fn handle_s5_upd_associate(
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
         Ok((listen_udp, listen_addr)) => {
             log::info!("[UDP] listen on {listen_addr}");
+
+            let _ = udp_waker.send(()).await;
 
             let s5_listen_addr = Address::SocketAddress(listen_addr);
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
@@ -202,4 +206,37 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
     log::info!("[UDP] run_udp_loop exiting.");
 
     Ok(())
+}
+
+pub async fn udp_handler_watchdog(
+    config: &Config,
+    incomings: &SocketAddrSet,
+    udp_tx: &UdpRequestSender,
+) -> anyhow::Result<UdpWaker> {
+    let config = config.clone();
+    let incomings = incomings.clone();
+    let udp_tx = udp_tx.clone();
+    let (tx, mut rx) = mpsc::channel::<()>(10);
+
+    let running = Arc::new(Mutex::new(false));
+
+    tokio::spawn(async move {
+        while rx.recv().await.is_some() {
+            if *running.lock().await {
+                continue;
+            }
+            let udp_tx = udp_tx.clone();
+            let incomings = incomings.clone();
+            let config = config.clone();
+            let running = running.clone();
+            tokio::spawn(async move {
+                *running.lock().await = true;
+                log::info!("[UDP] udp client watchdog thread started");
+                let _ = run_udp_loop(udp_tx, incomings, config).await;
+                log::info!("[UDP] udp client watchdog thread stopped");
+                *running.lock().await = false;
+            });
+        }
+    });
+    Ok(tx)
 }

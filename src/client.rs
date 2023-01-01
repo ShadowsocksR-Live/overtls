@@ -29,22 +29,15 @@ pub async fn run_client(config: &Config) -> anyhow::Result<()> {
     let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
 
     let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
-    {
-        let config = config.clone();
-        let incomings = incomings.clone();
-        let udp_tx = udp_tx.clone();
-        tokio::spawn(async move {
-            let _ = udprelay::run_udp_loop(udp_tx, incomings, config).await;
-            log::info!("udp loop thread stopped");
-        });
-    }
+    let udp_waker = udprelay::udp_handler_watchdog(config, &incomings, &udp_tx).await?;
 
     while let Ok((conn, _)) = server.accept().await {
         let config = config.clone();
         let udp_tx = udp_tx.clone();
         let incomings = incomings.clone();
+        let udp_waker = udp_waker.clone();
         tokio::spawn(async move {
-            if let Err(e) = handle_incoming(conn, config, Some(udp_tx), incomings).await {
+            if let Err(e) = handle_incoming(conn, config, Some(udp_tx), incomings, udp_waker).await {
                 log::debug!("{}", e);
             }
         });
@@ -58,12 +51,13 @@ async fn handle_incoming(
     config: Config,
     udp_tx: Option<udprelay::UdpRequestSender>,
     incomings: udprelay::SocketAddrSet,
+    udp_waker: udprelay::UdpWaker,
 ) -> anyhow::Result<()> {
     let peer_addr = conn.peer_addr()?;
     match conn.handshake().await? {
         Connection::Associate(asso, _) => {
             if let Some(udp_tx) = udp_tx {
-                if let Err(e) = udprelay::handle_s5_upd_associate(asso, udp_tx, incomings).await {
+                if let Err(e) = udprelay::handle_s5_upd_associate(asso, udp_tx, incomings, udp_waker).await {
                     log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");
                 }
             } else {
