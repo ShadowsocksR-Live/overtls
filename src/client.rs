@@ -151,7 +151,7 @@ pub async fn create_ws_tls_stream(
 
     let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
 
-    let uri = WeirdUri::new(&uri, b64_dst, udp);
+    let uri = WeirdUri::new(&uri, b64_dst, udp, client.client_id.clone());
 
     let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
 

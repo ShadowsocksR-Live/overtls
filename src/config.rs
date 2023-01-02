@@ -21,6 +21,7 @@ pub struct Config {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Server {
+    pub verify_client: Option<bool>,
     pub certfile: Option<PathBuf>,
     pub keyfile: Option<PathBuf>,
     pub forward_addr: Option<String>,
@@ -36,6 +37,7 @@ pub struct Client {
     pub cafile: Option<PathBuf>,
     pub listen_host: String,
     pub listen_port: u16,
+    pub client_id: Option<String>,
 }
 
 impl Default for Config {

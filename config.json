@@ -4,6 +4,7 @@
     "tunnel_path": "/secret-tunnel-path/",
 
     "server_settings": {
+        "verify_client": false,
         "certfile": "/etc/mysite_cert/fullchain.pem",
         "keyfile": "/etc/mysite_cert/privkey.pem",
         "forward_addr": "127.0.0.1:80",
@@ -12,6 +13,7 @@
     },
 
     "client_settings": {
+        "client_id": "33959370-71e0-401d-9746-cda471fc5926",
         "server_host": "123.45.67.89",
         "server_port": 443,
         "server_domain": "example.com",

@@ -3,7 +3,7 @@ use crate::{
     config::Config,
     tls::*,
     udprelay,
-    weirduri::{TARGET_ADDRESS, UDP},
+    weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP},
 };
 use bytes::{BufMut, BytesMut};
 use futures_util::{SinkExt, StreamExt};
@@ -153,8 +153,8 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     log::debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
-    let forword_addr = extract_forward_addr(config).ok_or_else(|| anyhow::anyhow!(""))?;
-    let to_stream = TcpStream::connect(forword_addr).await?;
+    let forward_addr = extract_forward_addr(config).ok_or_else(|| anyhow::anyhow!(""))?;
+    let to_stream = TcpStream::connect(forward_addr).await?;
     forward_traffic(stream, to_stream, data).await
 }
 
@@ -177,11 +177,10 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     peer: SocketAddr,
     handshake: &[u8],
 ) -> anyhow::Result<()> {
-    log::trace!("{} -> tunnel path \"{}\"", peer, config.tunnel_path);
-
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
     let mut udp = false;
+    let mut client_id = "".to_string();
 
     let mut retrieve_values = |req: &Request| {
         uri_path = req.uri().path().to_string();
@@ -193,6 +192,11 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         if let Some(value) = req.headers().get(UDP) {
             if let Ok(value) = value.to_str() {
                 udp = value.parse::<bool>().unwrap_or(false);
+            }
+        }
+        if let Some(value) = req.headers().get(CLIENT_ID) {
+            if let Ok(value) = value.to_str() {
+                client_id = value.to_string();
             }
         }
     };
@@ -219,6 +223,9 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         };
         ws_stream = accept_hdr_async(stream, check_headers_callback).await?;
     }
+
+    let path = config.tunnel_path.clone();
+    log::trace!("{peer} -> tunnel path \"{path}\"  uri path: \"{uri_path}\" client id: \"{client_id}\"");
 
     if udp {
         return udp_tunnel(ws_stream, peer, uri_path, config).await;

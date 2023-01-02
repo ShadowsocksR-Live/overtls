@@ -6,6 +6,7 @@ use tungstenite::{
 
 pub const TARGET_ADDRESS: &str = "Target-Address";
 pub const UDP: &str = "UDP";
+pub const CLIENT_ID: &str = "Client-Id";
 
 /// A wrapper around `tungstenite::Url` that allows us to add custom headers.
 /// This is useful for passing additional information to the server.
@@ -17,15 +18,17 @@ pub struct WeirdUri<'a> {
     pub target_address: Option<String>,
     pub sec_websocket_key: String,
     pub udp: Option<bool>,
+    pub client_id: Option<String>,
 }
 
 impl<'a> WeirdUri<'a> {
-    pub fn new(uri: &'a str, target_address: Option<String>, udp: Option<bool>) -> Self {
+    pub fn new(uri: &'a str, target_address: Option<String>, udp: Option<bool>, client_id: Option<String>) -> Self {
         Self {
             uri,
             target_address,
             sec_websocket_key: generate_key(),
             udp,
+            client_id,
         }
     }
 }
@@ -52,6 +55,11 @@ impl<'a> IntoClientRequest for WeirdUri<'a> {
         if let Some(udp) = self.udp {
             if udp {
                 builder = builder.header(UDP, udp.to_string());
+            }
+        }
+        if let Some(ref client_id) = self.client_id {
+            if !client_id.is_empty() {
+                builder = builder.header(CLIENT_ID, client_id);
             }
         }
         let req = builder.uri(uri.as_str()).body(())?;
