@@ -180,7 +180,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
     let mut udp = false;
-    let mut client_id = "".to_string();
+    let mut client_id = None;
 
     let mut retrieve_values = |req: &Request| {
         uri_path = req.uri().path().to_string();
@@ -196,7 +196,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         }
         if let Some(value) = req.headers().get(CLIENT_ID) {
             if let Ok(value) = value.to_str() {
-                client_id = value.to_string();
+                client_id = Some(value.to_string());
             }
         }
     };
@@ -224,8 +224,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         ws_stream = accept_hdr_async(stream, check_headers_callback).await?;
     }
 
-    let path = config.tunnel_path.clone();
-    log::trace!("{peer} -> tunnel path \"{path}\"  uri path: \"{uri_path}\" client id: \"{client_id}\"");
+    log::trace!("{peer} -> uri path: \"{uri_path}\" client id: \"{client_id:?}\"");
 
     if udp {
         return udp_tunnel(ws_stream, peer, uri_path, config).await;
