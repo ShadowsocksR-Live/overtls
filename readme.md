@@ -24,9 +24,6 @@ viatls 客戶端首先與 viatls 服務端建立 TLS 連接，然後 viatls 客�
 - 一個域名，
 - 一個 https 證書，
 - 一個 http 服務端軟件（如 nginx），並提供僞裝好的站點資源，
-- 一個 viatls 配置文件，
-- 一個 viatls 服務端，
-- 一個 viatls 客戶端。
 
 ## 安裝
 

@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 
 use serde::{Deserialize, Serialize};
-use std::net::{TcpStream, ToSocketAddrs};
-use std::path::PathBuf;
+use std::{
+    net::{TcpStream, ToSocketAddrs},
+    path::PathBuf,
+};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {

@@ -1,12 +1,23 @@
-use crate::{b64str_to_address, config::Config, tls::*, udprelay, weirduri::TARGET_ADDRESS, weirduri::UDP};
+use crate::{
+    b64str_to_address,
+    config::Config,
+    tls::*,
+    udprelay,
+    weirduri::{TARGET_ADDRESS, UDP},
+};
 use bytes::{BufMut, BytesMut};
 use futures_util::{SinkExt, StreamExt};
 use socks5_proto::Address;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::{collections::HashMap, sync::Arc};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::{net::UdpSocket, sync::Mutex};
+use std::{
+    collections::HashMap,
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
+};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    net::{TcpListener, TcpStream, UdpSocket},
+    sync::Mutex,
+};
 use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
 use tokio_tungstenite::{accept_hdr_async, WebSocketStream};
 use tungstenite::{
@@ -358,7 +369,7 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
         dst_addr.write_to_buf(&mut buf);
         buf.put_slice(pkt);
 
-        log::trace!("[UDP] remote packet from {src_addr} -> {dst_addr} {} bytes", pkt.len());
+        log::trace!("[UDP] remote packet from {dst_addr} -> {src_addr} {} bytes", pkt.len());
 
         ws_stream.send(Message::binary(buf.to_vec())).await?;
     }

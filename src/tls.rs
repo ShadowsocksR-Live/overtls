@@ -1,9 +1,9 @@
 use rustls::RootCertStore;
 use rustls_pemfile::{certs, rsa_private_keys};
-use std::net::SocketAddr;
 use std::{
     fs::File,
     io::BufReader,
+    net::SocketAddr,
     path::{Path, PathBuf},
 };
 use tokio::{io, net::TcpStream};
