@@ -2,6 +2,7 @@ use crate::{
     b64str_to_address,
     config::Config,
     tls::*,
+    traffic_audit::TrafficAudit,
     udprelay,
     weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP},
 };
@@ -25,6 +26,10 @@ use tungstenite::{
     handshake::{machine::TryParse, server},
     protocol::{Message, Role},
 };
+
+pub type TrafficAuditPtr = Arc<Mutex<TrafficAudit>>;
+const WS_HANDSHAKE_LEN: usize = 1024;
+const WS_MSG_HEADER_LEN: usize = 14;
 
 pub async fn run_server(config: &Config) -> anyhow::Result<()> {
     log::info!("starting {} server...", crate::program_name());
@@ -65,20 +70,23 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
         log::info!("using TLS");
     }
 
+    let traffic_audit = Arc::new(Mutex::new(TrafficAudit::new()));
+
     let listener = TcpListener::bind(&addr).await?;
 
     loop {
         let (stream, peer_addr) = listener.accept().await?;
         let acceptor = acceptor.clone();
         let config = config.clone();
+        let traffic_audit = traffic_audit.clone();
 
         let incoming_task = async move {
             if let Some(acceptor) = acceptor {
                 let stream = acceptor.accept(stream).await?;
-                if let Err(e) = handle_tls_incoming(stream, config).await {
+                if let Err(e) = handle_tls_incoming(stream, config, traffic_audit).await {
                     log::debug!("{}: {}", peer_addr, e);
                 }
-            } else if let Err(e) = handle_incoming(stream, config).await {
+            } else if let Err(e) = handle_incoming(stream, config, traffic_audit).await {
                 log::debug!("{}: {}", peer_addr, e);
             }
             Ok::<_, anyhow::Error>(())
@@ -96,7 +104,11 @@ fn extract_forward_addr(config: &Config) -> Option<String> {
     config.server.as_ref()?.forward_addr.clone()
 }
 
-async fn handle_tls_incoming(mut stream: TlsStream<TcpStream>, config: Config) -> anyhow::Result<()> {
+async fn handle_tls_incoming(
+    mut stream: TlsStream<TcpStream>,
+    config: Config,
+    traffic_audit: TrafficAuditPtr,
+) -> anyhow::Result<()> {
     let peer = stream.get_ref().0.peer_addr()?;
 
     let mut buf = BytesMut::with_capacity(2048);
@@ -109,7 +121,7 @@ async fn handle_tls_incoming(mut stream: TlsStream<TcpStream>, config: Config) -
         return forward_traffic_wrapper(stream, &buf, &config).await;
     }
 
-    websocket_traffic_handler(stream, config, peer, &buf).await
+    websocket_traffic_handler(stream, config, peer, &buf, traffic_audit).await
 }
 
 async fn forward_traffic<StreamFrom, StreamTo>(from: StreamFrom, mut to: StreamTo, data: &[u8]) -> anyhow::Result<()>
@@ -158,7 +170,7 @@ where
     forward_traffic(stream, to_stream, data).await
 }
 
-async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()> {
+async fn handle_incoming(stream: TcpStream, config: Config, traffic_audit: TrafficAuditPtr) -> anyhow::Result<()> {
     let mut buf = [0; 512];
     stream.peek(&mut buf).await?;
 
@@ -168,7 +180,7 @@ async fn handle_incoming(stream: TcpStream, config: Config) -> anyhow::Result<()
 
     let peer = stream.peer_addr()?;
 
-    websocket_traffic_handler(stream, config, peer, &[]).await
+    websocket_traffic_handler(stream, config, peer, &[], traffic_audit).await
 }
 
 async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
@@ -176,6 +188,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     config: Config,
     peer: SocketAddr,
     handshake: &[u8],
+    traffic_audit: TrafficAuditPtr,
 ) -> anyhow::Result<()> {
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
@@ -224,10 +237,29 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         ws_stream = accept_hdr_async(stream, check_headers_callback).await?;
     }
 
+    let mut enable_client = true;
+    if config.verify_client() {
+        enable_client = false;
+        if let Some(client_id) = &client_id {
+            enable_client = traffic_audit.lock().await.get_enable_of(client_id);
+        }
+    }
+    if !enable_client {
+        log::warn!("{} -> client id: \"{:?}\" is disabled", peer, client_id);
+        return Ok(());
+    }
+
+    if let Some(client_id) = &client_id {
+        let len = WS_HANDSHAKE_LEN;
+        let len = if !handshake.is_empty() { handshake.len() } else { len };
+        let len = (len * 2) as u64;
+        traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
+    }
+
     log::trace!("{peer} -> uri path: \"{uri_path}\" client id: \"{client_id:?}\"");
 
     if udp {
-        return udp_tunnel(ws_stream, peer, uri_path, config).await;
+        return udp_tunnel(ws_stream, peer, uri_path, config, traffic_audit, &client_id).await;
     }
 
     let addr_str = b64str_to_address(&target_address, false).await?.to_string();
@@ -245,6 +277,10 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
             tokio::select! {
                 Some(msg) = ws_stream.next() => {
                     let msg = msg?;
+                    if let Some(client_id) = &client_id {
+                        let len = msg.len() + WS_MSG_HEADER_LEN;
+                        traffic_audit.lock().await.add_upstream_traffic_of(client_id, len as u64);
+                    }
                     if msg.is_close() {
                         break;
                     }
@@ -253,7 +289,12 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
                     }
                 }
                 Some(data) = ws_stream_rx.recv() => {
-                    ws_stream.send(Message::binary(data)).await?;
+                    let msg = Message::binary(data);
+                    if let Some(client_id) = &client_id {
+                        let len = msg.len() + WS_MSG_HEADER_LEN;
+                        traffic_audit.lock().await.add_downstream_traffic_of(client_id, len as u64);
+                    }
+                    ws_stream.send(msg).await?;
                 }
                 else => {
                     break;
@@ -305,6 +346,8 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     peer: SocketAddr,
     uri_path: String,
     _config: Config,
+    traffic_audit: TrafficAuditPtr,
+    client_id: &Option<String>,
 ) -> anyhow::Result<()> {
     log::trace!("{} -> udp target uri path: \"{}\"", peer, uri_path);
 
@@ -320,6 +363,10 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
         tokio::select! {
             Some(msg) = ws_stream.next() => {
                 let msg = msg?;
+                if let Some(client_id) = client_id {
+                    let len = msg.len() + WS_MSG_HEADER_LEN;
+                    traffic_audit.lock().await.add_upstream_traffic_of(client_id, len as u64);
+                }
                 if msg.is_close() {
                     break;
                 }
@@ -346,11 +393,11 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
             }
             Ok((len, addr)) = udp_socket.recv_from(&mut buf) => {
                 let pkt = buf[..len].to_vec();
-                _write_ws_stream(&pkt, &mut ws_stream, &addresses, addr).await?;
+                _write_ws_stream(&pkt, &mut ws_stream, &addresses, addr, &traffic_audit, client_id).await?;
             }
             Ok((len, addr)) = udp_socket_v6.recv_from(&mut buf_v6) => {
                 let pkt = buf_v6[..len].to_vec();
-                _write_ws_stream(&pkt, &mut ws_stream, &addresses, addr).await?;
+                _write_ws_stream(&pkt, &mut ws_stream, &addresses, addr, &traffic_audit, client_id).await?;
             }
             else => {
                 break;
@@ -365,6 +412,8 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     ws_stream: &mut WebSocketStream<S>,
     addresses: &Arc<Mutex<HashMap<Address, Address>>>,
     addr: SocketAddr,
+    traffic_audit: &TrafficAuditPtr,
+    client_id: &Option<String>,
 ) -> anyhow::Result<()> {
     let dst_addr = Address::SocketAddress(addr);
     let src_addr = addresses.lock().await.get(&dst_addr).cloned();
@@ -375,9 +424,15 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
         dst_addr.write_to_buf(&mut buf);
         buf.put_slice(pkt);
 
-        log::trace!("[UDP] remote packet from {dst_addr} -> {src_addr} {} bytes", pkt.len());
+        let msg = Message::binary(buf.to_vec());
+        let len = msg.len() + WS_MSG_HEADER_LEN;
 
-        ws_stream.send(Message::binary(buf.to_vec())).await?;
+        log::trace!("[UDP] remote packet from {dst_addr} -> {src_addr} {} bytes", len);
+        if let Some(client) = client_id {
+            traffic_audit.lock().await.add_downstream_traffic_of(client, len as u64);
+        }
+
+        ws_stream.send(msg).await?;
     }
     Ok(())
 }

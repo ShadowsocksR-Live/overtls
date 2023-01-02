@@ -3,6 +3,7 @@ pub mod cmdopt;
 pub mod config;
 pub mod server;
 pub mod tls;
+pub mod traffic_audit;
 pub mod udprelay;
 pub mod weirduri;
 
