@@ -59,10 +59,8 @@ impl Config {
     }
 
     pub fn verify_client(&self) -> bool {
-        self.server
-            .as_ref()
-            .map(|s| s.verify_client.unwrap_or(false))
-            .unwrap_or(false)
+        let f = |s: &Server| s.verify_client.unwrap_or(false);
+        self.server.as_ref().map(f).unwrap_or(false)
     }
 
     pub fn exist_server(&self) -> bool {
