@@ -259,7 +259,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     log::trace!("{peer} -> uri path: \"{uri_path}\" client id: \"{client_id:?}\"");
 
     if udp {
-        return udp_tunnel(ws_stream, peer, uri_path, config, traffic_audit, &client_id).await;
+        return udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
     }
 
     let addr_str = b64str_to_address(&target_address, false).await?.to_string();
@@ -343,14 +343,10 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 
 async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
-    peer: SocketAddr,
-    uri_path: String,
     _config: Config,
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
 ) -> anyhow::Result<()> {
-    log::trace!("{} -> udp target uri path: \"{}\"", peer, uri_path);
-
     let udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
     let udp_socket_v6 = UdpSocket::bind("[::]:0").await?;
 
@@ -425,11 +421,11 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
         buf.put_slice(pkt);
 
         let msg = Message::binary(buf.to_vec());
-        let len = msg.len() + WS_MSG_HEADER_LEN;
 
-        log::trace!("[UDP] remote packet from {dst_addr} -> {src_addr} {} bytes", len);
+        log::trace!("[UDP] remote packet from {dst_addr} -> {src_addr} {} bytes", pkt.len());
         if let Some(client) = client_id {
-            traffic_audit.lock().await.add_downstream_traffic_of(client, len as u64);
+            let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
+            traffic_audit.lock().await.add_downstream_traffic_of(client, len);
         }
 
         ws_stream.send(msg).await?;
