@@ -220,6 +220,7 @@ pub async fn udp_handler_watchdog(
 
     let running = Arc::new(Mutex::new(false));
 
+    let tx2 = tx.clone();
     tokio::spawn(async move {
         while rx.recv().await.is_some() {
             if *running.lock().await {
@@ -229,14 +230,17 @@ pub async fn udp_handler_watchdog(
             let incomings = incomings.clone();
             let config = config.clone();
             let running = running.clone();
+            let tx2 = tx2.clone();
             tokio::spawn(async move {
                 *running.lock().await = true;
                 log::trace!("[UDP] udp client watchdog thread started");
                 let _ = run_udp_loop(udp_tx, incomings, config).await;
                 log::trace!("[UDP] udp client watchdog thread stopped");
                 *running.lock().await = false;
+                let _ = tx2.send(()).await; // restart watchdog
             });
         }
     });
+    tx.send(()).await?; // bootstrap
     Ok(tx)
 }
