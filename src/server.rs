@@ -422,7 +422,7 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
         let msg = Message::binary(buf.to_vec());
 
-        log::trace!("[UDP] remote packet from {dst_addr} -> {src_addr} {} bytes", pkt.len());
+        log::trace!("[UDP] packet from {src_addr} <- {dst_addr} {} bytes", pkt.len());
         if let Some(client) = client_id {
             let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
             traffic_audit.lock().await.add_downstream_traffic_of(client, len);
