@@ -282,8 +282,8 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
                 Some(msg) = ws_stream.next() => {
                     let msg = msg?;
                     if let Some(client_id) = &client_id {
-                        let len = msg.len() + WS_MSG_HEADER_LEN;
-                        traffic_audit.lock().await.add_upstream_traffic_of(client_id, len as u64);
+                        let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
+                        traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
                     }
                     if msg.is_close() {
                         break;
@@ -295,8 +295,8 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
                 Some(data) = ws_stream_rx.recv() => {
                     let msg = Message::binary(data);
                     if let Some(client_id) = &client_id {
-                        let len = msg.len() + WS_MSG_HEADER_LEN;
-                        traffic_audit.lock().await.add_downstream_traffic_of(client_id, len as u64);
+                        let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
+                        traffic_audit.lock().await.add_downstream_traffic_of(client_id, len);
                     }
                     ws_stream.send(msg).await?;
                 }
@@ -364,8 +364,8 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
             Some(msg) = ws_stream.next() => {
                 let msg = msg?;
                 if let Some(client_id) = client_id {
-                    let len = msg.len() + WS_MSG_HEADER_LEN;
-                    traffic_audit.lock().await.add_upstream_traffic_of(client_id, len as u64);
+                    let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
+                    traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
                 }
                 if msg.is_close() {
                     break;
