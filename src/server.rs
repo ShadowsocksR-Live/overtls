@@ -237,6 +237,10 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         ws_stream = accept_hdr_async(stream, check_headers_callback).await?;
     }
 
+    if let Some(client_id) = &client_id {
+        traffic_audit.lock().await.add_client(client_id);
+    }
+
     let mut enable_client = true;
     if config.verify_client() {
         enable_client = false;

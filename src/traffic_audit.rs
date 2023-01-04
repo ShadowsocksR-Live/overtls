@@ -1,21 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClientNode {
     enable: bool,
     upstream_traffic: u64,
     downstream_traffic: u64,
-}
-
-impl Default for ClientNode {
-    fn default() -> Self {
-        Self {
-            enable: true,
-            upstream_traffic: 0,
-            downstream_traffic: 0,
-        }
-    }
 }
 
 impl ClientNode {
@@ -75,8 +65,8 @@ impl TrafficAudit {
         Self::default()
     }
 
-    pub fn add_client(&mut self, client_id: String) {
-        self.client_map.insert(client_id, ClientNode::new());
+    pub fn add_client(&mut self, client_id: &str) {
+        self.client_map.entry(client_id.to_string()).or_default();
     }
 
     pub fn remove_client(&mut self, client_id: &str) {
@@ -128,23 +118,23 @@ impl TrafficAudit {
     }
 
     pub fn set_enable_of(&mut self, client_id: &str, enable: bool) {
-        if let Some(client_node) = self.client_map.get_mut(client_id) {
-            client_node.set_enable(enable);
-        }
+        self.client_map
+            .entry(client_id.to_string())
+            .or_default()
+            .set_enable(enable);
     }
 
     pub fn get_enable_of(&self, client_id: &str) -> bool {
-        if let Some(client_node) = self.client_map.get(client_id) {
-            client_node.get_enable()
-        } else {
-            false
-        }
+        self.client_map
+            .get(client_id)
+            .map(|client_node| client_node.get_enable())
+            .unwrap_or(false)
     }
 
     pub fn reset(&mut self) {
-        for (_, client_node) in self.client_map.iter_mut() {
-            client_node.reset();
-        }
+        self.client_map
+            .iter_mut()
+            .for_each(|(_, client_node)| client_node.reset());
     }
 
     pub fn reset_of(&mut self, client_id: &str) {
@@ -154,15 +144,15 @@ impl TrafficAudit {
     }
 
     pub fn reset_upstream_traffic(&mut self) {
-        for (_, client_node) in self.client_map.iter_mut() {
-            client_node.reset_upstream_traffic();
-        }
+        self.client_map
+            .iter_mut()
+            .for_each(|(_, client_node)| client_node.reset_upstream_traffic());
     }
 
     pub fn reset_downstream_traffic(&mut self) {
-        for (_, client_node) in self.client_map.iter_mut() {
-            client_node.reset_downstream_traffic();
-        }
+        self.client_map
+            .iter_mut()
+            .for_each(|(_, client_node)| client_node.reset_downstream_traffic());
     }
 
     pub fn reset_upstream_traffic_of(&mut self, client_id: &str) {
