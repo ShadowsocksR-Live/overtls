@@ -1,4 +1,4 @@
-use crate::{addess_to_b64str, config::Config, program_name, tls::*, udprelay, weirduri::WeirdUri};
+use crate::{addess_to_b64str, config::Config, program_name, tls::*, udprelay, weirduri::WeirdUri, STREAM_BUFFER_SIZE};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_proto::{Address, Reply};
@@ -97,7 +97,7 @@ async fn handle_socks5_cmd_connection(
     let (mut ws_stream_w, mut ws_stream_r) = ws_stream.split();
 
     let incoming_to_ws = async {
-        let mut buf = BytesMut::with_capacity(2048);
+        let mut buf = BytesMut::with_capacity(STREAM_BUFFER_SIZE);
         loop {
             let len = incoming_r.read_buf(&mut buf).await?;
             if len == 0 {
@@ -159,7 +159,7 @@ pub async fn create_ws_tls_stream(
     let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
     let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
 
-    let mut outgoing = create_tls_cliet_stream(cert_store, &addr, domain).await?;
+    let mut outgoing = create_tls_client_stream(cert_store, &addr, domain).await?;
 
     let (v, key) = client::generate_request(uri.into_client_request()?)?;
     outgoing.write_all(&v).await?;

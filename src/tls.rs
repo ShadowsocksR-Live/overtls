@@ -41,7 +41,7 @@ pub fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> anyhow::
     Ok(root_cert_store)
 }
 
-pub async fn create_tls_cliet_stream(
+pub async fn create_tls_client_stream(
     root_cert_store: RootCertStore,
     addr: &SocketAddr,
     domain: &str,
