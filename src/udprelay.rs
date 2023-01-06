@@ -6,11 +6,7 @@ use socks5_server::{
     connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},
     Associate,
 };
-use std::{
-    collections::HashSet,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
-    sync::Arc,
-};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 use tokio::{
     net::UdpSocket,
     sync::{broadcast, mpsc, Mutex},
@@ -38,7 +34,7 @@ pub async fn handle_s5_upd_associate(
 
             let _ = udp_waker.send(()).await;
 
-            let s5_listen_addr = Address::SocketAddress(listen_addr);
+            let s5_listen_addr = listen_addr.into();
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
 
             let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();
@@ -101,26 +97,11 @@ async fn socks5_to_relay(
         incomings.lock().await.insert(src_addr);
 
         log::trace!("[UDP] incoming packet {src_addr} -> {dst_addr} {} bytes", pkt.len());
-        let src_addr = Address::SocketAddress(src_addr);
+        let src_addr = src_addr.into();
         let _ = udp_tx.send((pkt, dst_addr, src_addr));
     }
     log::trace!("[UDP] socks5_to_relay exiting.");
     Ok(())
-}
-
-pub fn to_socket_addr(addr: &Address) -> anyhow::Result<SocketAddr> {
-    match addr {
-        Address::SocketAddress(addr) => Ok(*addr),
-        Address::DomainAddress(addr, port) => {
-            if let Ok(addr) = addr.parse::<Ipv4Addr>() {
-                Ok(SocketAddr::from((addr, *port)))
-            } else if let Ok(addr) = addr.parse::<Ipv6Addr>() {
-                Ok(SocketAddr::from((addr, *port)))
-            } else {
-                Err(anyhow::anyhow!("domain address {addr} is not supported"))
-            }
-        }
-    }
 }
 
 async fn relay_to_socks5(
@@ -129,7 +110,7 @@ async fn relay_to_socks5(
     mut udp_rx: UdpRequestReceiver,
 ) -> anyhow::Result<()> {
     while let Ok((pkt, addr, _)) = udp_rx.recv().await {
-        let to_addr = to_socket_addr(&addr)?;
+        let to_addr = addr.to_socket_addr()?;
         if *incoming_addr.lock().await == to_addr {
             log::trace!("[UDP] feedback to incoming {to_addr}");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
@@ -154,7 +135,7 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
     loop {
         let _res = tokio::select! {
             Ok((pkt, dst_addr, src_addr)) = udp_rx.recv() => {
-                let flag = { incomings.lock().await.contains(&to_socket_addr(&dst_addr)?) };
+                let flag = { incomings.lock().await.contains(&dst_addr.to_socket_addr()?) };
                 if !flag {
                     // packet send to remote server, format: dst_addr + src_addr + pkt
                     let mut buf = BytesMut::new();

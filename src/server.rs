@@ -3,7 +3,6 @@ use crate::{
     config::Config,
     tls::*,
     traffic_audit::TrafficAudit,
-    udprelay,
     weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP},
 };
 use bytes::{BufMut, BytesMut};
@@ -382,7 +381,7 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
 
                     addresses.lock().await.insert(dst_addr.clone(), src_addr);
 
-                    let dst_addr = udprelay::to_socket_addr(&dst_addr)?;
+                    let dst_addr = dst_addr.to_socket_addr()?;
 
                     if dst_addr.is_ipv4() {
                         udp_socket.send_to(&pkt, &dst_addr).await?;
@@ -415,7 +414,7 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     traffic_audit: &TrafficAuditPtr,
     client_id: &Option<String>,
 ) -> anyhow::Result<()> {
-    let dst_addr = Address::SocketAddress(addr);
+    let dst_addr = Address::from(addr);
     let src_addr = addresses.lock().await.get(&dst_addr).cloned();
     if let Some(src_addr) = src_addr {
         // write back to client, data format: src_addr + dst_addr + payload
