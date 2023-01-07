@@ -8,7 +8,7 @@ use crate::{
 };
 use bytes::{BufMut, BytesMut};
 use futures_util::{SinkExt, StreamExt};
-use socks5_proto::Address;
+use socks5_impl::protocol::Address;
 use std::{
     collections::HashMap,
     net::{SocketAddr, ToSocketAddrs},

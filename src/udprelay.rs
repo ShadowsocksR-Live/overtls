@@ -1,10 +1,12 @@
 use crate::{client, config::Config};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::{SinkExt, StreamExt};
-use socks5_proto::{Address, Reply, UdpHeader};
-use socks5_server::{
-    connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},
-    Associate,
+use socks5_impl::{
+    protocol::{Address, Reply, UdpHeader},
+    server::{
+        connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},
+        Associate,
+    },
 };
 use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 use tokio::{

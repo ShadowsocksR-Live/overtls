@@ -8,7 +8,7 @@ pub mod udprelay;
 pub mod weirduri;
 
 use bytes::BytesMut;
-use socks5_proto::Address;
+use socks5_impl::protocol::Address;
 
 pub const STREAM_BUFFER_SIZE: usize = 1024 * 32;
 

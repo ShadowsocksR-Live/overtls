@@ -1,8 +1,10 @@
 use crate::{addess_to_b64str, config::Config, program_name, tls::*, udprelay, weirduri::WeirdUri, STREAM_BUFFER_SIZE};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
-use socks5_proto::{Address, Reply};
-use socks5_server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server};
+use socks5_impl::{
+    protocol::{Address, Reply},
+    server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server},
+};
 use std::net::ToSocketAddrs;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
