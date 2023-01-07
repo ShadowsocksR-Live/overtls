@@ -376,7 +376,7 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     let src_addr = Address::read_from(&mut &buf[..]).await?;
                     let _ = buf.split_to(src_addr.serialized_len());
                     let pkt = buf.to_vec();
-                    log::trace!("[UDP] {src_addr} -> {dst_addr} {} bytes", pkt.len());
+                    log::trace!("[UDP] {src_addr} -> {dst_addr} length {}", pkt.len());
 
                     addresses.lock().await.insert(dst_addr.clone(), src_addr);
 
@@ -424,7 +424,7 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
         let msg = Message::binary(buf.to_vec());
 
-        log::trace!("[UDP] {src_addr} <- {dst_addr} {} bytes", pkt.len());
+        log::trace!("[UDP] {src_addr} <- {dst_addr} length {}", pkt.len());
         if let Some(client) = client_id {
             let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
             traffic_audit.lock().await.add_downstream_traffic_of(client, len);
