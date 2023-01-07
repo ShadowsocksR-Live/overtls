@@ -22,6 +22,8 @@ pub struct Config {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Server {
     pub verify_client: Option<bool>,
+    pub webapi_url: Option<String>,
+    pub webapi_token: Option<String>,
     pub certfile: Option<PathBuf>,
     pub keyfile: Option<PathBuf>,
     pub forward_addr: Option<String>,
@@ -61,6 +63,16 @@ impl Config {
     pub fn verify_client(&self) -> bool {
         let f = |s: &Server| s.verify_client.unwrap_or(false);
         self.server.as_ref().map(f).unwrap_or(false)
+    }
+
+    pub fn webapi_url(&self) -> Option<String> {
+        let f = |s: &Server| s.webapi_url.clone();
+        self.server.as_ref().map(f).unwrap_or(None)
+    }
+
+    pub fn webapi_token(&self) -> Option<String> {
+        let f = |s: &Server| s.webapi_token.clone();
+        self.server.as_ref().map(f).unwrap_or(None)
     }
 
     pub fn exist_server(&self) -> bool {

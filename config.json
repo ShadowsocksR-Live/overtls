@@ -5,6 +5,8 @@
 
     "server_settings": {
         "verify_client": false,
+        "webapi_url": "https://sspanelhost.com:443/",
+        "webapi_token": "secret-token",
         "certfile": "/etc/mysite_cert/fullchain.pem",
         "keyfile": "/etc/mysite_cert/privkey.pem",
         "forward_addr": "127.0.0.1:80",

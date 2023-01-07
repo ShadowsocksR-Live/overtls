@@ -5,6 +5,7 @@ pub mod server;
 pub mod tls;
 pub mod traffic_audit;
 pub mod udprelay;
+pub mod webapi;
 pub mod weirduri;
 
 use bytes::BytesMut;
