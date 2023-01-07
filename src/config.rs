@@ -24,6 +24,7 @@ pub struct Server {
     pub verify_client: Option<bool>,
     pub webapi_url: Option<String>,
     pub webapi_token: Option<String>,
+    pub node_id: Option<usize>,
     pub certfile: Option<PathBuf>,
     pub keyfile: Option<PathBuf>,
     pub forward_addr: Option<String>,
@@ -72,6 +73,11 @@ impl Config {
 
     pub fn webapi_token(&self) -> Option<String> {
         let f = |s: &Server| s.webapi_token.clone();
+        self.server.as_ref().map(f).unwrap_or(None)
+    }
+
+    pub fn node_id(&self) -> Option<usize> {
+        let f = |s: &Server| s.node_id.clone();
         self.server.as_ref().map(f).unwrap_or(None)
     }
 

@@ -5,6 +5,7 @@
 
     "server_settings": {
         "verify_client": false,
+        "node_id": 1,
         "webapi_url": "https://sspanelhost.com:443/",
         "webapi_token": "secret-token",
         "certfile": "/etc/mysite_cert/fullchain.pem",
