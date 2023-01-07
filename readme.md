@@ -22,12 +22,12 @@ viatls 客戶端首先與 viatls 服務端建立 TLS 連接，然後 viatls 客�
 綜上所述，我們需要準備的東西有：
 - 一個帶公網 IP 的 VPS 主機，必須自行購買，
 - 一個域名，可以購買或申請免費的，並將該域名解析到 VPS 主機的 IP 上，
-- 一對 https 證書/私鑰，
-- 一個 http 服務端軟件（如 nginx），並提供用於僞裝用途的站點資源，
+- 一對 https 證書/私鑰，證書可以自行購買，也可以在 [Let's Encrypt](https://letsencrypt.org/) 申請免費的，
+- 一個 http 服務端軟件（如 [nginx](https://www.nginx.com/) ），並提供用於僞裝用途的站點資源或者充當前置的 `反向代理`，
 
 ## 安裝
 
-可直接從源代碼編譯，也可以從 [發布頁面](releases) 下載預編譯的二進制文件。
+可直接從源代碼編譯，也可以從 [發布頁面](https://github.com/ssrlive/viatls/releases) 下載預編譯的二進制文件。
 
 ## 用法
 
