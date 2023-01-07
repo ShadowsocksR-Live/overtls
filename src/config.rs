@@ -25,6 +25,8 @@ pub struct Server {
     pub webapi_url: Option<String>,
     pub webapi_token: Option<String>,
     pub node_id: Option<usize>,
+    #[serde(rename(deserialize = "api_update_time", serialize = "api_update_time"))]
+    pub api_update_interval_secs: Option<u64>,
     pub certfile: Option<PathBuf>,
     pub keyfile: Option<PathBuf>,
     pub forward_addr: Option<String>,
@@ -79,6 +81,11 @@ impl Config {
     pub fn node_id(&self) -> Option<usize> {
         let f = |s: &Server| s.node_id.clone();
         self.server.as_ref().map(f).unwrap_or(None)
+    }
+
+    pub fn api_update_interval_secs(&self) -> Option<u64> {
+        let f = |s: &Server| s.api_update_interval_secs.clone();
+        self.server.as_ref().map(f).unwrap_or(Some(60))
     }
 
     pub fn exist_server(&self) -> bool {

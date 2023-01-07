@@ -30,7 +30,7 @@ impl WebApi {
             anyhow::bail!("Wrong data: {:?}", json);
         }
         if json.get("ret").ok_or_else(|| anyhow::anyhow!(""))? == "0" {
-            anyhow::bail!("Wrong data: {}", json["data"]);
+            anyhow::bail!("Wrong data: {:?}", json);
         }
         Ok(json.get("data").ok_or_else(|| anyhow::anyhow!(""))?.to_string())
     }
