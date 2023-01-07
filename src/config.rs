@@ -79,12 +79,12 @@ impl Config {
     }
 
     pub fn node_id(&self) -> Option<usize> {
-        let f = |s: &Server| s.node_id.clone();
+        let f = |s: &Server| s.node_id;
         self.server.as_ref().map(f).unwrap_or(None)
     }
 
     pub fn api_update_interval_secs(&self) -> Option<u64> {
-        let f = |s: &Server| s.api_update_interval_secs.clone();
+        let f = |s: &Server| s.api_update_interval_secs;
         self.server.as_ref().map(f).unwrap_or(Some(60))
     }
 
