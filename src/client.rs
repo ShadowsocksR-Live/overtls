@@ -107,7 +107,7 @@ async fn handle_socks5_cmd_connection(
                 break;
             }
             ws_stream_w.send(Message::Binary(buf.to_vec())).await?;
-            log::trace!("{} -> {} sending data length {}", peer_addr, target_addr, buf.len());
+            log::trace!("{} -> {} length {}", peer_addr, target_addr, buf.len());
             buf.clear();
         }
         Ok::<_, anyhow::Error>(())
@@ -119,7 +119,7 @@ async fn handle_socks5_cmd_connection(
             match msg {
                 Message::Binary(v) => {
                     incoming_w.write_all(&v).await?;
-                    log::trace!("{} <- {} recv data lenth {}", peer_addr, target_addr, v.len());
+                    log::trace!("{} <- {} length {}", peer_addr, target_addr, v.len());
                 }
                 Message::Close(_) => {
                     log::trace!("{} <- {} tunnel closing", peer_addr, target_addr);
