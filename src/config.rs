@@ -19,14 +19,9 @@ pub struct Config {
     pub test_timeout_secs: u64,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct Server {
-    pub verify_client: Option<bool>,
-    pub webapi_url: Option<String>,
-    pub webapi_token: Option<String>,
-    pub node_id: Option<usize>,
-    #[serde(rename(deserialize = "api_update_time", serialize = "api_update_time"))]
-    pub api_update_interval_secs: Option<u64>,
+    pub manage_clients: Option<ManageClients>,
     pub certfile: Option<PathBuf>,
     pub keyfile: Option<PathBuf>,
     pub forward_addr: Option<String>,
@@ -34,7 +29,16 @@ pub struct Server {
     pub listen_port: u16,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+pub struct ManageClients {
+    pub webapi_url: Option<String>,
+    pub webapi_token: Option<String>,
+    pub node_id: Option<usize>,
+    #[serde(rename(deserialize = "api_update_time", serialize = "api_update_time"))]
+    pub api_update_interval_secs: Option<u64>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct Client {
     pub server_host: String,
     pub server_port: u16,
@@ -54,8 +58,8 @@ impl Default for Config {
 impl Config {
     pub fn new() -> Self {
         Config {
-            method: Some("none".to_string()),
-            password: Some("password".to_string()),
+            method: None,
+            password: None,
             tunnel_path: "/tunnel/".to_string(),
             server: None,
             client: None,
@@ -63,29 +67,35 @@ impl Config {
         }
     }
 
-    pub fn verify_client(&self) -> bool {
-        let f = |s: &Server| s.verify_client.unwrap_or(false);
+    pub fn manage_clients(&self) -> bool {
+        let f = |s: &Server| s.manage_clients.is_some();
         self.server.as_ref().map(f).unwrap_or(false)
     }
 
     pub fn webapi_url(&self) -> Option<String> {
-        let f = |s: &Server| s.webapi_url.clone();
+        let f = |s: &Server| s.manage_clients.as_ref().map(|c| c.webapi_url.clone()).unwrap_or(None);
         self.server.as_ref().map(f).unwrap_or(None)
     }
 
     pub fn webapi_token(&self) -> Option<String> {
-        let f = |s: &Server| s.webapi_token.clone();
+        let f = |s: &Server| {
+            let f2 = |c: &ManageClients| c.webapi_token.clone();
+            s.manage_clients.as_ref().map(f2).unwrap_or(None)
+        };
         self.server.as_ref().map(f).unwrap_or(None)
     }
 
     pub fn node_id(&self) -> Option<usize> {
-        let f = |s: &Server| s.node_id;
+        let f = |s: &Server| s.manage_clients.as_ref().map(|c| c.node_id).unwrap_or(None);
         self.server.as_ref().map(f).unwrap_or(None)
     }
 
     pub fn api_update_interval_secs(&self) -> Option<u64> {
-        let f = |s: &Server| s.api_update_interval_secs;
-        self.server.as_ref().map(f).unwrap_or(Some(60))
+        let f = |s: &Server| {
+            let f2 = |c: &ManageClients| c.api_update_interval_secs;
+            s.manage_clients.as_ref().map(f2).unwrap_or(None)
+        };
+        self.server.as_ref().map(f).unwrap_or(None)
     }
 
     pub fn exist_server(&self) -> bool {

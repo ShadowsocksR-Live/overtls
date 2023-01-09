@@ -242,7 +242,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     let mut enable_client = true;
-    if config.verify_client() {
+    if config.manage_clients() {
         enable_client = false;
         if let Some(client_id) = &client_id {
             enable_client = traffic_audit.lock().await.get_enable_of(client_id);

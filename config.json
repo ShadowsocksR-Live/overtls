@@ -4,10 +4,12 @@
     "tunnel_path": "/secret-tunnel-path/",
 
     "server_settings": {
-        "verify_client": false,
-        "node_id": 1,
-        "webapi_url": "https://sspanelhost.com:443/",
-        "webapi_token": "secret-token",
+        "manage_clients": {
+            "node_id": 1,
+            "api_update_time": 60,
+            "webapi_url": "https://sspanelhost.com:443/",
+            "webapi_token": "secret-token"
+        },
         "certfile": "/etc/mysite_cert/fullchain.pem",
         "keyfile": "/etc/mysite_cert/privkey.pem",
         "forward_addr": "127.0.0.1:80",
