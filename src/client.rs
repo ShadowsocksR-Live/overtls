@@ -5,9 +5,9 @@ use socks5_impl::{
     protocol::{Address, Reply},
     server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server},
 };
-use std::net::ToSocketAddrs;
+use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::TcpStream,
 };
 use tokio_rustls::client::TlsStream;
@@ -88,53 +88,53 @@ async fn handle_socks5_cmd_connection(
     target_addr: Address,
     config: Config,
 ) -> anyhow::Result<()> {
-    let mut incoming = connect.reply(Reply::Succeeded, Address::unspecified()).await?;
+    let incoming = connect.reply(Reply::Succeeded, Address::unspecified()).await?;
 
     let peer_addr = incoming.peer_addr()?;
-    let (mut incoming_r, mut incoming_w) = incoming.split();
 
     log::trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
 
     let ws_stream = create_ws_tls_stream(Some(target_addr.clone()), &config, None).await?;
-    let (mut ws_stream_w, mut ws_stream_r) = ws_stream.split();
+    client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
+    Ok(())
+}
 
-    let incoming_to_ws = async {
+async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + AsyncWrite + Unpin>(
+    mut incoming: T,
+    mut ws_stream: WebSocketStream<S>,
+    peer_addr: SocketAddr,
+    target_addr: Address,
+) -> anyhow::Result<()> {
+    loop {
         let mut buf = BytesMut::with_capacity(STREAM_BUFFER_SIZE);
-        loop {
-            let len = incoming_r.read_buf(&mut buf).await?;
-            if len == 0 {
-                log::trace!("{} -> {} incoming closed", peer_addr, target_addr);
-                break;
-            }
-            ws_stream_w.send(Message::Binary(buf.to_vec())).await?;
-            log::trace!("{} -> {} length {}", peer_addr, target_addr, buf.len());
-            buf.clear();
-        }
-        Ok::<_, anyhow::Error>(())
-    };
-
-    let ws_to_incoming = async {
-        loop {
-            let msg = ws_stream_r.next().await.ok_or_else(|| anyhow::anyhow!(""))??;
-            match msg {
-                Message::Binary(v) => {
-                    incoming_w.write_all(&v).await?;
-                    log::trace!("{} <- {} length {}", peer_addr, target_addr, v.len());
-                }
-                Message::Close(_) => {
-                    log::trace!("{} <- {} tunnel closing", peer_addr, target_addr);
+        tokio::select! {
+            result = incoming.read_buf(&mut buf) => {
+                let len = result?;
+                if len == 0 {
+                    log::trace!("{} -> {} incoming closed", peer_addr, target_addr);
                     break;
                 }
-                _ => {}
+                ws_stream.send(Message::Binary(buf.to_vec())).await?;
+                log::trace!("{} -> {} length {}", peer_addr, target_addr, buf.len());
+                buf.clear();
+            }
+            result = ws_stream.next() => {
+                let msg = result.ok_or_else(|| anyhow::anyhow!(""))??;
+                match msg {
+                    Message::Binary(data) => {
+                        incoming.write_all(&data).await?;
+                        log::trace!("{} -> {} length {}", peer_addr, target_addr, data.len());
+                    }
+                    Message::Close(_) => {
+                        log::trace!("{} -> {} ws closed", peer_addr, target_addr);
+                        break;
+                    }
+                    _ => {}
+                }
             }
         }
-        Ok::<_, anyhow::Error>(())
-    };
-
-    tokio::select! {
-        result = incoming_to_ws => { result }
-        result = ws_to_incoming => { result }
     }
+    Ok(())
 }
 
 type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
