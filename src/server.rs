@@ -366,7 +366,7 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     let mut buf = vec![0u8; STREAM_BUFFER_SIZE];
     let mut buf_v6 = vec![0u8; STREAM_BUFFER_SIZE];
 
-    let addresses = Arc::new(Mutex::new(HashMap::new()));
+    let dst_src_pairs = Arc::new(Mutex::new(HashMap::new()));
 
     loop {
         tokio::select! {
@@ -389,7 +389,7 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     let pkt = buf.to_vec();
                     log::trace!("[UDP] {src_addr} -> {dst_addr} length {}", pkt.len());
 
-                    addresses.lock().await.insert(dst_addr.clone(), src_addr);
+                    dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr);
 
                     let dst_addr = dst_addr.to_socket_addr()?;
 
@@ -402,11 +402,11 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
             }
             Ok((len, addr)) = udp_socket.recv_from(&mut buf) => {
                 let pkt = buf[..len].to_vec();
-                _write_ws_stream(&pkt, &mut ws_stream, &addresses, addr, &traffic_audit, client_id).await?;
+                _write_ws_stream(&pkt, &mut ws_stream, &dst_src_pairs, addr, &traffic_audit, client_id).await?;
             }
             Ok((len, addr)) = udp_socket_v6.recv_from(&mut buf_v6) => {
                 let pkt = buf_v6[..len].to_vec();
-                _write_ws_stream(&pkt, &mut ws_stream, &addresses, addr, &traffic_audit, client_id).await?;
+                _write_ws_stream(&pkt, &mut ws_stream, &dst_src_pairs, addr, &traffic_audit, client_id).await?;
             }
             else => {
                 break;
@@ -419,13 +419,13 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
 async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     pkt: &[u8],
     ws_stream: &mut WebSocketStream<S>,
-    addresses: &Arc<Mutex<HashMap<Address, Address>>>,
+    dst_src_pairs: &Arc<Mutex<HashMap<Address, Address>>>,
     addr: SocketAddr,
     traffic_audit: &TrafficAuditPtr,
     client_id: &Option<String>,
 ) -> anyhow::Result<()> {
     let dst_addr = Address::from(addr);
-    let src_addr = addresses.lock().await.get(&dst_addr).cloned();
+    let src_addr = dst_src_pairs.lock().await.get(&dst_addr).cloned();
     if let Some(src_addr) = src_addr {
         // write back to client, data format: src_addr + dst_addr + payload
         let mut buf = BytesMut::new();
