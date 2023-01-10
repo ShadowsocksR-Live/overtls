@@ -1,4 +1,5 @@
 {
+    "tls_enabled": true,
     "method": "none",
     "password": "password",
     "tunnel_path": "/secret-tunnel-path/",

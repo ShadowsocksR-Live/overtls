@@ -8,6 +8,7 @@ use std::{
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
+    pub tls_enabled: Option<bool>,
     pub method: Option<String>,
     pub password: Option<String>,
     pub tunnel_path: String,
@@ -58,6 +59,7 @@ impl Default for Config {
 impl Config {
     pub fn new() -> Self {
         Config {
+            tls_enabled: None,
             method: None,
             password: None,
             tunnel_path: "/tunnel/".to_string(),
@@ -104,6 +106,10 @@ impl Config {
 
     pub fn exist_client(&self) -> bool {
         self.client.is_some()
+    }
+
+    pub fn tls_enabled(&self) -> bool {
+        self.tls_enabled.unwrap_or(true)
     }
 
     pub fn check_correctness(&mut self, running_server: bool) -> anyhow::Result<()> {

@@ -6,7 +6,7 @@ viatls 代理軟件，通過 TLS 實現代理，支持 TCP 和 UDP 流量轉發�
 
 ## 原理
 
-爲了能有效騙過 GFW，直接使用 TLS 作爲代理協議是最簡單的方法。
+爲了能有效騙過 [GFW](https://en.wikipedia.org/wiki/Great_Firewall)，直接使用 [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) 作爲代理協議是最簡單的方法。
 TLS 協議是一種加密協議，它的加密方式是對稱加密，即客戶端和服務端使用相同的密鑰進行加密解密。
 
 我們可以利用這個特性，將客戶端和服務端的加密解密過程封裝成一個代理服務，這樣就可以在 GFW 的監視下，進行加密的 TCP 和 UDP 代理。
@@ -67,12 +67,14 @@ $ viatls client -c config.json
 }
 ```
 配置文件非常簡單。是 `服務端` 和 `客戶端` 通用的， 
-- 當程序以 服務端 身份運行時，`server_settings` 部分是有效的，而 `client_settings` 部分是被忽略的；
-- 當程序以 客戶端 身份運行時，`client_settings` 部分是有效的，而 `server_settings` 部分是被忽略的。
+- 當程序以 `服務端` 身份運行時，`server_settings` 部分是有效的，而 `client_settings` 部分是被忽略的；
+- 當程序以 `客戶端` 身份運行時，`client_settings` 部分是有效的，而 `server_settings` 部分是被忽略的。
 
 `certfile` 和 `keyfile` 爲可選項，配正確後 軟件就變身 https 協議服務端，非翻牆流量直接轉發到 `forward_addr` 指向的目標。
 若 `certfile` 和 `keyfile` 兩項配錯或乾脆不存在，則需要前置的 `反向代理` 如 `nginx` 協助方可工作。
 
 注意 `tunnel_path` 配置項，請務必改成你自己獨有的複雜字符串，否則 `GFW` 立馬拿你祭旗。
+
+> 爲方便測試，可以配置 `tls_enabled` 選項，若該項存在且爲 `false` 時，本軟件就 `明文(plain text)` 傳輸流量；出於安全考慮，正式場合請不要使用。
 
 本文件是最少條目的配置文件，完整的配置文件可以參考 [config.json](config.json)。

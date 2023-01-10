@@ -8,11 +8,17 @@ use socks5_impl::{
         Associate,
     },
 };
-use std::{collections::HashSet, net::SocketAddr, sync::Arc};
+use std::{
+    collections::HashSet,
+    net::{SocketAddr, ToSocketAddrs},
+    sync::Arc,
+};
 use tokio::{
+    io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
     sync::{broadcast, mpsc, Mutex},
 };
+use tokio_tungstenite::WebSocketStream;
 use tungstenite::protocol::Message;
 
 pub type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Address)>;
@@ -129,9 +135,25 @@ pub fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, SocketAddrS
 }
 
 pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, config: Config) -> anyhow::Result<()> {
-    let ws_stream = client::create_ws_tls_stream(None, &config, Some(true)).await?;
-    let (mut ws_stream_w, mut ws_stream_r) = ws_stream.split();
+    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
+    let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
+    let svr_addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
 
+    if config.tls_enabled() {
+        let ws_stream = client::create_tls_ws_stream(&svr_addr, None, &config, Some(true)).await?;
+        _run_udp_loop(udp_tx, incomings, ws_stream).await?;
+    } else {
+        let ws_stream = client::create_plaintext_ws_stream(&svr_addr, None, &config, Some(true)).await?;
+        _run_udp_loop(udp_tx, incomings, ws_stream).await?;
+    }
+    Ok(())
+}
+
+async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
+    udp_tx: UdpRequestSender,
+    incomings: SocketAddrSet,
+    mut ws_stream: WebSocketStream<S>,
+) -> anyhow::Result<()> {
     let mut udp_rx = udp_tx.subscribe();
 
     loop {
@@ -147,13 +169,13 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
 
                     log::trace!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
                     let msg = Message::Binary(buf.freeze().to_vec());
-                    ws_stream_w.send(msg).await?;
+                    ws_stream.send(msg).await?;
                 } else {
                     log::trace!("[UDP] skip feedback packet {src_addr} -> {dst_addr}");
                 }
                  Ok::<_, anyhow::Error>(())
             },
-            msg = ws_stream_r.next() => {
+            msg = ws_stream.next() => {
                 match msg {
                     Some(Ok(Message::Binary(buf))) => {
                         let mut buf = BytesMut::from(&buf[..]);

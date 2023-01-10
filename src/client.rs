@@ -94,8 +94,17 @@ async fn handle_socks5_cmd_connection(
 
     log::trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
 
-    let ws_stream = create_ws_tls_stream(Some(target_addr.clone()), &config, None).await?;
-    client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
+    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
+    let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
+    let svr_addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
+
+    if config.tls_enabled() {
+        let ws_stream = create_tls_ws_stream(&svr_addr, Some(target_addr.clone()), &config, None).await?;
+        client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
+    } else {
+        let ws_stream = create_plaintext_ws_stream(&svr_addr, Some(target_addr.clone()), &config, None).await?;
+        client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
+    }
     Ok(())
 }
 
@@ -139,35 +148,54 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
 
 type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 
-pub async fn create_ws_tls_stream(
-    target_addr: Option<Address>,
+pub async fn create_tls_ws_stream(
+    svr_addr: &SocketAddr,
+    dst_addr: Option<Address>,
     config: &Config,
     udp: Option<bool>,
 ) -> anyhow::Result<WsTlsStream> {
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
+
+    let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
+    let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
+
+    let stream = create_tls_client_stream(cert_store, svr_addr, domain).await?;
+
+    let ws_stream = create_ws_stream(dst_addr, config, udp, stream).await?;
+    Ok(ws_stream)
+}
+
+pub async fn create_plaintext_ws_stream(
+    svr_addr: &SocketAddr,
+    dst_addr: Option<Address>,
+    config: &Config,
+    udp: Option<bool>,
+) -> anyhow::Result<WebSocketStream<TcpStream>> {
+    let stream = TcpStream::connect(svr_addr).await?;
+    let ws_stream = create_ws_stream(dst_addr, config, udp, stream).await?;
+    Ok(ws_stream)
+}
+
+pub async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
+    dst_addr: Option<Address>,
+    config: &Config,
+    udp: Option<bool>,
+    mut stream: S,
+) -> anyhow::Result<WebSocketStream<S>> {
+    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
     let tunnel_path = config.tunnel_path.trim_matches('/');
 
-    let b64_dst = target_addr
-        .as_ref()
-        .map(|target_addr| addess_to_b64str(target_addr, false));
+    let b64_dst = dst_addr.as_ref().map(|dst_addr| addess_to_b64str(dst_addr, false));
 
     let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
 
     let uri = WeirdUri::new(&uri, b64_dst, udp, client.client_id.clone());
 
-    let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
-
-    let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
-    let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
-    let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
-
-    let mut outgoing = create_tls_client_stream(cert_store, &addr, domain).await?;
-
     let (v, key) = client::generate_request(uri.into_client_request()?)?;
-    outgoing.write_all(&v).await?;
+    stream.write_all(&v).await?;
 
     let mut buf = BytesMut::with_capacity(2048);
-    outgoing.read_buf(&mut buf).await?;
+    stream.read_buf(&mut buf).await?;
 
     let response = Response::try_parse(&buf)?.ok_or_else(|| anyhow::anyhow!("response"))?.1;
     let remote_key = response
@@ -181,8 +209,8 @@ pub async fn create_ws_tls_stream(
         return Err(anyhow::anyhow!("accept key error"));
     }
 
-    let ws_stream = WebSocketStream::from_raw_socket(outgoing, Role::Client, None).await;
-    // let (mut ws_stream, _) = tokio_tungstenite::client_async(uri, outgoing).await?;
+    let ws_stream = WebSocketStream::from_raw_socket(stream, Role::Client, None).await;
+    // let (mut ws_stream, _) = tokio_tungstenite::client_async(uri, stream).await?;
 
     Ok(ws_stream)
 }

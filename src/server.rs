@@ -41,13 +41,21 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
     let addr = format!("{}:{}", server.listen_host, server.listen_port);
 
     let certs = if let Some(ref cert) = server.certfile {
-        server_load_certs(cert).ok()
+        if config.tls_enabled() {
+            server_load_certs(cert).ok()
+        } else {
+            None
+        }
     } else {
         None
     };
 
     let keys = if let Some(ref key) = server.keyfile {
-        server_load_keys(key).ok()
+        if config.tls_enabled() {
+            server_load_keys(key).ok()
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -261,7 +269,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     if udp {
-        return udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
+        return udp_tunnel(ws_stream, config, &peer, traffic_audit, &client_id).await;
     }
 
     let addr_str = b64str_to_address(&target_address, false).await?.to_string();
@@ -346,9 +354,12 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
     _config: Config,
+    peer: &SocketAddr,
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
 ) -> anyhow::Result<()> {
+    log::trace!("[UDP] {} tunneling established", peer);
+
     let udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
     let udp_socket_v6 = UdpSocket::bind("[::]:0").await?;
 
