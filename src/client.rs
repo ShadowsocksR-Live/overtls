@@ -121,6 +121,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
                 let len = result?;
                 if len == 0 {
                     log::trace!("{} -> {} incoming closed", peer_addr, target_addr);
+                    ws_stream.send(Message::Close(None)).await?;
                     break;
                 }
                 ws_stream.send(Message::Binary(buf.to_vec())).await?;
