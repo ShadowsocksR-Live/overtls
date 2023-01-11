@@ -41,7 +41,7 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
     let addr = format!("{}:{}", server.listen_host, server.listen_port);
 
     let certs = if let Some(ref cert) = server.certfile {
-        if config.tls_enabled() {
+        if !config.disable_tls() {
             server_load_certs(cert).ok()
         } else {
             None
@@ -51,7 +51,7 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
     };
 
     let keys = if let Some(ref key) = server.keyfile {
-        if config.tls_enabled() {
+        if !config.disable_tls() {
             server_load_keys(key).ok()
         } else {
             None

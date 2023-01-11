@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use serde::{Deserialize, Serialize};
 use std::{
     net::{TcpStream, ToSocketAddrs},
@@ -8,7 +6,7 @@ use std::{
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub tls_enabled: Option<bool>,
+    pub disable_tls: Option<bool>,
     pub method: Option<String>,
     pub password: Option<String>,
     pub tunnel_path: String,
@@ -59,7 +57,7 @@ impl Default for Config {
 impl Config {
     pub fn new() -> Self {
         Config {
-            tls_enabled: None,
+            disable_tls: None,
             method: None,
             password: None,
             tunnel_path: "/tunnel/".to_string(),
@@ -108,8 +106,8 @@ impl Config {
         self.client.is_some()
     }
 
-    pub fn tls_enabled(&self) -> bool {
-        self.tls_enabled.unwrap_or(true)
+    pub fn disable_tls(&self) -> bool {
+        self.disable_tls.unwrap_or(false)
     }
 
     pub fn check_correctness(&mut self, running_server: bool) -> anyhow::Result<()> {

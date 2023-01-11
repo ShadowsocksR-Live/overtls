@@ -98,7 +98,7 @@ async fn handle_socks5_cmd_connection(
     let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
     let svr_addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
 
-    if config.tls_enabled() {
+    if !config.disable_tls() {
         let ws_stream = create_tls_ws_stream(&svr_addr, Some(target_addr.clone()), &config, None).await?;
         client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
     } else {

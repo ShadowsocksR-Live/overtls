@@ -139,7 +139,7 @@ pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, co
     let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
     let svr_addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
 
-    if config.tls_enabled() {
+    if !config.disable_tls() {
         let ws_stream = client::create_tls_ws_stream(&svr_addr, None, &config, Some(true)).await?;
         _run_udp_loop(udp_tx, incomings, ws_stream).await?;
     } else {
