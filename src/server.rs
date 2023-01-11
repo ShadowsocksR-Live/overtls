@@ -269,7 +269,11 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     if udp {
-        return udp_tunnel(ws_stream, config, &peer, traffic_audit, &client_id).await;
+        let r = udp_tunnel(ws_stream, config, &peer, traffic_audit, &client_id).await;
+        if let Err(ref e) = r {
+            log::trace!("[UDP] {} -> dead: {}", peer, e);
+        }
+        return r;
     }
 
     let addr_str = b64str_to_address(&target_address, false).await?.to_string();
