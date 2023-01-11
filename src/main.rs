@@ -1,5 +1,5 @@
+use overtls::{client, cmdopt, config, program_name, server};
 use std::fs::File;
-use viatls::{client, cmdopt, config, program_name, server};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

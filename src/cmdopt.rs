@@ -3,7 +3,7 @@ use structopt::StructOpt;
 
 #[derive(StructOpt, PartialEq, Eq, Debug)]
 pub enum CmdOpt {
-    /// Running ViaTLS server
+    /// Running OverTLS server
     Server {
         #[structopt(short, long)]
         /// config file path for server
@@ -14,7 +14,7 @@ pub enum CmdOpt {
         verbose: bool,
     },
 
-    /// Running ViaTLS client
+    /// Running OverTLS client
     Client {
         #[structopt(short, long)]
         /// config file path for client
