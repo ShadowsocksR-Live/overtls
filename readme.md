@@ -78,3 +78,11 @@ $ overtls client -c config.json
 > 爲方便測試，提供了 `disable_tls` 選項以停用 `TLS` 的能力；就是說，若該項存在且爲 `true` 時，本軟件將 `明文(plain text)` 傳輸流量；出於安全考慮，正式場合請勿使用。
 
 本示例展示的是最少條目的配置文件，完整的配置文件可以參考 [config.json](config.json)。
+
+## 一鍵安裝腳本
+安裝前請準備好帶公網 `IP` 的 `VPS` 主機和 `域名`，並將該域名解析到此 `主機` IP 上，然後執行以下命令，按提示操作，如果一切順利，結果就將 overtls 服務端 和 `nginx` 前置代理安裝到你的主機上，並申請好了證書。目前只支持 `x64` 機器。
+```bash
+$ wget https://raw.githubusercontent.com/ssrlive/overtls/master/install/overtls-install.sh
+$ chmod +x install.sh
+$ ./install.sh
+```
