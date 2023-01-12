@@ -277,7 +277,8 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
             log::trace!("[UDP] {} closed.", peer);
         }
     } else {
-        let dst_addr = target_address;
+        let addr_str = b64str_to_address(&target_address, false).await?.to_string();
+        let dst_addr = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
         log::trace!("{} -> {} {client_id:?} uri path: \"{}\"", peer, dst_addr, uri_path);
         result = normal_tunnel(ws_stream, config, traffic_audit, &client_id, &dst_addr).await;
         if let Err(ref e) = result {
@@ -294,11 +295,8 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     _config: Config,
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
-    dst_addr: &str,
+    dst_addr: &SocketAddr,
 ) -> anyhow::Result<()> {
-    let addr_str = b64str_to_address(dst_addr, false).await?.to_string();
-    let dst_addr = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
-
     let mut outgoing = TcpStream::connect(dst_addr).await?;
 
     let (ws_stream_tx, mut ws_stream_rx) = tokio::sync::mpsc::channel(1024);
