@@ -270,7 +270,8 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 
     let result;
     if udp {
-        result = udp_tunnel(ws_stream, config, &peer, traffic_audit, &client_id).await;
+        log::trace!("[UDP] {} tunneling established", peer);
+        result = udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
         if let Err(ref e) = result {
             log::debug!("[UDP] {} closed error: {}", peer, e);
         } else {
@@ -372,12 +373,9 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
 async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
     _config: Config,
-    peer: &SocketAddr,
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
 ) -> anyhow::Result<()> {
-    log::trace!("[UDP] {} tunneling established", peer);
-
     let udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
     let udp_socket_v6 = UdpSocket::bind("[::]:0").await?;
 
