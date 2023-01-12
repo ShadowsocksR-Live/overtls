@@ -222,7 +222,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         }
     };
 
-    let mut ws_stream: WebSocketStream<S>;
+    let ws_stream: WebSocketStream<S>;
 
     if !handshake.is_empty() {
         if let Some((_, req)) = Request::try_parse(handshake)? {
@@ -268,20 +268,38 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
     }
 
+    let result;
     if udp {
-        let r = udp_tunnel(ws_stream, config, &peer, traffic_audit, &client_id).await;
-        if let Err(ref e) = r {
-            log::trace!("[UDP] {} -> dead: {}", peer, e);
+        result = udp_tunnel(ws_stream, config, &peer, traffic_audit, &client_id).await;
+        if let Err(ref e) = result {
+            log::debug!("[UDP] {} closed error: {}", peer, e);
+        } else {
+            log::trace!("[UDP] {} closed.", peer);
         }
-        return r;
+    } else {
+        let dst_addr = target_address;
+        log::trace!("{} -> {} {client_id:?} uri path: \"{}\"", peer, dst_addr, uri_path);
+        result = normal_tunnel(ws_stream, config, traffic_audit, &client_id, &dst_addr).await;
+        if let Err(ref e) = result {
+            log::debug!("{} <> {} connection closed error: {}", peer, dst_addr, e);
+        } else {
+            log::trace!("{} <> {} connection closed.", peer, dst_addr);
+        }
     }
+    result
+}
 
-    let addr_str = b64str_to_address(&target_address, false).await?.to_string();
-    let target_address = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
+async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
+    mut ws_stream: WebSocketStream<S>,
+    _config: Config,
+    traffic_audit: TrafficAuditPtr,
+    client_id: &Option<String>,
+    dst_addr: &str,
+) -> anyhow::Result<()> {
+    let addr_str = b64str_to_address(dst_addr, false).await?.to_string();
+    let dst_addr = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
 
-    log::trace!("{} -> {} {client_id:?} uri path: \"{}\"", peer, addr_str, uri_path);
-
-    let mut outgoing = TcpStream::connect(target_address).await?;
+    let mut outgoing = TcpStream::connect(dst_addr).await?;
 
     let (ws_stream_tx, mut ws_stream_rx) = tokio::sync::mpsc::channel(1024);
     let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel(1024);
@@ -347,11 +365,9 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     };
 
     tokio::select! {
-        r = ws_stream_to_outgoing => { if let Err(e) = r { log::debug!("{} ws_stream_to_outgoing \"{}\"", peer, e); } }
-        r = outgoing_to_ws_stream => { if let Err(e) = r { log::debug!("{} outgoing_to_ws_stream \"{}\"", peer, e); } }
+        r = ws_stream_to_outgoing => { if let Err(e) = r { log::debug!("{} ws_stream_to_outgoing \"{}\"", dst_addr, e); } }
+        r = outgoing_to_ws_stream => { if let Err(e) = r { log::debug!("{} outgoing_to_ws_stream \"{}\"", dst_addr, e); } }
     }
-    log::trace!("{} <> {} connection closed.", peer, addr_str);
-
     Ok(())
 }
 
