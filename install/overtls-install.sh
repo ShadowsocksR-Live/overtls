@@ -527,7 +527,7 @@ function uninstall_overtls() {
     fi
 }
 
-function main() {
+function install_overtls_main() {
     is_root
     check_system
     dependency_install
@@ -558,4 +558,35 @@ function main() {
     echo
 }
 
-main
+function main() {
+    echo
+    echo "####################################################################"
+    echo "# Script of Install ${service_name} Server                         #"
+    echo "# Author: ssrlive                                                  #"
+    echo "# Github: https://github.com/ssrlive/overtls                       #"
+    echo "####################################################################"
+    echo
+
+    # Make sure only root can run our script
+    [[ $EUID -ne 0 ]] && echo -e "[${red}Error${plain}] This script must be run as root!" && exit 1
+
+    local action=$1
+    [ -z $1 ] && action=install
+    case "${action}" in
+        install)
+            install_overtls_main
+            ;;
+        uninstall)
+            uninstall_overtls
+            ;;
+        *)
+            echo "Arguments error! [${action}]"
+            echo "Usage: `basename $0` [install|uninstall]"
+            ;;
+    esac
+
+    exit 0
+}
+
+main $1
+
