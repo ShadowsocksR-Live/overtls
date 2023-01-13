@@ -17,7 +17,7 @@ NAME="overtls"
 DAEMON=/usr/bin/overtls
 CONF=/etc/overtls/config.json
 
-command_start="${DAEMON} server -c ${CONF}"
+command_start="setsid nohup ${DAEMON} server -c ${CONF}"
 
 PID=0
 RETVAL=0
@@ -37,7 +37,7 @@ do_start(){
         echo "${NAME} (pid ${PID}) is already running..."
         exit 0
     else
-        ${command_start}
+        ${command_start} &
         RETVAL=$?
         if [ ${RETVAL} -eq 0 ]; then
             echo "Starting ${NAME} success"
