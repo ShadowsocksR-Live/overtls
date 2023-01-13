@@ -6,7 +6,6 @@ use std::{
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub disable_tls: Option<bool>,
     pub method: Option<String>,
     pub password: Option<String>,
     pub tunnel_path: String,
@@ -16,6 +15,8 @@ pub struct Config {
     pub client: Option<Client>,
     #[serde(skip)]
     pub test_timeout_secs: u64,
+    #[serde(skip)]
+    is_server: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
@@ -26,6 +27,7 @@ pub struct Server {
     pub forward_addr: Option<String>,
     pub listen_host: String,
     pub listen_port: u16,
+    pub disable_tls: Option<bool>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
@@ -46,6 +48,7 @@ pub struct Client {
     pub listen_host: String,
     pub listen_port: u16,
     pub client_id: Option<String>,
+    pub disable_tls: Option<bool>,
 }
 
 impl Default for Config {
@@ -57,13 +60,13 @@ impl Default for Config {
 impl Config {
     pub fn new() -> Self {
         Config {
-            disable_tls: None,
             method: None,
             password: None,
             tunnel_path: "/tunnel/".to_string(),
             server: None,
             client: None,
             test_timeout_secs: 5,
+            is_server: false,
         }
     }
 
@@ -107,10 +110,18 @@ impl Config {
     }
 
     pub fn disable_tls(&self) -> bool {
-        self.disable_tls.unwrap_or(false)
+        if self.is_server {
+            if let Some(s) = &self.server {
+                return s.disable_tls.unwrap_or(false);
+            }
+        } else if let Some(c) = &self.client {
+            return c.disable_tls.unwrap_or(false);
+        }
+        false
     }
 
     pub fn check_correctness(&mut self, running_server: bool) -> anyhow::Result<()> {
+        self.is_server = running_server;
         if running_server {
             self.client = None;
         } else {

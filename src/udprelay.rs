@@ -246,7 +246,7 @@ pub async fn udp_handler_watchdog(
                 let result = run_udp_loop(udp_tx, incomings, config).await;
                 log::trace!("[UDP] udp client watchdog thread stopped for {:?}", result);
                 running.store(false, Ordering::Relaxed);
-                time::sleep(Duration::from_secs(3)).await;
+                time::sleep(Duration::from_secs(1)).await;
                 let _ = tx2.send(()).await; // restart watchdog
             });
         }
