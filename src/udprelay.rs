@@ -223,15 +223,15 @@ pub async fn udp_handler_watchdog(
     let udp_tx = udp_tx.clone();
     let (tx, mut rx) = mpsc::channel::<()>(10);
 
-    let running = Arc::new(Mutex::new(false));
-
     let tx2 = tx.clone();
     tokio::spawn(async move {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let running = Arc::new(AtomicBool::new(false));
         while rx.recv().await.is_some() {
-            if *running.lock().await {
+            if running.load(Ordering::Relaxed) {
                 continue;
             }
-            *running.lock().await = true;
+            running.store(true, Ordering::Relaxed);
             let udp_tx = udp_tx.clone();
             let incomings = incomings.clone();
             let config = config.clone();
@@ -241,7 +241,7 @@ pub async fn udp_handler_watchdog(
                 log::trace!("[UDP] udp client watchdog thread started");
                 let _ = run_udp_loop(udp_tx, incomings, config).await;
                 log::trace!("[UDP] udp client watchdog thread stopped");
-                *running.lock().await = false;
+                running.store(false, Ordering::Relaxed);
                 let _ = tx2.send(()).await; // restart watchdog
             });
         }

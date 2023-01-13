@@ -414,7 +414,6 @@ function write_overtls_config_file() {
 
     cat > ${config_file_path} <<EOF
 {
-    "disable_tls": true,
     "tunnel_path": "/${reverse_proxy_location}/",
 
     "server_settings": {
