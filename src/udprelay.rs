@@ -243,8 +243,8 @@ pub async fn udp_handler_watchdog(
             let tx2 = tx2.clone();
             tokio::spawn(async move {
                 log::trace!("[UDP] udp client watchdog thread started");
-                let _ = run_udp_loop(udp_tx, incomings, config).await;
-                log::trace!("[UDP] udp client watchdog thread stopped");
+                let result = run_udp_loop(udp_tx, incomings, config).await;
+                log::trace!("[UDP] udp client watchdog thread stopped for {:?}", result);
                 running.store(false, Ordering::Relaxed);
                 time::sleep(Duration::from_secs(3)).await;
                 let _ = tx2.send(()).await; // restart watchdog
