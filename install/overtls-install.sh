@@ -26,6 +26,7 @@ overtls_install_sh="overtls-install.sh"
 overtls_install_sh_url="https://raw.githubusercontent.com/ssrlive/overtls/master/install/overtls-install.sh"
 
 overtls_bin_url="https://github.com/ssrlive/overtls/releases/latest/download/overtls-linux-x64.zip"
+overtls_bin_file="overtls-linux-x64.zip"
 
 daemon_script_url="https://raw.githubusercontent.com/ssrlive/overtls/master/install/overtls-daemon.sh"
 service_dir=/lib/systemd/system
@@ -393,16 +394,16 @@ EOF
 }
 
 function download_n_install_overtls_server_bin() {
-    rm -rf overtls-linux-x64.zip
+    rm -rf ${overtls_bin_file}
     wget ${overtls_bin_url}
     if [ $? -ne 0 ]; then echo "wget failed"; exit -1; fi
 
     rm -rf ${bin_name}
-    unzip overtls-linux-x64.zip ${bin_name}
+    unzip ${overtls_bin_file} ${bin_name}
     if [ $? -ne 0 ]; then echo "unzip failed"; exit -1; fi
 
     chmod +x ${bin_name}
-    rm -rf overtls-linux-x64.zip
+    rm -rf ${overtls_bin_file}
 
     rm -rf ${target_dir}/${bin_name}
     mv ${bin_name} ${target_dir}
@@ -561,9 +562,9 @@ function install_overtls_main() {
 function main() {
     echo
     echo "####################################################################"
-    echo "# Script of Install ${service_name} Server                         #"
-    echo "# Author: ssrlive                                                  #"
-    echo "# Github: https://github.com/ssrlive/overtls                       #"
+    echo "# Script of Install ${service_name} Server"
+    echo "# Author: ssrlive"
+    echo "# Github: https://github.com/ssrlive/overtls"
     echo "####################################################################"
     echo
 
