@@ -11,12 +11,17 @@ use socks5_impl::{
 use std::{
     collections::HashSet,
     net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
     sync::{broadcast, mpsc, Mutex},
+    time,
 };
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::protocol::Message;
@@ -225,7 +230,6 @@ pub async fn udp_handler_watchdog(
 
     let tx2 = tx.clone();
     tokio::spawn(async move {
-        use std::sync::atomic::{AtomicBool, Ordering};
         let running = Arc::new(AtomicBool::new(false));
         while rx.recv().await.is_some() {
             if running.load(Ordering::Relaxed) {
@@ -242,6 +246,7 @@ pub async fn udp_handler_watchdog(
                 let _ = run_udp_loop(udp_tx, incomings, config).await;
                 log::trace!("[UDP] udp client watchdog thread stopped");
                 running.store(false, Ordering::Relaxed);
+                time::sleep(Duration::from_secs(3)).await;
                 let _ = tx2.send(()).await; // restart watchdog
             });
         }
