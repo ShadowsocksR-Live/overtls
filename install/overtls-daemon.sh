@@ -22,7 +22,7 @@ command_start="setsid nohup ${DAEMON} server -c ${CONF}"
 PID=0
 RETVAL=0
 
-check_running(){
+function check_running(){
     PID=$(ps -ef | grep -v grep | grep -i "${DAEMON}" | awk '{print $2}')
     if [ -n "${PID}" ]; then
         return 0
@@ -31,7 +31,7 @@ check_running(){
     fi
 }
 
-do_start(){
+function do_start(){
     check_running
     if [ $? -eq 0 ]; then
         echo "${NAME} (pid ${PID}) is already running..."
@@ -47,7 +47,7 @@ do_start(){
     fi
 }
 
-do_stop(){
+function do_stop(){
     check_running
     if [ $? -eq 0 ]; then
         kill ${PID}
@@ -63,7 +63,7 @@ do_stop(){
     fi
 }
 
-do_status(){
+function do_status(){
     check_running
     if [ $? -eq 0 ]; then
         echo "${NAME} (pid ${PID}) is running..."
@@ -73,7 +73,7 @@ do_status(){
     fi
 }
 
-do_restart(){
+function do_restart(){
     do_stop
     sleep 0.5
     do_start

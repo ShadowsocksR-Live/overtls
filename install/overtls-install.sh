@@ -465,35 +465,29 @@ EOF
 function install_overtls_service() {
     ldconfig
     cd ${cur_dir}
-    if [ -f ${target_dir}/${bin_name} ]; then
 
-        # Download ${service_name} service script
-        if ! curl -L ${daemon_script_url} -o ${service_stub} ; then
-            echo -e "[${red}Error${plain}] Failed to download ${service_name} service script!"
-            exit 1
-        fi
-
-        chmod +x ${service_stub}
-        if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" ]]; then
-            update-rc.d -f ${service_name} defaults
-        elif [[ "${ID}" == "centos" ]]; then
-            chkconfig --add ${service_name}
-            chkconfig ${service_name} on
-        else
-            echo Unsupported OS ${ID}
-            exit 1
-        fi
-
-        write_service_description_file ${service_name} ${service_stub} ${service_dir}
-
-        echo "${service_stub} starting..."
-        systemctl enable ${service_name}.service
-        systemctl start ${service_name}.service
-
-    else
-        echo "${service_name} install failed, please contact @ssrlive"
+    # Download ${service_name} service script
+    if ! curl -L ${daemon_script_url} -o ${service_stub} ; then
+        echo -e "[${red}Error${plain}] Failed to download ${service_name} service script!"
         exit 1
     fi
+
+    chmod +x ${service_stub}
+    if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" ]]; then
+        update-rc.d -f ${service_name} defaults
+    elif [[ "${ID}" == "centos" ]]; then
+        chkconfig --add ${service_name}
+        chkconfig ${service_name} on
+    else
+        echo Unsupported OS ${ID}
+        exit 1
+    fi
+
+    write_service_description_file ${service_name} ${service_stub} ${service_dir}
+
+    echo "${service_stub} starting..."
+    systemctl enable ${service_name}.service
+    systemctl start ${service_name}.service
 }
 
 function do_uninstall_service_action() {
@@ -550,7 +544,12 @@ function install_overtls_main() {
 
     do_uninstall_service_action
 
-    install_overtls_service
+    if [ -f ${target_dir}/${bin_name} ]; then
+        install_overtls_service
+    else
+        echo "${service_name} install failed, please contact the author!"
+        exit 1
+    fi
 
     echo
     echo "======== config.json ========"
