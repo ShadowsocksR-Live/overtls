@@ -438,8 +438,10 @@ EOF
 function write_service_description_file() {
     local svc_name=${1}
     local svc_stub=${2}
+    local service_dir_local=${3}
+    local service_file_path=${service_dir_local}/${svc_name}.service
 
-    cat > ${service_dir}/${svc_name}.service <<-EOF
+    cat > ${service_file_path} <<-EOF
 [Unit]
     Description=${svc_name}
     After=network.target
@@ -457,7 +459,7 @@ function write_service_description_file() {
     WantedBy=multi-user.target
 EOF
 
-    chmod 754 ${service_dir}/${svc_name}.service
+    chmod 754 ${service_file_path}
 }
 
 function install_overtls_service() {
@@ -482,9 +484,9 @@ function install_overtls_service() {
             exit 1
         fi
 
-        write_service_description_file ${service_name} ${service_stub}
+        write_service_description_file ${service_name} ${service_stub} ${service_dir}
 
-        # ${service_stub} start
+        echo "${service_stub} starting..."
         systemctl enable ${service_name}.service
         systemctl start ${service_name}.service
 
@@ -533,8 +535,6 @@ function install_overtls_main() {
     check_system
     dependency_install
 
-    do_uninstall_service_action
-
     web_svr_reverse_proxy_port=`random_listen_port`
     domain_check
     echo "请输入 站点端口号 (默认值 443) "
@@ -547,6 +547,8 @@ function install_overtls_main() {
 
     download_n_install_overtls_server_bin
     write_overtls_config_file
+
+    do_uninstall_service_action
 
     install_overtls_service
 
