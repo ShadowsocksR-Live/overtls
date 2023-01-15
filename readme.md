@@ -1,8 +1,8 @@
 # overtls
 
-overtls 是 [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) 型代理軟件，通過 TLS 實現代理，支持 TCP 和 UDP 流量轉發。
+overtls 是 [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) 型代理軟件，在軟件內部通過 TLS 實現數據傳輸，同時支持 TCP 和 UDP 流量轉發。
 
-功能齊備且代碼精簡，總共也就 1200 行代碼。
+功能齊備且代碼精簡，核心功能總共也就 1200 行代碼。
 
 ## 原理
 
