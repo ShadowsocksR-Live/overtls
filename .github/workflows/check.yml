@@ -46,7 +46,15 @@ jobs:
         rustup target add ${{ matrix.target }}
       
     - name: Build
-      run: cargo build --verbose
+      shell: bash
+      run: |
+        if [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
+          sudo .github/workflows/install-cross.sh
+          cross build --verbose --target ${{ matrix.target }}
+        else
+          cargo build --verbose --target ${{ matrix.target }}
+        fi
 
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose --all-features
+
