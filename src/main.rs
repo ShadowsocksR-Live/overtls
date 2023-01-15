@@ -23,7 +23,8 @@ async fn main() -> anyhow::Result<()> {
 
     let f = File::open(config)?;
     let mut config: config::Config = serde_json::from_reader(f)?;
-    config.check_correctness(is_server)?;
+    config.is_server = is_server;
+    config.check_correctness()?;
     if is_server {
         if config.exist_server() {
             server::run_server(&config).await?;

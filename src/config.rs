@@ -16,7 +16,7 @@ pub struct Config {
     #[serde(skip)]
     pub test_timeout_secs: u64,
     #[serde(skip)]
-    is_server: bool,
+    pub is_server: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
@@ -120,9 +120,8 @@ impl Config {
         false
     }
 
-    pub fn check_correctness(&mut self, running_server: bool) -> anyhow::Result<()> {
-        self.is_server = running_server;
-        if running_server {
+    pub fn check_correctness(&mut self) -> anyhow::Result<()> {
+        if self.is_server {
             self.client = None;
         } else {
             self.server = None;
@@ -168,7 +167,7 @@ impl Config {
                 client.listen_host = "127.0.0.1".to_string();
             }
 
-            if !running_server {
+            if !self.is_server {
                 let addr = format!("{}:{}", client.server_host, client.server_port);
                 let mut addr = addr
                     .to_socket_addrs()
