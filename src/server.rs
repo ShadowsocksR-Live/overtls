@@ -108,10 +108,6 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
     }
 }
 
-fn extract_forward_addr(config: &Config) -> Option<String> {
-    config.server.as_ref()?.forward_addr.clone()
-}
-
 async fn handle_tls_incoming(
     mut stream: TlsStream<TcpStream>,
     config: Config,
@@ -173,7 +169,7 @@ where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     log::debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
-    let forward_addr = extract_forward_addr(config).ok_or_else(|| anyhow::anyhow!(""))?;
+    let forward_addr = config.forward_addr().ok_or_else(|| anyhow::anyhow!(""))?;
     let to_stream = TcpStream::connect(forward_addr).await?;
     forward_traffic(stream, to_stream, data).await
 }

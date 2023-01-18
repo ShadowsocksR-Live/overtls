@@ -109,6 +109,16 @@ impl Config {
         self.client.is_some()
     }
 
+    pub fn forward_addr(&self) -> Option<String> {
+        if self.is_server {
+            let f = |s: &Server| s.forward_addr.clone();
+            let default = Some("127.0.0.1:80".to_owned());
+            self.server.as_ref().map(f).unwrap_or(default)
+        } else {
+            None
+        }
+    }
+
     pub fn disable_tls(&self) -> bool {
         if self.is_server {
             if let Some(s) = &self.server {
