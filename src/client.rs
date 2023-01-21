@@ -133,10 +133,10 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
                 match msg {
                     Message::Binary(data) => {
                         incoming.write_all(&data).await?;
-                        log::trace!("{} -> {} length {}", peer_addr, target_addr, data.len());
+                        log::trace!("{} <- {} length {}", peer_addr, target_addr, data.len());
                     }
                     Message::Close(_) => {
-                        log::trace!("{} -> {} ws closed", peer_addr, target_addr);
+                        log::trace!("{} <- {} ws closed", peer_addr, target_addr);
                         break;
                     }
                     _ => {}
