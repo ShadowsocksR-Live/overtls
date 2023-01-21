@@ -184,13 +184,13 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                 match msg {
                     Some(Ok(Message::Binary(buf))) => {
                         let mut buf = BytesMut::from(&buf[..]);
-                        let dst_addr = Address::read_from(&mut &buf[..]).await?;
-                        let _ = buf.split_to(dst_addr.serialized_len());
-                        let src_addr = Address::read_from(&mut &buf[..]).await?;
-                        let _ = buf.split_to(src_addr.serialized_len());
+                        let incoming_addr = Address::read_from(&mut &buf[..]).await?;
+                        let _ = buf.split_to(incoming_addr.serialized_len());
+                        let remote_addr = Address::read_from(&mut &buf[..]).await?;
+                        let _ = buf.split_to(remote_addr.serialized_len());
                         let pkt = buf.to_vec();
-                        log::trace!("[UDP] recv from remote {src_addr} -> {dst_addr} {} bytes", pkt.len());
-                        udp_tx.send((Bytes::from(pkt), dst_addr, src_addr))?;
+                        log::trace!("[UDP] {} <- {} length {}", incoming_addr, remote_addr, pkt.len());
+                        udp_tx.send((Bytes::from(pkt), incoming_addr, remote_addr))?;
                     },
                     Some(Ok(Message::Close(_))) => {
                         log::trace!("[UDP] ws stream closed by remote");

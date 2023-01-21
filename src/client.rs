@@ -73,7 +73,7 @@ async fn handle_incoming(
         }
         Connection::Connect(connect, addr) => {
             if let Err(e) = handle_socks5_cmd_connection(connect, addr.clone(), config).await {
-                log::debug!("{} -> {} {}", peer_addr, addr, e);
+                log::debug!("{} <> {} {}", peer_addr, addr, e);
             }
         }
     }
