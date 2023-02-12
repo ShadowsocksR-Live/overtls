@@ -13,7 +13,7 @@ use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
 use socks5_impl::protocol::Address;
 
-pub const STREAM_BUFFER_SIZE: usize = 1024 * 32;
+pub const STREAM_BUFFER_SIZE: usize = 1024 * 32 * 3;
 
 pub fn program_name() -> String {
     let name = std::env::args()
