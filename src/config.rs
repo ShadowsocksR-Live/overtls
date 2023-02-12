@@ -73,10 +73,8 @@ impl Config {
 
     pub fn manage_clients(&self) -> bool {
         let f = |s: &Server| {
-            s.manage_clients
-                .as_ref()
-                .map(|c| c.enable.unwrap_or(false))
-                .unwrap_or(false)
+            let f2 = |c: &ManageClients| c.enable.unwrap_or(false);
+            s.manage_clients.as_ref().map(f2).unwrap_or(false)
         };
         self.server.as_ref().map(f).unwrap_or(false)
     }
