@@ -1,3 +1,4 @@
+pub mod base64_wrapper;
 pub mod client;
 pub mod cmdopt;
 pub mod config;
@@ -8,6 +9,7 @@ pub mod udprelay;
 pub mod webapi;
 pub mod weirduri;
 
+use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
 use socks5_impl::protocol::Address;
 
@@ -28,23 +30,21 @@ pub fn program_name() -> String {
         .to_string()
 }
 
-use base64::{engine::general_purpose, Engine as _};
-
 pub fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     let mut buf = BytesMut::with_capacity(1024);
     addr.write_to_buf(&mut buf);
     if url_safe {
-        general_purpose::URL_SAFE_NO_PAD.encode(buf)
+        base64_encode(&buf, Base64Engine::UrlSafeNoPad)
     } else {
-        general_purpose::STANDARD_NO_PAD.encode(buf)
+        base64_encode(&buf, Base64Engine::StandardNoPad)
     }
 }
 
 pub async fn b64str_to_address(s: &str, url_safe: bool) -> anyhow::Result<Address> {
     let buf = if url_safe {
-        general_purpose::URL_SAFE_NO_PAD.decode(s)?
+        base64_decode(s, Base64Engine::UrlSafeNoPad)?
     } else {
-        general_purpose::STANDARD_NO_PAD.decode(s)?
+        base64_decode(s, Base64Engine::StandardNoPad)?
     };
     Address::read_from(&mut &buf[..]).await.map_err(|e| e.into())
 }
