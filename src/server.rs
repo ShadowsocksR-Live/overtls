@@ -182,12 +182,8 @@ where
     let forward_addr = format!("{}:{}", host, port);
 
     if tls_enable {
-        let mut addr = forward_addr.to_socket_addrs()?;
-        let svr_addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
-
         let cert_store = retrieve_root_cert_store_for_client(&None)?;
-        let to_stream = create_tls_client_stream(cert_store, &svr_addr, host).await?;
-
+        let to_stream = create_tls_client_stream(cert_store, forward_addr, host).await?;
         forward_traffic(stream, to_stream, data).await
     } else {
         let to_stream = TcpStream::connect(forward_addr).await?;

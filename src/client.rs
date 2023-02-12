@@ -5,10 +5,10 @@ use socks5_impl::{
     protocol::{Address, Reply},
     server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server},
 };
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::SocketAddr;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    net::TcpStream,
+    net::{TcpStream, ToSocketAddrs},
 };
 use tokio_rustls::client::TlsStream;
 use tokio_tungstenite::WebSocketStream;
@@ -95,14 +95,13 @@ async fn handle_socks5_cmd_connection(
     log::trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
 
     let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
-    let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
-    let svr_addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
+    let addr = (client.server_host.as_str(), client.server_port);
 
     if !config.disable_tls() {
-        let ws_stream = create_tls_ws_stream(&svr_addr, Some(target_addr.clone()), &config, None).await?;
+        let ws_stream = create_tls_ws_stream(addr, Some(target_addr.clone()), &config, None).await?;
         client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
     } else {
-        let ws_stream = create_plaintext_ws_stream(&svr_addr, Some(target_addr.clone()), &config, None).await?;
+        let ws_stream = create_plaintext_ws_stream(addr, Some(target_addr.clone()), &config, None).await?;
         client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
     }
     Ok(())
@@ -149,8 +148,8 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
 
 type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 
-pub async fn create_tls_ws_stream(
-    svr_addr: &SocketAddr,
+pub async fn create_tls_ws_stream<A: ToSocketAddrs>(
+    svr_addr: A,
     dst_addr: Option<Address>,
     config: &Config,
     udp: Option<bool>,
@@ -166,8 +165,8 @@ pub async fn create_tls_ws_stream(
     Ok(ws_stream)
 }
 
-pub async fn create_plaintext_ws_stream(
-    svr_addr: &SocketAddr,
+pub async fn create_plaintext_ws_stream<A: ToSocketAddrs>(
+    svr_addr: A,
     dst_addr: Option<Address>,
     config: &Config,
     udp: Option<bool>,

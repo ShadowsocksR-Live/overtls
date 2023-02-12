@@ -3,10 +3,12 @@ use rustls_pemfile::{certs, rsa_private_keys};
 use std::{
     fs::File,
     io::BufReader,
-    net::SocketAddr,
     path::{Path, PathBuf},
 };
-use tokio::{io, net::TcpStream};
+use tokio::{
+    io,
+    net::{TcpStream, ToSocketAddrs},
+};
 use tokio_rustls::{
     client::TlsStream,
     rustls::{self, Certificate, OwnedTrustAnchor, PrivateKey},
@@ -41,9 +43,9 @@ pub fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> anyhow::
     Ok(root_cert_store)
 }
 
-pub async fn create_tls_client_stream(
+pub async fn create_tls_client_stream<A: ToSocketAddrs>(
     root_cert_store: RootCertStore,
-    addr: &SocketAddr,
+    addr: A,
     domain: &str,
 ) -> anyhow::Result<TlsStream<TcpStream>> {
     let config = rustls::ClientConfig::builder()
