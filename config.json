@@ -6,6 +6,7 @@
     "server_settings": {
         "disable_tls": false,
         "manage_clients": {
+            "enabled": false,
             "node_id": 1,
             "api_update_time": 60,
             "webapi_url": "https://sspanelhost.com:443/",

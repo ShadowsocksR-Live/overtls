@@ -32,6 +32,7 @@ pub struct Server {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct ManageClients {
+    pub enable: Option<bool>,
     pub webapi_url: Option<String>,
     pub webapi_token: Option<String>,
     pub node_id: Option<usize>,
@@ -71,7 +72,12 @@ impl Config {
     }
 
     pub fn manage_clients(&self) -> bool {
-        let f = |s: &Server| s.manage_clients.is_some();
+        let f = |s: &Server| {
+            s.manage_clients
+                .as_ref()
+                .map(|c| c.enable.unwrap_or(false))
+                .unwrap_or(false)
+        };
         self.server.as_ref().map(f).unwrap_or(false)
     }
 
@@ -142,12 +148,6 @@ impl Config {
 
         if self.test_timeout_secs == 0 {
             self.test_timeout_secs = 5;
-        }
-        if self.method.is_none() || self.method.as_ref().unwrap_or(&"".to_owned()).is_empty() {
-            self.method = Some("none".to_string());
-        }
-        if self.password.is_none() || self.password.as_ref().unwrap_or(&"".to_owned()).is_empty() {
-            self.password = Some("password".to_string());
         }
         if self.tunnel_path.is_empty() {
             self.tunnel_path = "/tunnel/".to_string();
