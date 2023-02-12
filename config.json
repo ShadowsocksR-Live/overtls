@@ -14,7 +14,7 @@
         },
         "certfile": "/etc/mysite_cert/fullchain.pem",
         "keyfile": "/etc/mysite_cert/privkey.pem",
-        "forward_addr": "127.0.0.1:80",
+        "forward_addr": "http://127.0.0.1:80",
         "listen_host": "0.0.0.0",
         "listen_port": 443
     },

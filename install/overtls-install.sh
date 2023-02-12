@@ -418,7 +418,7 @@ function write_overtls_config_file() {
     "tunnel_path": "/${reverse_proxy_location}/",
 
     "server_settings": {
-        "forward_addr": "127.0.0.1:80",
+        "forward_addr": "http://127.0.0.1:80",
         "listen_host": "${web_svr_reverse_proxy_host}",
         "listen_port": ${web_svr_reverse_proxy_port}
     },

@@ -116,7 +116,7 @@ impl Config {
     pub fn forward_addr(&self) -> Option<String> {
         if self.is_server {
             let f = |s: &Server| s.forward_addr.clone();
-            let default = Some("127.0.0.1:80".to_owned());
+            let default = Some("http://127.0.0.1:80".to_owned());
             self.server.as_ref().map(f).unwrap_or(default)
         } else {
             None
