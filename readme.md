@@ -10,20 +10,20 @@ The function is complete and the code is concise, and the core function is 1200 
 
 In order to effectively deceive [GFW](https://en.wikipedia.org/wiki/Great_Firewall), directly using [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) as a proxy protocol is the simplest way. TLS protocol is an encryption protocol, which is symmetric encryption, i.e. the client and server use the same key for encryption and decryption.
 
-We can take advantage of this feature to encapsulate the encryption and decryption process on the client and server sides as a proxy service, so that encrypted TCP and UDP proxies can be performed under GFW surveillance.
+We can take advantage of this feature to encapsulate the encryption and decryption process on the client and server sides as a proxy service, so that encrypted TCP and UDP proxies can be performed under `GFW` surveillance.
 
 The overtls client first establishes a TLS connection with the overtls server, and then the data exchange between the overtls client and the overtls server is encrypted.
 
-We simply agree that the overtls client accessing a particular resource uri is considered to be a proxy, and the server will forward the packets containing this uri to the specified destination address.
+We simply agree that the overtls client accessing a unique resource `uri` is considered to be a proxy, and the server will forward the packets containing this `uri` to the specified destination address.
 
 This is how our proxy is achieved.
 
 Thus, the data exchange between the overtls server and the overtls client is encrypted, while the data exchange between the overtls server and the target server is in plaintext.
 
 In summary, we need to prepare the following things
--    A VPS host with a public IP, which must be purchased on its own.
--    a domain name, which can be purchased or applied for free, and resolve the domain name to the IP of the VPS host.
--    A pair of https certificates/private keys, which can be purchased or applied for free at [Let's Encrypt](https://letsencrypt.org/) .
+-    A `VPS` host with a public `IP`, which must be purchased by yourself.
+-    A `domain name`, which can be purchased or applied for free, and resolve the `domain name` to the `IP` of the `VPS` host.
+-    A pair of `https` certificates/private keys, which can be purchased or applied for free at [Let's Encrypt](https://letsencrypt.org/) .
 -    an http server software (such as [nginx](https://www.nginx.com/) ), and provide site resources for masquerading purposes or acting as a front `reverse proxy`.
 
 ## Installation
@@ -39,7 +39,7 @@ Currently, only linux x64 machines are supported.
 ```
 wget https://raw.githubusercontent.com/ssrlive/overtls/master/install/overtls-install.sh
 chmod +x overtls-install.sh
-. /overtls-install.sh
+./overtls-install.sh
 ```
 
 ## Usage
