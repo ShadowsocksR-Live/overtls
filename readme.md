@@ -1,59 +1,60 @@
 # overtls
 
-overtls 是 [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) 型代理軟件，在軟件內部通過 TLS 實現數據傳輸，同時支持 TCP 和 UDP 流量轉發。
+[中文版](readme-cn.md)
 
-功能齊備且代碼精簡，核心功能總共也就 1200 行代碼。
+overtls is [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) type proxy software, which realizes data transmission through TLS inside the software and supports TCP and UDP traffic forwarding at the same time.
 
-## 原理
+The function is complete and the code is concise, and the core function is 1200 lines of code in total.
 
-爲了能有效騙過 [GFW](https://en.wikipedia.org/wiki/Great_Firewall)，直接使用 [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) 作爲代理協議是最簡單的方法。
-TLS 協議是一種加密協議，它的加密方式是對稱加密，即客戶端和服務端使用相同的密鑰進行加密解密。
+## Principle
 
-我們可以利用這個特性，將客戶端和服務端的加密解密過程封裝成一個代理服務，這樣就可以在 GFW 的監視下，進行加密的 TCP 和 UDP 代理。
+In order to effectively deceive [GFW](https://en.wikipedia.org/wiki/Great_Firewall), directly using [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) as a proxy protocol is the simplest way. TLS protocol is an encryption protocol, which is symmetric encryption, i.e. the client and server use the same key for encryption and decryption.
 
-overtls 客戶端首先與 overtls 服務端建立 TLS 連接，然後 overtls 客戶端和 overtls 服務端之間的數據交換都是加密的。
+We can take advantage of this feature to encapsulate the encryption and decryption process on the client and server sides as a proxy service, so that encrypted TCP and UDP proxies can be performed under GFW surveillance.
 
-我們只要約定 overtls 客戶端訪問某一特定資源 uri，就認爲是要進行代理，服務端會將含有這個 uri 的數據包轉發到指定的目標地址。
+The overtls client first establishes a TLS connection with the overtls server, and then the data exchange between the overtls client and the overtls server is encrypted.
 
-我們的代理就這樣達成了。
+We simply agree that the overtls client accessing a particular resource uri is considered to be a proxy, and the server will forward the packets containing this uri to the specified destination address.
 
-因此，overtls 服務端和 overtls 客戶端之間的數據交換是加密的，而 overtls 服務端和目標服務器之間的數據交換是明文的。
+This is how our proxy is achieved.
 
-綜上所述，我們需要準備的東西有：
-- 一個帶公網 IP 的 VPS 主機，必須自行購買，
-- 一個域名，可以購買或申請免費的，並將該域名解析到 VPS 主機的 IP 上，
-- 一對 https 證書/私鑰，證書可以自行購買，也可以在 [Let's Encrypt](https://letsencrypt.org/) 申請免費的，
-- 一個 http 服務端軟件（如 [nginx](https://www.nginx.com/) ），並提供用於僞裝用途的站點資源或者充當前置的 `反向代理`，
+Thus, the data exchange between the overtls server and the overtls client is encrypted, while the data exchange between the overtls server and the target server is in plaintext.
 
-## 安裝
+In summary, we need to prepare the following things
+-    A VPS host with a public IP, which must be purchased on its own.
+-    a domain name, which can be purchased or applied for free, and resolve the domain name to the IP of the VPS host.
+-    A pair of https certificates/private keys, which can be purchased or applied for free at [Let's Encrypt](https://letsencrypt.org/) .
+-    an http server software (such as [nginx](https://www.nginx.com/) ), and provide site resources for masquerading purposes or acting as a front `reverse proxy`.
 
-可直接從源代碼編譯，也可以從 [發布頁面](https://github.com/ssrlive/overtls/releases) 下載預編譯的二進制文件。
+## Installation
 
-### 服務端一鍵安裝腳本
+can be compiled directly from the source code, or you can download the pre-compiled binary file from the [Release page](https://github.com/ssrlive/overtls/releases).
 
-安裝前請準備好帶公網 `IP` 的 `VPS` 主機和 `域名`，並將該域名解析到此 `主機` IP 上，然後執行以下命令，按提示操作，如果一切順利，結果就將 overtls 服務端 和 `nginx` 前置代理安裝到你的主機上，並申請好了證書。目前只支持 linux `x64` 機器。
-```bash
+## Server-side one-click installation script
+
+Before installation, please prepare a `VPS` host with a public `IP` and a `domain name`, and resolve the `domain name` to this host `IP`, then run the following command and follow the prompts, if everything goes smoothly, the result will be overtls server and nginx front proxy installed on your host, and apply for a certificate.
+
+Currently, only linux x64 machines are supported.
+
+```
 wget https://raw.githubusercontent.com/ssrlive/overtls/master/install/overtls-install.sh
 chmod +x overtls-install.sh
-./overtls-install.sh
+. /overtls-install.sh
 ```
 
-## 用法
+## Usage
 
-### 服務端
-
+### Server
 ```bash
 overtls server -c config.json
 ```
 
-### 客戶端
-
+### Client
 ```bash
 overtls client -c config.json
 ```
 
-### 配置文件
-
+### Configuration file
 ```json
 {
     "tunnel_path": "/secret-tunnel-path/",
@@ -75,17 +76,17 @@ overtls client -c config.json
     }
 }
 ```
-配置文件非常簡單。是 `服務端` 和 `客戶端` 通用的， 
-- 當程序以 `服務端` 身份運行時，`server_settings` 部分是有效的，而 `client_settings` 部分是被忽略的；
-- 當程序以 `客戶端` 身份運行時，`client_settings` 部分是有效的，而 `server_settings` 部分是被忽略的。
 
-`certfile` 和 `keyfile` 爲可選項，配正確後 軟件就變身 https 協議服務端，非翻牆流量直接轉發到 `forward_addr` 指向的目標。
-若 `certfile` 和 `keyfile` 兩項配錯或乾脆不存在，則需要前置的 `反向代理` 如 `nginx` 協助方可工作。
+The configuration file is very simple. It is common to both `server` and `client`.
+-    When the application is running as a `server`, the `server_settings` section is valid and the `client_settings` section is ignored.
+-    When the program is run as a `client`, the `client_settings` section is valid and the `server_settings` section is ignored.
 
-> 如果 `forward_addr` 選項不存在，則默認值爲 `http://127.0.0.1:80`，即本機 `nginx` 監聽 `http` 的 `80` 端口。
+The `certfile` and `keyfile` are optional, and the software will become `https` protocol server after the correct pairing, and the non-flip traffic will be forwarded directly to the `forward_addr` destination. If the `certfile` and `keyfile` are incorrectly matched or simply do not exist, you will need the help of a previous `reverse proxy` such as `nginx` to work.
 
-注意 `tunnel_path` 配置項，請務必改成你自己獨有的複雜字符串，否則 `GFW` 立馬拿你祭旗。
+>    If the forward_addr option does not exist, the default value is `http://127.0.0.1:80`, which is the port `80` on which the local `nginx` listens to `http`.
 
-> 爲方便測試，提供了 `disable_tls` 選項以具備停用 `TLS` 的能力；就是說，若該項存在且爲 `true` 時，本軟件將 `明文(plain text)` 傳輸流量；出於安全考慮，正式場合請勿使用。
+Note the `tunnel_path` configuration, please make sure to change it to your own unique complex string, otherwise `GFW` will block you immediately.
 
-本示例展示的是最少條目的配置文件，完整的配置文件可以參考 [config.json](config.json)。
+>    For testing purposes, the `disable_tls` option is provided to have the ability to disable `TLS`; that is, if this option exists and is true, the software will transmit traffic in `plain text`; for security reasons, please do not use it on official occasions.
+
+This example shows the configuration file of the least entry, the complete configuration file can refer to [config.json](config.json).
