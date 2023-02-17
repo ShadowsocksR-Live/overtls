@@ -184,9 +184,9 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                 match msg {
                     Some(Ok(Message::Binary(buf))) => {
                         let mut buf = BytesMut::from(&buf[..]);
-                        let incoming_addr = Address::from_stream(&mut &buf[..]).await?;
+                        let incoming_addr = Address::from_data(&buf)?;
                         let _ = buf.split_to(incoming_addr.serialized_len());
-                        let remote_addr = Address::from_stream(&mut &buf[..]).await?;
+                        let remote_addr = Address::from_data(&buf)?;
                         let _ = buf.split_to(remote_addr.serialized_len());
                         let pkt = buf.to_vec();
                         log::trace!("[UDP] {} <- {} length {}", incoming_addr, remote_addr, pkt.len());

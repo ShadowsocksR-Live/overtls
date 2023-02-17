@@ -291,7 +291,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
             log::trace!("[UDP] {} closed.", peer);
         }
     } else {
-        let addr_str = b64str_to_address(&target_address, false).await?.to_string();
+        let addr_str = b64str_to_address(&target_address, false)?.to_string();
         let dst_addr = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
         log::trace!("{} -> {} {client_id:?} uri path: \"{}\"", peer, dst_addr, uri_path);
         result = normal_tunnel(ws_stream, config, traffic_audit, &client_id, &dst_addr).await;
@@ -411,9 +411,9 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 if msg.is_text() || msg.is_binary() {
                     let data = msg.into_data();
                     let mut buf = BytesMut::from(&data[..]);
-                    let dst_addr = Address::from_stream(&mut &buf[..]).await?;
+                    let dst_addr = Address::from_data(&buf)?;
                     let _ = buf.split_to(dst_addr.serialized_len());
-                    let src_addr = Address::from_stream(&mut &buf[..]).await?;
+                    let src_addr = Address::from_data(&buf)?;
                     let _ = buf.split_to(src_addr.serialized_len());
                     let pkt = buf.to_vec();
                     log::trace!("[UDP] {src_addr} -> {dst_addr} length {}", pkt.len());

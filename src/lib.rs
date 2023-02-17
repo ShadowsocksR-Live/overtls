@@ -40,11 +40,11 @@ pub fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     }
 }
 
-pub async fn b64str_to_address(s: &str, url_safe: bool) -> anyhow::Result<Address> {
+pub fn b64str_to_address(s: &str, url_safe: bool) -> anyhow::Result<Address> {
     let buf = if url_safe {
         base64_decode(s, Base64Engine::UrlSafeNoPad)?
     } else {
         base64_decode(s, Base64Engine::StandardNoPad)?
     };
-    Address::from_stream(&mut &buf[..]).await.map_err(|e| e.into())
+    Address::from_data(&buf).map_err(|e| e.into())
 }
