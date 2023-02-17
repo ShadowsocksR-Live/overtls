@@ -411,9 +411,9 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 if msg.is_text() || msg.is_binary() {
                     let data = msg.into_data();
                     let mut buf = BytesMut::from(&data[..]);
-                    let dst_addr = Address::read_from(&mut &buf[..]).await?;
+                    let dst_addr = Address::from_stream(&mut &buf[..]).await?;
                     let _ = buf.split_to(dst_addr.serialized_len());
-                    let src_addr = Address::read_from(&mut &buf[..]).await?;
+                    let src_addr = Address::from_stream(&mut &buf[..]).await?;
                     let _ = buf.split_to(src_addr.serialized_len());
                     let pkt = buf.to_vec();
                     log::trace!("[UDP] {src_addr} -> {dst_addr} length {}", pkt.len());

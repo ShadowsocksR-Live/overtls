@@ -46,5 +46,5 @@ pub async fn b64str_to_address(s: &str, url_safe: bool) -> anyhow::Result<Addres
     } else {
         base64_decode(s, Base64Engine::StandardNoPad)?
     };
-    Address::read_from(&mut &buf[..]).await.map_err(|e| e.into())
+    Address::from_stream(&mut &buf[..]).await.map_err(|e| e.into())
 }
