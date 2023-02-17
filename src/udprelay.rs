@@ -123,7 +123,7 @@ async fn relay_to_socks5(
     mut udp_rx: UdpRequestReceiver,
 ) -> anyhow::Result<()> {
     while let Ok((pkt, addr, _)) = udp_rx.recv().await {
-        let to_addr = addr.to_socket_addr()?;
+        let to_addr = SocketAddr::try_from(addr.clone())?;
         if *incoming_addr.lock().await == to_addr {
             log::trace!("[UDP] feedback to incoming {to_addr}");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
@@ -164,7 +164,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
     loop {
         let _res = tokio::select! {
             Ok((pkt, dst_addr, src_addr)) = udp_rx.recv() => {
-                let flag = { incomings.lock().await.contains(&dst_addr.to_socket_addr()?) };
+                let flag = { incomings.lock().await.contains(&SocketAddr::try_from(dst_addr.clone())?) };
                 if !flag {
                     // packet send to remote server, format: dst_addr + src_addr + pkt
                     let mut buf = BytesMut::new();

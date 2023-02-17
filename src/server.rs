@@ -420,7 +420,7 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
 
                     dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr);
 
-                    let dst_addr = dst_addr.to_socket_addr()?;
+                    let dst_addr = SocketAddr::try_from(dst_addr)?;
 
                     if dst_addr.is_ipv4() {
                         udp_socket.send_to(&pkt, &dst_addr).await?;
