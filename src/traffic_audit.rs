@@ -116,10 +116,8 @@ impl TrafficAudit {
     }
 
     pub fn get_enable_of(&self, client_id: &str) -> bool {
-        self.client_map
-            .get(client_id)
-            .map(|client_node| client_node.get_enable())
-            .unwrap_or(false)
+        let f = |client_node: &ClientNode| client_node.get_enable();
+        self.client_map.get(client_id).map(f).unwrap_or(false)
     }
 
     pub fn reset(&mut self) {
