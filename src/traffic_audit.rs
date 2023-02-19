@@ -94,27 +94,18 @@ impl TrafficAudit {
     }
 
     pub fn get_upstream_traffic_of(&self, client_id: &str) -> u64 {
-        if let Some(client_node) = self.client_map.get(client_id) {
-            client_node.get_upstream_traffic()
-        } else {
-            0
-        }
+        let f = |client_node: &ClientNode| client_node.get_upstream_traffic();
+        self.client_map.get(client_id).map_or(0, f)
     }
 
     pub fn get_downstream_traffic_of(&self, client_id: &str) -> u64 {
-        if let Some(client_node) = self.client_map.get(client_id) {
-            client_node.get_downstream_traffic()
-        } else {
-            0
-        }
+        let f = |client_node: &ClientNode| client_node.get_downstream_traffic();
+        self.client_map.get(client_id).map_or(0, f)
     }
 
     pub fn get_traffic_of(&self, client_id: &str) -> u64 {
-        if let Some(client_node) = self.client_map.get(client_id) {
-            client_node.get_total_traffic()
-        } else {
-            0
-        }
+        let f = |client_node: &ClientNode| client_node.get_total_traffic();
+        self.client_map.get(client_id).map_or(0, f)
     }
 
     pub fn set_enable_of(&mut self, client_id: &str, enable: bool) {
