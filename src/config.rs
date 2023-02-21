@@ -6,13 +6,13 @@ use std::{
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub method: Option<String>,
-    pub password: Option<String>,
-    pub tunnel_path: String,
     #[serde(rename(deserialize = "server_settings", serialize = "server_settings"))]
     pub server: Option<Server>,
     #[serde(rename(deserialize = "client_settings", serialize = "client_settings"))]
     pub client: Option<Client>,
+    pub method: Option<String>,
+    pub password: Option<String>,
+    pub tunnel_path: String,
     #[serde(skip)]
     pub test_timeout_secs: u64,
     #[serde(skip)]
@@ -21,13 +21,13 @@ pub struct Config {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct Server {
+    pub disable_tls: Option<bool>,
     pub manage_clients: Option<ManageClients>,
     pub certfile: Option<PathBuf>,
     pub keyfile: Option<PathBuf>,
     pub forward_addr: Option<String>,
     pub listen_host: String,
     pub listen_port: u16,
-    pub disable_tls: Option<bool>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
@@ -42,14 +42,14 @@ pub struct ManageClients {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct Client {
+    pub disable_tls: Option<bool>,
+    pub client_id: Option<String>,
     pub server_host: String,
     pub server_port: u16,
     pub server_domain: Option<String>,
     pub cafile: Option<PathBuf>,
     pub listen_host: String,
     pub listen_port: u16,
-    pub client_id: Option<String>,
-    pub disable_tls: Option<bool>,
 }
 
 impl Default for Config {
