@@ -1,4 +1,4 @@
-use overtls::{client, cmdopt, config, program_name, server};
+use overtls::{client, cmdopt, config, server};
 use std::fs::File;
 
 #[tokio::main]
@@ -11,12 +11,9 @@ async fn main() -> anyhow::Result<()> {
     };
 
     if std::env::var("RUST_LOG").is_err() {
-        let name = program_name();
-        if verbose {
-            std::env::set_var("RUST_LOG", format!("{}=trace", name));
-        } else {
-            std::env::set_var("RUST_LOG", format!("{}=info", name));
-        }
+        let name = module_path!();
+        let level = if verbose { "trace" } else { "info" };
+        std::env::set_var("RUST_LOG", format!("{}={}", name, level));
     }
 
     env_logger::init();

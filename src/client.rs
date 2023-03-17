@@ -1,4 +1,4 @@
-use crate::{addess_to_b64str, config::Config, program_name, tls::*, udprelay, weirduri::WeirdUri, STREAM_BUFFER_SIZE};
+use crate::{addess_to_b64str, config::Config, tls::*, udprelay, weirduri::WeirdUri, STREAM_BUFFER_SIZE};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
@@ -22,7 +22,7 @@ use tungstenite::{
 };
 
 pub async fn run_client(config: &Config) -> anyhow::Result<()> {
-    log::info!("starting {} client...", program_name());
+    log::info!("starting {} client...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 

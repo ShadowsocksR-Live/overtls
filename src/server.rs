@@ -32,7 +32,7 @@ const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
 
 pub async fn run_server(config: &Config) -> anyhow::Result<()> {
-    log::info!("starting {} server...", crate::program_name());
+    log::info!("starting {} server...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 
