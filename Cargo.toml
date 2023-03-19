@@ -18,9 +18,9 @@ rustls = "0.20.8"
 rustls-pemfile = "1.0.2"
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
-socks5-impl = "0.1.6"
+socks5-impl = "0.1.8"
 structopt = "0.3.26"
-tokio = { version = "1.25.0", features = [ "full" ] }
+tokio = { version = "1.26.0", features = [ "full" ] }
 tokio-rustls = "0.23.4"
 tokio-tungstenite = { git = "https://github.com/ssrlive/tokio-tungstenite.git", branch = "mychange", features = [ "rustls-tls-webpki-roots" ] }
 tungstenite = { git = "https://github.com/snapview/tungstenite-rs.git", branch = "master", features = [ "rustls-tls-webpki-roots" ] }
