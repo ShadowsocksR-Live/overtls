@@ -3,6 +3,8 @@ use std::fs::File;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    dotenv::dotenv().ok();
+
     let opt = cmdopt::CmdOpt::parse_cmd();
     let is_server = opt.is_server();
     let (config, verbose) = match opt {
