@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-
-#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Role {
     Server,
     Client,
@@ -16,7 +14,7 @@ pub struct CmdOpt {
 
     /// Config file path
     #[structopt(short, long, value_name = "file path")]
-    pub config: PathBuf,
+    pub config: std::path::PathBuf,
 }
 
 impl CmdOpt {
