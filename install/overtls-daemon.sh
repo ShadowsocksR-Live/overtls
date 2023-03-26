@@ -17,7 +17,8 @@ NAME="overtls"
 DAEMON=/usr/bin/overtls
 CONF=/etc/overtls/config.json
 
-command_start="setsid nohup ${DAEMON} server -c ${CONF}"
+cmd_set_log_level="export RUST_LOG=${NAME}=error"
+command_start="setsid nohup ${DAEMON} -r server -c ${CONF}"
 
 PID=0
 RETVAL=0
@@ -37,6 +38,7 @@ function do_start(){
         echo "${NAME} (pid ${PID}) is already running..."
         exit 0
     else
+        ${cmd_set_log_level}
         ${command_start} &
         RETVAL=$?
         if [ ${RETVAL} -eq 0 ]; then

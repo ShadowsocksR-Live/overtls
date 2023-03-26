@@ -17,9 +17,9 @@ impl WebApi {
     pub async fn get_api(&self, uri: &str, params: &str) -> anyhow::Result<String> {
         let webapi_url = self.config.webapi_url().ok_or_else(|| anyhow::anyhow!(""))?;
         let webapi_token = self.config.webapi_token().ok_or_else(|| anyhow::anyhow!(""))?;
-        let mut url = format!("{}/mod_mu/{}?key={}", webapi_url, uri, webapi_token);
+        let mut url = format!("{webapi_url}/mod_mu/{uri}?key={webapi_token}");
         if !params.is_empty() {
-            url = format!("{}&{}", url, params);
+            url = format!("{url}&{params}");
         }
         let response = self.client.get(&url).send().await?;
         if response.status() != 200 {
@@ -38,9 +38,9 @@ impl WebApi {
     pub async fn post_api(&self, uri: &str, params: &str, json: &str) -> anyhow::Result<String> {
         let webapi_url = self.config.webapi_url().ok_or_else(|| anyhow::anyhow!(""))?;
         let webapi_token = self.config.webapi_token().ok_or_else(|| anyhow::anyhow!(""))?;
-        let mut url = format!("{}/mod_mu/{}?key={}", webapi_url, uri, webapi_token);
+        let mut url = format!("{webapi_url}/mod_mu/{uri}?key={webapi_token}");
         if !params.is_empty() {
-            url = format!("{}&{}", url, params);
+            url = format!("{url}&{params}");
         }
         let response = self.client.post(&url).json(json).send().await?;
         if response.status() != 200 {

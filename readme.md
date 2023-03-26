@@ -46,13 +46,15 @@ chmod +x overtls-install.sh
 
 ### Server
 ```bash
-overtls server -c config.json
+overtls -r server -c config.json
 ```
 
 ### Client
 ```bash
-overtls client -c config.json
+overtls -r client -c config.json
 ```
+
+If you want to see log info, you can create a `.env` file in current dir (`pwd`) with `RUST_LOG=overtls=trace` as content.
 
 ### Configuration file
 ```json

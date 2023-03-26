@@ -503,10 +503,22 @@ function do_uninstall_service_action() {
 
     systemctl stop ${service_name}.service
 
-    rm -rf ${config_dir}
-    rm -f ${service_stub}
-    rm -f ${target_dir}/${bin_name}
-    rm -f ${service_dir}/${service_name}.service
+    if [ -f ${config_dir} ]; then
+        rm -rf ${config_dir}
+    fi
+
+    if [ -f ${service_stub} ]; then
+        rm -f ${service_stub}
+    fi
+
+    if [ -f ${target_dir}/${bin_name} ]; then
+        rm -f ${target_dir}/${bin_name}
+    fi
+
+    if [ -f ${service_dir}/${service_name}.service ]; then
+        rm -f ${service_dir}/${service_name}.service
+    fi
+
     echo "${service_name} uninstall success!"
 }
 

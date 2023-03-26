@@ -43,14 +43,16 @@ chmod +x overtls-install.sh
 ### 服務端
 
 ```bash
-overtls server -c config.json
+overtls -r server -c config.json
 ```
 
 ### 客戶端
 
 ```bash
-overtls client -c config.json
+overtls -r client -c config.json
 ```
+
+如果想查看日志信息，你可以在你当前的工作目录 (`pwd`) 里创建文件 `.env` 写入这些内容 `RUST_LOG=overtls=trace` 即可.
 
 ### 配置文件
 

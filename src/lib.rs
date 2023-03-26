@@ -1,6 +1,5 @@
 pub mod base64_wrapper;
 pub mod client;
-pub mod cmdopt;
 pub mod config;
 pub mod server;
 pub mod tls;

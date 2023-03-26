@@ -191,7 +191,7 @@ pub async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
     let uri = WeirdUri::new(&uri, b64_dst, udp, client.client_id.clone());
 
-    let (v, key) = client::generate_request(uri.into_client_request()?, &None)?;
+    let (v, key) = client::generate_request(uri.into_client_request()?)?;
     stream.write_all(&v).await?;
 
     let mut buf = BytesMut::with_capacity(2048);

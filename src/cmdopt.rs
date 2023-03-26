@@ -1,40 +1,30 @@
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(StructOpt, PartialEq, Eq, Debug)]
-pub enum CmdOpt {
-    /// Running OverTLS server
-    Server {
-        #[structopt(short, long)]
-        /// config file path for server
-        config: PathBuf,
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    Server,
+    Client,
+}
 
-        #[structopt(short, long)]
-        /// Verbose mode.
-        verbose: bool,
-    },
+/// Proxy tunnel over tls
+#[derive(clap::Parser, Debug, Clone, PartialEq, Eq)]
+#[command(author, version, about = "Proxy tunnel over tls.", long_about = None)]
+pub struct CmdOpt {
+    /// Run as server or client
+    #[arg(short, long, value_enum, value_name = "role", default_value = "client")]
+    pub role: Role,
 
-    /// Running OverTLS client
-    Client {
-        #[structopt(short, long)]
-        /// config file path for client
-        config: PathBuf,
-
-        #[structopt(short, long)]
-        /// Verbose mode.
-        verbose: bool,
-    },
+    /// Config file path
+    #[structopt(short, long, value_name = "file path")]
+    pub config: PathBuf,
 }
 
 impl CmdOpt {
     pub fn is_server(&self) -> bool {
-        match self {
-            CmdOpt::Server { .. } => true,
-            CmdOpt::Client { .. } => false,
-        }
+        self.role == Role::Server
     }
 
     pub fn parse_cmd() -> CmdOpt {
-        CmdOpt::from_args()
+        <CmdOpt as clap::Parser>::parse()
     }
 }
