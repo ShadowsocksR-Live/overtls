@@ -23,6 +23,6 @@ impl CmdOpt {
     }
 
     pub fn parse_cmd() -> CmdOpt {
-        <CmdOpt as clap::Parser>::parse()
+        clap::Parser::parse()
     }
 }
