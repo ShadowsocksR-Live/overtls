@@ -550,11 +550,11 @@ function install_overtls_main() {
     do_lets_encrypt_certificate_authority
     acme_cron_update
     nginx_web_server_config_end
+    
+    do_uninstall_service_action
 
     download_n_install_overtls_server_bin
     write_overtls_config_file
-
-    do_uninstall_service_action
 
     if [ -f ${target_dir}/${bin_name} ]; then
         install_overtls_service
