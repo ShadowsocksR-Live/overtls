@@ -1,6 +1,7 @@
 use crate::{
     b64str_to_address,
     config::Config,
+    error::{Error, Result},
     tls::*,
     traffic_audit::TrafficAudit,
     weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP},
@@ -31,13 +32,13 @@ pub type TrafficAuditPtr = Arc<Mutex<TrafficAudit>>;
 const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
 
-pub async fn run_server(config: &Config) -> anyhow::Result<()> {
+pub async fn run_server(config: &Config) -> Result<()> {
     log::info!("starting {} server...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 
     let server = config.server.as_ref();
-    let server = server.ok_or_else(|| anyhow::anyhow!("server settings"))?;
+    let server = server.ok_or("server settings")?;
     let addr = format!("{}:{}", server.listen_host, server.listen_port);
 
     let certs = if let Some(ref cert) = server.certfile {
@@ -65,7 +66,6 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
             .with_safe_defaults()
             .with_no_client_auth()
             .with_single_cert(certs, keys.remove(0))
-            .map_err(|err| anyhow::anyhow!(err))
             .ok()
     } else {
         None
@@ -97,7 +97,7 @@ pub async fn run_server(config: &Config) -> anyhow::Result<()> {
             } else if let Err(e) = handle_incoming(stream, config, traffic_audit).await {
                 log::debug!("{}: {}", peer_addr, e);
             }
-            Ok::<_, anyhow::Error>(())
+            Ok::<_, Error>(())
         };
 
         tokio::spawn(async move {
@@ -112,13 +112,13 @@ async fn handle_tls_incoming(
     mut stream: TlsStream<TcpStream>,
     config: Config,
     traffic_audit: TrafficAuditPtr,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let peer = stream.get_ref().0.peer_addr()?;
 
     let mut buf = BytesMut::with_capacity(2048);
     let size = stream.read_buf(&mut buf).await?;
     if size == 0 {
-        return Err(anyhow::anyhow!("empty request"));
+        return Err(Error::from("empty request"));
     }
 
     if !check_uri_path(&buf, &config.tunnel_path).await? {
@@ -128,7 +128,7 @@ async fn handle_tls_incoming(
     websocket_traffic_handler(stream, config, peer, &buf, traffic_audit).await
 }
 
-async fn forward_traffic<StreamFrom, StreamTo>(from: StreamFrom, mut to: StreamTo, data: &[u8]) -> anyhow::Result<()>
+async fn forward_traffic<StreamFrom, StreamTo>(from: StreamFrom, mut to: StreamTo, data: &[u8]) -> Result<()>
 where
     StreamFrom: AsyncRead + AsyncWrite + Unpin,
     StreamTo: AsyncRead + AsyncWrite + Unpin,
@@ -151,7 +151,7 @@ where
     Ok(())
 }
 
-async fn check_uri_path(buf: &[u8], path: &str) -> anyhow::Result<bool> {
+async fn check_uri_path(buf: &[u8], path: &str) -> Result<bool> {
     let mut headers = [httparse::EMPTY_HEADER; 512];
     let mut req = httparse::Request::new(&mut headers);
     req.parse(buf)?;
@@ -164,21 +164,21 @@ async fn check_uri_path(buf: &[u8], path: &str) -> anyhow::Result<bool> {
     Ok(false)
 }
 
-async fn forward_traffic_wrapper<S>(stream: S, data: &[u8], config: &Config) -> anyhow::Result<()>
+async fn forward_traffic_wrapper<S>(stream: S, data: &[u8], config: &Config) -> Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     log::debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
-    let forward_addr = config.forward_addr().ok_or_else(|| anyhow::anyhow!(""))?;
+    let forward_addr = config.forward_addr().ok_or("config forward addr not exist")?;
 
     let url = url::Url::parse(&forward_addr)?;
     let scheme = url.scheme();
     if scheme != "http" && scheme != "https" {
-        return Err(anyhow::anyhow!(""));
+        return Err("".into());
     }
     let tls_enable = scheme == "https";
-    let host = url.host_str().ok_or_else(|| anyhow::anyhow!(""))?;
-    let port = url.port_or_known_default().ok_or_else(|| anyhow::anyhow!(""))?;
+    let host = url.host_str().ok_or("url host not exist")?;
+    let port = url.port_or_known_default().ok_or("port not exist")?;
     let forward_addr = format!("{host}:{port}");
 
     if tls_enable {
@@ -191,7 +191,7 @@ where
     }
 }
 
-async fn handle_incoming(stream: TcpStream, config: Config, traffic_audit: TrafficAuditPtr) -> anyhow::Result<()> {
+async fn handle_incoming(stream: TcpStream, config: Config, traffic_audit: TrafficAuditPtr) -> Result<()> {
     let mut buf = [0; 512];
     stream.peek(&mut buf).await?;
 
@@ -210,7 +210,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     peer: SocketAddr,
     handshake: &[u8],
     traffic_audit: TrafficAuditPtr,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
     let mut udp = false;
@@ -248,10 +248,10 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 
             ws_stream = WebSocketStream::from_raw_socket(stream, Role::Server, None).await;
         } else {
-            return Err(anyhow::anyhow!("invalid handshake"));
+            return Err("invalid handshake".into());
         }
     } else {
-        let check_headers_callback = |req: &Request, res: Response| -> anyhow::Result<Response, ErrorResponse> {
+        let check_headers_callback = |req: &Request, res: Response| -> std::result::Result<Response, ErrorResponse> {
             retrieve_values(req);
             Ok(res)
         };
@@ -292,7 +292,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         }
     } else {
         let addr_str = b64str_to_address(&target_address, false)?.to_string();
-        let dst_addr = addr_str.to_socket_addrs()?.next().ok_or_else(|| anyhow::anyhow!(""))?;
+        let dst_addr = addr_str.to_socket_addrs()?.next().ok_or("addr string parse failed")?;
         log::trace!("{} -> {} {client_id:?} uri path: \"{}\"", peer, dst_addr, uri_path);
         result = normal_tunnel(ws_stream, config, traffic_audit, &client_id, &dst_addr).await;
         if let Err(ref e) = result {
@@ -310,7 +310,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
     dst_addr: &SocketAddr,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut outgoing = TcpStream::connect(dst_addr).await?;
 
     let (ws_stream_tx, mut ws_stream_rx) = tokio::sync::mpsc::channel(1024);
@@ -345,7 +345,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 }
             }
         }
-        Ok::<_, anyhow::Error>(())
+        Ok::<_, Error>(())
     };
 
     let outgoing_to_ws_stream = async move {
@@ -354,7 +354,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 Ok(data) = async {
                     let mut b2 = [0; STREAM_BUFFER_SIZE];
                     let n = outgoing.read(&mut b2).await?;
-                    Ok::<_, anyhow::Error>(Some(b2[..n].to_vec()))
+                    Ok::<_, Error>(Some(b2[..n].to_vec()))
                  } => {
                     if let Some(data) = data {
                         if data.is_empty() {
@@ -373,7 +373,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 }
             }
         }
-        Ok::<_, anyhow::Error>(())
+        Ok::<_, Error>(())
     };
 
     tokio::select! {
@@ -388,7 +388,7 @@ async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     _config: Config,
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
     let udp_socket_v6 = UdpSocket::bind("[::]:0").await?;
 
@@ -452,7 +452,7 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     addr: SocketAddr,
     traffic_audit: &TrafficAuditPtr,
     client_id: &Option<String>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let dst_addr = Address::from(addr);
     let src_addr = dst_src_pairs.lock().await.get(&dst_addr).cloned();
     if let Some(src_addr) = src_addr {

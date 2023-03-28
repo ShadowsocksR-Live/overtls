@@ -1,6 +1,7 @@
 pub mod base64_wrapper;
 pub mod client;
 pub mod config;
+pub mod error;
 pub mod server;
 pub mod tls;
 pub mod traffic_audit;
@@ -10,6 +11,7 @@ pub mod weirduri;
 
 use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
+pub use error::{Error, Result};
 use socks5_impl::protocol::Address;
 
 pub const STREAM_BUFFER_SIZE: usize = 1024 * 32 * 3;
@@ -24,7 +26,7 @@ pub fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     }
 }
 
-pub fn b64str_to_address(s: &str, url_safe: bool) -> anyhow::Result<Address> {
+pub fn b64str_to_address(s: &str, url_safe: bool) -> Result<Address> {
     let buf = if url_safe {
         base64_decode(s, Base64Engine::UrlSafeNoPad)?
     } else {

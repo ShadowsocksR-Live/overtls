@@ -1,3 +1,4 @@
+use crate::error::{Error, Result};
 use rustls::RootCertStore;
 use rustls_pemfile::{certs, rsa_private_keys};
 use std::{
@@ -5,17 +6,14 @@ use std::{
     io::BufReader,
     path::{Path, PathBuf},
 };
-use tokio::{
-    io,
-    net::{TcpStream, ToSocketAddrs},
-};
+use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio_rustls::{
     client::TlsStream,
     rustls::{self, Certificate, OwnedTrustAnchor, PrivateKey},
     webpki, TlsConnector,
 };
 
-pub fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> anyhow::Result<RootCertStore> {
+pub fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> Result<RootCertStore> {
     let mut root_cert_store = rustls::RootCertStore::empty();
     let mut done = false;
     if let Some(cafile) = cafile {
@@ -47,7 +45,7 @@ pub async fn create_tls_client_stream<A: ToSocketAddrs>(
     root_cert_store: RootCertStore,
     addr: A,
     domain: &str,
-) -> anyhow::Result<TlsStream<TcpStream>> {
+) -> Result<TlsStream<TcpStream>> {
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(root_cert_store)
@@ -56,22 +54,21 @@ pub async fn create_tls_client_stream<A: ToSocketAddrs>(
 
     let stream = TcpStream::connect(addr).await?;
 
-    let domain = rustls::ServerName::try_from(domain)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
+    let domain = rustls::ServerName::try_from(domain)?;
 
     let stream = connector.connect(domain, stream).await?;
 
     Ok(stream)
 }
 
-pub fn server_load_certs(path: &Path) -> anyhow::Result<Vec<Certificate>> {
+pub fn server_load_certs(path: &Path) -> Result<Vec<Certificate>> {
     certs(&mut BufReader::new(File::open(path)?))
-        .map_err(|_| anyhow::anyhow!("invalid cert"))
+        .map_err(|e| Error::from(format!("Certificate error: {e}")))
         .map(|mut certs| certs.drain(..).map(Certificate).collect())
 }
 
-pub fn server_load_keys(path: &Path) -> anyhow::Result<Vec<PrivateKey>> {
+pub fn server_load_keys(path: &Path) -> Result<Vec<PrivateKey>> {
     rsa_private_keys(&mut BufReader::new(File::open(path)?))
-        .map_err(|_| anyhow::anyhow!("invalid key"))
+        .map_err(|e| Error::from(format!("PrivateKey error: {e}")))
         .map(|mut keys| keys.drain(..).map(PrivateKey).collect())
 }

@@ -1,3 +1,4 @@
+use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     net::{TcpStream, ToSocketAddrs},
@@ -134,14 +135,14 @@ impl Config {
         false
     }
 
-    pub fn check_correctness(&mut self) -> anyhow::Result<()> {
+    pub fn check_correctness(&mut self) -> Result<()> {
         if self.is_server {
             self.client = None;
         } else {
             self.server = None;
         }
         if let (None, None) = (&self.server, &self.client) {
-            return Err(anyhow::anyhow!("Need server or client settings"));
+            return Err("Need server or client settings".into());
         }
 
         if self.test_timeout_secs == 0 {
@@ -163,7 +164,7 @@ impl Config {
         }
         if let Some(client) = &mut self.client {
             if client.server_host.is_empty() {
-                return Err(anyhow::anyhow!("We need server_host in client settings"));
+                return Err(Error::from("We need server_host in client settings"));
             }
             if client.server_port == 0 {
                 client.server_port = 443;
@@ -177,13 +178,10 @@ impl Config {
 
             if !self.is_server {
                 let addr = format!("{}:{}", client.server_host, client.server_port);
-                let mut addr = addr
-                    .to_socket_addrs()
-                    .map_err(|e| anyhow::anyhow!("server {addr} error \"{e}\""))?;
-                let addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
+                let mut addr = addr.to_socket_addrs()?;
+                let addr = addr.next().ok_or("address not exist")?;
                 let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
-                TcpStream::connect_timeout(&addr, timeout)
-                    .map_err(|e| anyhow::anyhow!("server {} error \"{}\"", addr, e))?;
+                TcpStream::connect_timeout(&addr, timeout)?;
                 client.server_host = addr.ip().to_string();
             }
         }

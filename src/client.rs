@@ -1,4 +1,12 @@
-use crate::{addess_to_b64str, config::Config, tls::*, udprelay, weirduri::WeirdUri, STREAM_BUFFER_SIZE};
+use crate::{
+    addess_to_b64str,
+    config::Config,
+    error::{Error, Result},
+    tls::*,
+    udprelay,
+    weirduri::WeirdUri,
+    STREAM_BUFFER_SIZE,
+};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
@@ -21,12 +29,12 @@ use tungstenite::{
     protocol::{Message, Role},
 };
 
-pub async fn run_client(config: &Config) -> anyhow::Result<()> {
+pub async fn run_client(config: &Config) -> Result<()> {
     log::info!("starting {} client...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 
-    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("client"))?;
+    let client = config.client.as_ref().ok_or("client")?;
     let addr = format!("{}:{}", client.listen_host, client.listen_port);
     let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
 
@@ -54,7 +62,7 @@ async fn handle_incoming(
     udp_tx: Option<udprelay::UdpRequestSender>,
     incomings: udprelay::SocketAddrSet,
     udp_waker: udprelay::UdpWaker,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let peer_addr = conn.peer_addr()?;
     match conn.handshake().await? {
         Connection::Associate(asso, _) => {
@@ -83,18 +91,14 @@ async fn handle_incoming(
     Ok(())
 }
 
-async fn handle_socks5_cmd_connection(
-    connect: Connect<NeedReply>,
-    target_addr: Address,
-    config: Config,
-) -> anyhow::Result<()> {
+async fn handle_socks5_cmd_connection(connect: Connect<NeedReply>, target_addr: Address, config: Config) -> Result<()> {
     let incoming = connect.reply(Reply::Succeeded, Address::unspecified()).await?;
 
     let peer_addr = incoming.peer_addr()?;
 
     log::trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
 
-    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
+    let client = config.client.as_ref().ok_or("client not exist")?;
     let addr = (client.server_host.as_str(), client.server_port);
 
     if !config.disable_tls() {
@@ -112,7 +116,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
     mut ws_stream: WebSocketStream<S>,
     peer_addr: SocketAddr,
     target_addr: Address,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     loop {
         let mut buf = BytesMut::with_capacity(STREAM_BUFFER_SIZE);
         tokio::select! {
@@ -128,7 +132,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
                 buf.clear();
             }
             result = ws_stream.next() => {
-                let msg = result.ok_or_else(|| anyhow::anyhow!(""))??;
+                let msg = result.ok_or("message not exist")??;
                 match msg {
                     Message::Binary(data) => {
                         incoming.write_all(&data).await?;
@@ -153,8 +157,8 @@ pub async fn create_tls_ws_stream<A: ToSocketAddrs>(
     dst_addr: Option<Address>,
     config: &Config,
     udp: Option<bool>,
-) -> anyhow::Result<WsTlsStream> {
-    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
+) -> Result<WsTlsStream> {
+    let client = config.client.as_ref().ok_or("client not exist")?;
 
     let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
     let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
@@ -170,7 +174,7 @@ pub async fn create_plaintext_ws_stream<A: ToSocketAddrs>(
     dst_addr: Option<Address>,
     config: &Config,
     udp: Option<bool>,
-) -> anyhow::Result<WebSocketStream<TcpStream>> {
+) -> Result<WebSocketStream<TcpStream>> {
     let stream = TcpStream::connect(svr_addr).await?;
     let ws_stream = create_ws_stream(dst_addr, config, udp, stream).await?;
     Ok(ws_stream)
@@ -181,8 +185,8 @@ pub async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     config: &Config,
     udp: Option<bool>,
     mut stream: S,
-) -> anyhow::Result<WebSocketStream<S>> {
-    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
+) -> Result<WebSocketStream<S>> {
+    let client = config.client.as_ref().ok_or("client not exist")?;
     let tunnel_path = config.tunnel_path.trim_matches('/');
 
     let b64_dst = dst_addr.as_ref().map(|dst_addr| addess_to_b64str(dst_addr, false));
@@ -197,16 +201,16 @@ pub async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     let mut buf = BytesMut::with_capacity(2048);
     stream.read_buf(&mut buf).await?;
 
-    let response = Response::try_parse(&buf)?.ok_or_else(|| anyhow::anyhow!("response"))?.1;
+    let response = Response::try_parse(&buf)?.ok_or("response parse failed")?.1;
     let remote_key = response
         .headers()
         .get("Sec-WebSocket-Accept")
-        .ok_or_else(|| anyhow::anyhow!("{:?}", response))?;
+        .ok_or(format!("{:?}", response))?;
 
     let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
 
     if accept_key.as_str() != remote_key.to_str()? {
-        return Err(anyhow::anyhow!("accept key error"));
+        return Err(Error::from("accept key error"));
     }
 
     let ws_stream = WebSocketStream::from_raw_socket(stream, Role::Client, None).await;

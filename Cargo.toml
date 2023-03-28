@@ -5,7 +5,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0"
 base64 = "0.21"
 bytes = "1.4"
 clap = { version = "4.1", features = ["derive"] }
@@ -21,6 +20,7 @@ rustls-pemfile = "1.0"
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 socks5-impl = "0.1"
+thiserror = "1.0"
 tokio = { version = "1.26", features = [ "full" ] }
 tokio-rustls = "0.23"
 tokio-tungstenite = { git = "https://github.com/ssrlive/tokio-tungstenite.git", branch = "mychange", features = [ "rustls-tls-webpki-roots" ] }

@@ -1,4 +1,8 @@
-use crate::{client, config::Config};
+use crate::{
+    client,
+    config::Config,
+    error::{Error, Result},
+};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
@@ -36,7 +40,7 @@ pub async fn handle_s5_upd_associate(
     udp_tx: UdpRequestSender,
     incomings: SocketAddrSet,
     udp_waker: UdpWaker,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let listen_ip = associate.local_addr()?.ip();
 
     // listen on a random port
@@ -58,7 +62,7 @@ pub async fn handle_s5_upd_associate(
             let incoming_addr = Arc::new(Mutex::new(SocketAddr::from(([0, 0, 0, 0], 0))));
 
             let res = tokio::select! {
-                _ = reply_listener.wait_until_closed() => Ok::<_, anyhow::Error>(()),
+                _ = reply_listener.wait_until_closed() => Ok::<_, Error>(()),
                 res = socks5_to_relay(listen_udp.clone(), incoming_addr.clone(), incomings.clone(), udp_tx) => res,
                 res = relay_to_socks5(listen_udp, incoming_addr.clone(), udp_rx) => res,
             };
@@ -77,7 +81,7 @@ pub async fn handle_s5_upd_associate(
         Err(err) => {
             let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified()).await?;
             conn.shutdown().await?;
-            Err(anyhow::anyhow!(err))
+            Err(err.into())
         }
     }
 }
@@ -93,7 +97,7 @@ async fn socks5_to_relay(
     incoming: Arc<Mutex<SocketAddr>>,
     incomings: SocketAddrSet,
     udp_tx: UdpRequestSender,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     loop {
         log::trace!("[UDP] waiting for incoming packet");
 
@@ -121,7 +125,7 @@ async fn relay_to_socks5(
     listen_udp: Arc<AssociatedUdpSocket>,
     incoming_addr: Arc<Mutex<SocketAddr>>,
     mut udp_rx: UdpRequestReceiver,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     while let Ok((pkt, addr, _)) = udp_rx.recv().await {
         let to_addr = SocketAddr::try_from(addr.clone())?;
         if *incoming_addr.lock().await == to_addr {
@@ -139,10 +143,10 @@ pub fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, SocketAddrS
     (tx, rx, incomings)
 }
 
-pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, config: Config) -> anyhow::Result<()> {
-    let client = config.client.as_ref().ok_or_else(|| anyhow::anyhow!("c"))?;
+pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, config: Config) -> Result<()> {
+    let client = config.client.as_ref().ok_or("config client not exist")?;
     let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
-    let svr_addr = addr.next().ok_or_else(|| anyhow::anyhow!("address"))?;
+    let svr_addr = addr.next().ok_or("client address not exist")?;
 
     if !config.disable_tls() {
         let ws_stream = client::create_tls_ws_stream(&svr_addr, None, &config, Some(true)).await?;
@@ -158,7 +162,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
     udp_tx: UdpRequestSender,
     incomings: SocketAddrSet,
     mut ws_stream: WebSocketStream<S>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let mut udp_rx = udp_tx.subscribe();
 
     loop {
@@ -178,7 +182,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                 } else {
                     log::trace!("[UDP] skip feedback packet {src_addr} -> {dst_addr}");
                 }
-                 Ok::<_, anyhow::Error>(())
+                 Ok::<_, Error>(())
             },
             msg = ws_stream.next() => {
                 match msg {
@@ -208,7 +212,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         break;
                     }
                 }
-                Ok::<_, anyhow::Error>(())
+                Ok::<_, Error>(())
             },
         };
     }
@@ -222,7 +226,7 @@ pub async fn udp_handler_watchdog(
     config: &Config,
     incomings: &SocketAddrSet,
     udp_tx: &UdpRequestSender,
-) -> anyhow::Result<UdpWaker> {
+) -> Result<UdpWaker> {
     let config = config.clone();
     let incomings = incomings.clone();
     let udp_tx = udp_tx.clone();

@@ -1,10 +1,10 @@
-use overtls::{client, config, server};
+use overtls::{client, config, server, Error, Result};
 use std::fs::File;
 
 mod cmdopt;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
@@ -19,12 +19,12 @@ async fn main() -> anyhow::Result<()> {
         if config.exist_server() {
             server::run_server(&config).await?;
         } else {
-            anyhow::bail!("Config is not a server config");
+            return Err(Error::from("Config is not a server config"));
         }
     } else if config.exist_client() {
         client::run_client(&config).await?;
     } else {
-        anyhow::bail!("Config is not a client config");
+        return Err("Config is not a client config".into());
     }
 
     Ok(())
