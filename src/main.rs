@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
 
     dotenvy::dotenv().ok();
 
-    let level = if opt.verbose { "debug" } else { "info" };
+    let level = if opt.verbose { "trace" } else { "info" };
     let default = format!("{}={}", module_path!(), level);
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
 
