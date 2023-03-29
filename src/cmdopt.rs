@@ -13,8 +13,12 @@ pub struct CmdOpt {
     pub role: Role,
 
     /// Config file path
-    #[structopt(short, long, value_name = "file path")]
+    #[arg(short, long, value_name = "file path")]
     pub config: std::path::PathBuf,
+
+    /// Verbose mode.
+    #[arg(short, long)]
+    pub verbose: bool,
 }
 
 impl CmdOpt {

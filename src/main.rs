@@ -5,10 +5,14 @@ mod cmdopt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenvy::dotenv().ok();
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
     let opt = cmdopt::CmdOpt::parse_cmd();
+
+    dotenvy::dotenv().ok();
+
+    let level = if opt.verbose { "debug" } else { "info" };
+    let default = format!("{}={}", module_path!(), level);
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
+
     let is_server = opt.is_server();
 
     let f = File::open(&opt.config)?;

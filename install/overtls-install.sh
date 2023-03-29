@@ -503,21 +503,10 @@ function do_uninstall_service_action() {
 
     systemctl stop ${service_name}.service
 
-    if [ -f ${config_dir} ]; then
-        rm -rf ${config_dir}
-    fi
-
-    if [ -f ${service_stub} ]; then
-        rm -f ${service_stub}
-    fi
-
-    if [ -f ${target_dir}/${bin_name} ]; then
-        rm -f ${target_dir}/${bin_name}
-    fi
-
-    if [ -f ${service_dir}/${service_name}.service ]; then
-        rm -f ${service_dir}/${service_name}.service
-    fi
+    rm -rf ${config_dir}
+    rm -rf ${service_stub}
+    rm -rf ${target_dir}/${bin_name}
+    rm -rf ${service_dir}/${service_name}.service
 
     echo "${service_name} uninstall success!"
 }
@@ -545,13 +534,14 @@ function install_overtls_main() {
     domain_check
     echo "请输入 站点端口号 (默认值 443) "
     web_svr_listen_port=`input_web_listen_port`
+
+    do_uninstall_service_action
+
     nginx_install
     nginx_web_server_config_begin
     do_lets_encrypt_certificate_authority
     acme_cron_update
     nginx_web_server_config_end
-    
-    do_uninstall_service_action
 
     download_n_install_overtls_server_bin
     write_overtls_config_file
