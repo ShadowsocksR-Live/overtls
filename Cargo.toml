@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 base64 = "0.21"
 bytes = "1.4"
-clap = { version = "4.1", features = ["derive"] }
+clap = { version = "4.2", features = ["derive"] }
 dotenvy = "0.15"
 env_logger = "0.10"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
@@ -15,13 +15,13 @@ http = "0.2"
 httparse = "1.8"
 log = "0.4"
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "json"] }
-rustls = "0.20"
+rustls = "0.21"
 rustls-pemfile = "1.0"
 serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 socks5-impl = "0.1"
 thiserror = "1.0"
-tokio = { version = "1.26", features = [ "full" ] }
+tokio = { version = "1.27", features = [ "full" ] }
 tokio-rustls = "0.23"
 tokio-tungstenite = { git = "https://github.com/ssrlive/tokio-tungstenite.git", branch = "mychange", features = [ "rustls-tls-webpki-roots" ] }
 tungstenite = { git = "https://github.com/snapview/tungstenite-rs.git", branch = "master", features = [ "rustls-tls-webpki-roots" ] }

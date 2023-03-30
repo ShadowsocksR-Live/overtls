@@ -33,8 +33,8 @@ pub enum Error {
     #[error("rustls::error::Error error: {0}")]
     Rustls(#[from] rustls::Error),
 
-    #[error("rustls::client::InvalidDnsNameError error: {0}")]
-    InvalidDnsName(#[from] rustls::client::InvalidDnsNameError),
+    #[error("tokio_rustls::rustls::client::InvalidDnsNameError {0}")]
+    InvalidDnsName(#[from] tokio_rustls::rustls::client::InvalidDnsNameError),
 
     #[error("httparse::Error error: {0}")]
     Httparse(#[from] httparse::Error),

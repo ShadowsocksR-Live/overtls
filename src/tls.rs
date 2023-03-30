@@ -1,5 +1,4 @@
 use crate::error::{Error, Result};
-use rustls::RootCertStore;
 use rustls_pemfile::{certs, rsa_private_keys};
 use std::{
     fs::File,
@@ -9,7 +8,7 @@ use std::{
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio_rustls::{
     client::TlsStream,
-    rustls::{self, Certificate, OwnedTrustAnchor, PrivateKey},
+    rustls::{self, Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore},
     webpki, TlsConnector,
 };
 
