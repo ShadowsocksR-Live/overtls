@@ -9,7 +9,7 @@ use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio_rustls::{
     client::TlsStream,
     rustls::{self, Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore},
-    webpki, TlsConnector,
+    TlsConnector,
 };
 
 pub fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> Result<RootCertStore> {
