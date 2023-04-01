@@ -52,7 +52,7 @@ pub async fn create_tls_client_stream(
         .with_no_client_auth();
     let connector = TlsConnector::from(std::sync::Arc::new(config));
 
-    let stream = crate::tcp_stream::create(&addr).await?;
+    let stream = crate::tcp_stream::create(addr).await?;
 
     let domain = rustls::ServerName::try_from(domain)?;
 
