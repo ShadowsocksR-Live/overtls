@@ -16,7 +16,7 @@ use socks5_impl::{
 use std::net::SocketAddr;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    net::{TcpStream, ToSocketAddrs},
+    net::TcpStream,
 };
 use tokio_rustls::client::TlsStream;
 use tokio_tungstenite::WebSocketStream;
@@ -99,7 +99,8 @@ async fn handle_socks5_cmd_connection(connect: Connect<NeedReply>, target_addr: 
     log::trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
 
     let client = config.client.as_ref().ok_or("client not exist")?;
-    let addr = (client.server_host.as_str(), client.server_port);
+    let (ip_addr, port) = (client.server_host.as_str(), client.server_port);
+    let addr = &SocketAddr::new(ip_addr.parse()?, port);
 
     if !config.disable_tls() {
         let ws_stream = create_tls_ws_stream(addr, Some(target_addr.clone()), &config, None).await?;
@@ -152,8 +153,8 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
 
 type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 
-pub async fn create_tls_ws_stream<A: ToSocketAddrs>(
-    svr_addr: A,
+pub async fn create_tls_ws_stream(
+    svr_addr: &SocketAddr,
     dst_addr: Option<Address>,
     config: &Config,
     udp: Option<bool>,
@@ -169,13 +170,13 @@ pub async fn create_tls_ws_stream<A: ToSocketAddrs>(
     Ok(ws_stream)
 }
 
-pub async fn create_plaintext_ws_stream<A: ToSocketAddrs>(
-    svr_addr: A,
+pub async fn create_plaintext_ws_stream(
+    server_addr: &SocketAddr,
     dst_addr: Option<Address>,
     config: &Config,
     udp: Option<bool>,
 ) -> Result<WebSocketStream<TcpStream>> {
-    let stream = TcpStream::connect(svr_addr).await?;
+    let stream = crate::tcp_stream::create(server_addr).await?;
     let ws_stream = create_ws_stream(dst_addr, config, udp, stream).await?;
     Ok(ws_stream)
 }

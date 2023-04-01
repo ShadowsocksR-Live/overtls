@@ -179,7 +179,7 @@ where
     let tls_enable = scheme == "https";
     let host = url.host_str().ok_or("url host not exist")?;
     let port = url.port_or_known_default().ok_or("port not exist")?;
-    let forward_addr = format!("{host}:{port}");
+    let forward_addr = &SocketAddr::new(host.parse()?, port);
 
     if tls_enable {
         let cert_store = retrieve_root_cert_store_for_client(&None)?;
