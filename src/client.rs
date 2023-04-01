@@ -35,7 +35,7 @@ pub async fn run_client(config: &Config) -> Result<()> {
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 
     let client = config.client.as_ref().ok_or("client")?;
-    let addr = format!("{}:{}", client.listen_host, client.listen_port);
+    let addr = SocketAddr::new(client.listen_host.parse()?, client.listen_port);
     let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
 
     let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
