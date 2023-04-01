@@ -10,6 +10,9 @@ pub mod udprelay;
 pub mod webapi;
 pub mod weirduri;
 
+#[cfg(target_os = "android")]
+pub(crate) mod android;
+
 use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
 pub use error::{Error, Result};

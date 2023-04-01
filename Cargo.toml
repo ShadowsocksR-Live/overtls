@@ -28,3 +28,9 @@ tungstenite = { git = "https://github.com/snapview/tungstenite-rs.git", branch =
 url = "2.3"
 webpki = { package = "rustls-webpki", version = "0.100", features = ["alloc", "std"] }
 webpki-roots = "0.23"
+
+[target.'cfg(android)'.dependencies]
+android_logger = "0.13"
+crossbeam = "0.8"
+jni = { version = "0.21", default-features = false }
+lazy_static = "1.4"
