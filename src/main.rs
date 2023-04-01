@@ -19,16 +19,38 @@ async fn main() -> Result<()> {
     let mut config: config::Config = serde_json::from_reader(f)?;
     config.is_server = is_server;
     config.check_correctness()?;
-    if is_server {
-        if config.exist_server() {
-            server::run_server(&config).await?;
+
+    let main_body = async {
+        if is_server {
+            if config.exist_server() {
+                server::run_server(&config).await?;
+            } else {
+                return Err(Error::from("Config is not a server config"));
+            }
+        } else if config.exist_client() {
+            client::run_client(&config).await?;
         } else {
-            return Err(Error::from("Config is not a server config"));
+            return Err("Config is not a client config".into());
         }
-    } else if config.exist_client() {
-        client::run_client(&config).await?;
-    } else {
-        return Err("Config is not a client config".into());
+
+        Ok(())
+    };
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await?;
+        log::trace!("Recieve SIGINT");
+        tx.send("Exiting signal error")?;
+        Ok::<(), Error>(())
+    });
+    tokio::select! {
+        biased;
+        _ = rx => {},
+        result = main_body => {
+            if let Err(e) = result {
+                log::error!("{e}");
+            }
+        },
     }
 
     Ok(())

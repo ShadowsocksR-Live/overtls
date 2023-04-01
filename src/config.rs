@@ -180,8 +180,9 @@ impl Config {
                 let addr = format!("{}:{}", client.server_host, client.server_port);
                 let mut addr = addr.to_socket_addrs()?;
                 let addr = addr.next().ok_or("address not exist")?;
-                let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
-                TcpStream::connect_timeout(&addr, timeout)?;
+                let _timeout = std::time::Duration::from_secs(self.test_timeout_secs);
+                #[cfg(not(target_os = "android"))]
+                TcpStream::connect_timeout(&addr, _timeout)?;
                 client.server_host = addr.ip().to_string();
             }
         }
