@@ -1,8 +1,10 @@
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ClientNode {
+pub(crate) struct ClientNode {
     enable: bool,
     upstream_traffic: u64,
     downstream_traffic: u64,
@@ -55,8 +57,10 @@ impl ClientNode {
     }
 }
 
+pub(crate) type TrafficAuditPtr = std::sync::Arc<tokio::sync::Mutex<TrafficAudit>>;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct TrafficAudit {
+pub(crate) struct TrafficAudit {
     client_map: HashMap<String, ClientNode>,
 }
 

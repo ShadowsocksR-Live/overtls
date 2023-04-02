@@ -153,11 +153,11 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
 
 type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 
-pub async fn create_tls_ws_stream(
+pub(crate) async fn create_tls_ws_stream(
     svr_addr: &SocketAddr,
     dst_addr: Option<Address>,
     config: &Config,
-    udp: Option<bool>,
+    udp_tunnel: Option<bool>,
 ) -> Result<WsTlsStream> {
     let client = config.client.as_ref().ok_or("client not exist")?;
 
@@ -166,25 +166,25 @@ pub async fn create_tls_ws_stream(
 
     let stream = create_tls_client_stream(cert_store, svr_addr, domain).await?;
 
-    let ws_stream = create_ws_stream(dst_addr, config, udp, stream).await?;
+    let ws_stream = create_ws_stream(dst_addr, config, udp_tunnel, stream).await?;
     Ok(ws_stream)
 }
 
-pub async fn create_plaintext_ws_stream(
+pub(crate) async fn create_plaintext_ws_stream(
     server_addr: &SocketAddr,
     dst_addr: Option<Address>,
     config: &Config,
-    udp: Option<bool>,
+    udp_tunnel: Option<bool>,
 ) -> Result<WebSocketStream<TcpStream>> {
     let stream = crate::tcp_stream::create(server_addr).await?;
-    let ws_stream = create_ws_stream(dst_addr, config, udp, stream).await?;
+    let ws_stream = create_ws_stream(dst_addr, config, udp_tunnel, stream).await?;
     Ok(ws_stream)
 }
 
-pub async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
+pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     dst_addr: Option<Address>,
     config: &Config,
-    udp: Option<bool>,
+    udp_tunnel: Option<bool>,
     mut stream: S,
 ) -> Result<WebSocketStream<S>> {
     let client = config.client.as_ref().ok_or("client not exist")?;
@@ -194,7 +194,7 @@ pub async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
     let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
 
-    let uri = WeirdUri::new(&uri, b64_dst, udp, client.client_id.clone());
+    let uri = WeirdUri::new(&uri, b64_dst, udp_tunnel, client.client_id.clone());
 
     let (v, key) = client::generate_request(uri.into_client_request()?)?;
     stream.write_all(&v).await?;

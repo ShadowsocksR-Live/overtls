@@ -13,7 +13,7 @@ use tokio_rustls::{
     TlsConnector,
 };
 
-pub fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> Result<RootCertStore> {
+pub(crate) fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> Result<RootCertStore> {
     let mut root_cert_store = rustls::RootCertStore::empty();
     let mut done = false;
     if let Some(cafile) = cafile {
@@ -41,7 +41,7 @@ pub fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> Result<R
     Ok(root_cert_store)
 }
 
-pub async fn create_tls_client_stream(
+pub(crate) async fn create_tls_client_stream(
     root_cert_store: RootCertStore,
     addr: &SocketAddr,
     domain: &str,
@@ -61,13 +61,13 @@ pub async fn create_tls_client_stream(
     Ok(stream)
 }
 
-pub fn server_load_certs(path: &Path) -> Result<Vec<Certificate>> {
+pub(crate) fn server_load_certs(path: &Path) -> Result<Vec<Certificate>> {
     certs(&mut BufReader::new(File::open(path)?))
         .map_err(|e| Error::from(format!("Certificate error: {e}")))
         .map(|mut certs| certs.drain(..).map(Certificate).collect())
 }
 
-pub fn server_load_keys(path: &Path) -> Result<Vec<PrivateKey>> {
+pub(crate) fn server_load_keys(path: &Path) -> Result<Vec<PrivateKey>> {
     rsa_private_keys(&mut BufReader::new(File::open(path)?))
         .map_err(|e| Error::from(format!("PrivateKey error: {e}")))
         .map(|mut keys| keys.drain(..).map(PrivateKey).collect())

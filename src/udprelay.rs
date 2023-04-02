@@ -30,12 +30,12 @@ use tokio::{
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::protocol::Message;
 
-pub type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Address)>;
-pub type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;
-pub type SocketAddrSet = Arc<Mutex<HashSet<SocketAddr>>>;
-pub type UdpWaker = mpsc::Sender<()>;
+pub(crate) type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Address)>;
+pub(crate) type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;
+pub(crate) type SocketAddrSet = Arc<Mutex<HashSet<SocketAddr>>>;
+pub(crate) type UdpWaker = mpsc::Sender<()>;
 
-pub async fn handle_s5_upd_associate(
+pub(crate) async fn handle_s5_upd_associate(
     associate: Associate<UdpNeedReply>,
     udp_tx: UdpRequestSender,
     incomings: SocketAddrSet,
@@ -86,9 +86,10 @@ pub async fn handle_s5_upd_associate(
     }
 }
 
-pub static MAX_UDP_RELAY_PACKET_SIZE: usize = 1500;
+pub(crate) static MAX_UDP_RELAY_PACKET_SIZE: usize = 1500;
 
-pub const fn command_max_serialized_len() -> usize {
+#[allow(dead_code)]
+pub(crate) const fn command_max_serialized_len() -> usize {
     2 + 6 + Address::max_serialized_len()
 }
 
@@ -137,13 +138,13 @@ async fn relay_to_socks5(
     Ok(())
 }
 
-pub fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, SocketAddrSet) {
+pub(crate) fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, SocketAddrSet) {
     let incomings = Arc::new(Mutex::new(HashSet::<SocketAddr>::new()));
     let (tx, rx) = tokio::sync::broadcast::channel::<(Bytes, Address, Address)>(10);
     (tx, rx, incomings)
 }
 
-pub async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, config: Config) -> Result<()> {
+pub(crate) async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, config: Config) -> Result<()> {
     let client = config.client.as_ref().ok_or("config client not exist")?;
     let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
     let svr_addr = addr.next().ok_or("client address not exist")?;
@@ -222,7 +223,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(())
 }
 
-pub async fn udp_handler_watchdog(
+pub(crate) async fn udp_handler_watchdog(
     config: &Config,
     incomings: &SocketAddrSet,
     udp_tx: &UdpRequestSender,

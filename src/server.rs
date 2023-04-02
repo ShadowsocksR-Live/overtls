@@ -3,8 +3,8 @@ use crate::{
     config::Config,
     error::{Error, Result},
     tls::*,
-    traffic_audit::TrafficAudit,
-    weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP},
+    traffic_audit::{TrafficAudit, TrafficAuditPtr},
+    weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP_TUNNEL},
     STREAM_BUFFER_SIZE,
 };
 use bytes::{BufMut, BytesMut};
@@ -28,7 +28,6 @@ use tungstenite::{
     protocol::{Message, Role},
 };
 
-pub type TrafficAuditPtr = Arc<Mutex<TrafficAudit>>;
 const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
 
@@ -213,7 +212,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<()> {
     let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
-    let mut udp = false;
+    let mut udp_tunnel = false;
     let mut client_id = None;
 
     let mut retrieve_values = |req: &Request| {
@@ -223,9 +222,9 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
                 target_address = value.to_string();
             }
         }
-        if let Some(value) = req.headers().get(UDP) {
+        if let Some(value) = req.headers().get(UDP_TUNNEL) {
             if let Ok(value) = value.to_str() {
-                udp = value.parse::<bool>().unwrap_or(false);
+                udp_tunnel = value.parse::<bool>().unwrap_or(false);
             }
         }
         if let Some(value) = req.headers().get(CLIENT_ID) {
@@ -282,9 +281,9 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     let result;
-    if udp {
+    if udp_tunnel {
         log::trace!("[UDP] {} tunneling established", peer);
-        result = udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
+        result = create_udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
         if let Err(ref e) = result {
             log::debug!("[UDP] {} closed error: {}", peer, e);
         } else {
@@ -383,7 +382,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(())
 }
 
-async fn udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
+async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
     _config: Config,
     traffic_audit: TrafficAuditPtr,

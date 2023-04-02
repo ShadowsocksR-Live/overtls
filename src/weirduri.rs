@@ -4,30 +4,35 @@ use tungstenite::{
     handshake::client::{generate_key, Request},
 };
 
-pub const TARGET_ADDRESS: &str = "Target-Address";
-pub const UDP: &str = "UDP";
-pub const CLIENT_ID: &str = "Client-Id";
+pub(crate) const TARGET_ADDRESS: &str = "Target-Address";
+pub(crate) const UDP_TUNNEL: &str = "UDP-Tunnel";
+pub(crate) const CLIENT_ID: &str = "Client-Id";
 
 /// A wrapper around `tungstenite::Url` that allows us to add custom headers.
 /// This is useful for passing additional information to the server.
 /// For example, we can pass the remote server IP to the server.
 /// This is useful for servers that are behind a reverse proxy.
 #[derive(Debug, Clone)]
-pub struct WeirdUri<'a> {
-    pub uri: &'a str,
-    pub target_address: Option<String>,
-    pub sec_websocket_key: String,
-    pub udp: Option<bool>,
-    pub client_id: Option<String>,
+pub(crate) struct WeirdUri<'a> {
+    pub(crate) uri: &'a str,
+    pub(crate) target_address: Option<String>,
+    pub(crate) sec_websocket_key: String,
+    pub(crate) udp_tunnel: Option<bool>,
+    pub(crate) client_id: Option<String>,
 }
 
 impl<'a> WeirdUri<'a> {
-    pub fn new(uri: &'a str, target_address: Option<String>, udp: Option<bool>, client_id: Option<String>) -> Self {
+    pub(crate) fn new(
+        uri: &'a str,
+        target_address: Option<String>,
+        udp_tunnel: Option<bool>,
+        client_id: Option<String>,
+    ) -> Self {
         Self {
             uri,
             target_address,
             sec_websocket_key: generate_key(),
-            udp,
+            udp_tunnel,
             client_id,
         }
     }
@@ -52,9 +57,9 @@ impl<'a> IntoClientRequest for WeirdUri<'a> {
                 builder = builder.header(TARGET_ADDRESS, target_address);
             }
         }
-        if let Some(udp) = self.udp {
-            if udp {
-                builder = builder.header(UDP, udp.to_string());
+        if let Some(udp_tunnel) = self.udp_tunnel {
+            if udp_tunnel {
+                builder = builder.header(UDP_TUNNEL, udp_tunnel.to_string());
             }
         }
         if let Some(ref client_id) = self.client_id {
