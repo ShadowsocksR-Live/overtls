@@ -86,15 +86,14 @@ pub async fn run_server(config: &Config) -> Result<()> {
         let acceptor = acceptor.clone();
         let config = config.clone();
         let traffic_audit = traffic_audit.clone();
-        let peer = stream.peer_addr()?;
 
         let incoming_task = async move {
             if let Some(acceptor) = acceptor {
                 let stream = acceptor.accept(stream).await?;
-                if let Err(e) = handle_incoming(stream, peer, config, traffic_audit).await {
+                if let Err(e) = handle_incoming(stream, peer_addr, config, traffic_audit).await {
                     log::debug!("{}: {}", peer_addr, e);
                 }
-            } else if let Err(e) = handle_incoming(stream, peer, config, traffic_audit).await {
+            } else if let Err(e) = handle_incoming(stream, peer_addr, config, traffic_audit).await {
                 log::debug!("{}: {}", peer_addr, e);
             }
             Ok::<_, Error>(())
