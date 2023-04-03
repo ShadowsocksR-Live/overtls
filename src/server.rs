@@ -17,10 +17,10 @@ use std::{
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    net::{TcpListener, TcpStream, UdpSocket},
+    net::{TcpListener, UdpSocket},
     sync::Mutex,
 };
-use tokio_rustls::{rustls, server::TlsStream, TlsAcceptor};
+use tokio_rustls::{rustls, TlsAcceptor};
 use tokio_tungstenite::{accept_hdr_async, WebSocketStream};
 use tungstenite::{
     handshake::server::{create_response, ErrorResponse, Request, Response},
@@ -86,14 +86,15 @@ pub async fn run_server(config: &Config) -> Result<()> {
         let acceptor = acceptor.clone();
         let config = config.clone();
         let traffic_audit = traffic_audit.clone();
+        let peer = stream.peer_addr()?;
 
         let incoming_task = async move {
             if let Some(acceptor) = acceptor {
                 let stream = acceptor.accept(stream).await?;
-                if let Err(e) = handle_tls_incoming(stream, config, traffic_audit).await {
+                if let Err(e) = handle_incoming(stream, peer, config, traffic_audit).await {
                     log::debug!("{}: {}", peer_addr, e);
                 }
-            } else if let Err(e) = handle_incoming(stream, config, traffic_audit).await {
+            } else if let Err(e) = handle_incoming(stream, peer, config, traffic_audit).await {
                 log::debug!("{}: {}", peer_addr, e);
             }
             Ok::<_, Error>(())
@@ -107,13 +108,12 @@ pub async fn run_server(config: &Config) -> Result<()> {
     }
 }
 
-async fn handle_tls_incoming(
-    mut stream: TlsStream<TcpStream>,
+async fn handle_incoming<S: AsyncRead + AsyncWrite + Unpin>(
+    mut stream: S,
+    peer: SocketAddr,
     config: Config,
     traffic_audit: TrafficAuditPtr,
 ) -> Result<()> {
-    let peer = stream.get_ref().0.peer_addr()?;
-
     let mut buf = BytesMut::with_capacity(2048);
     let size = stream.read_buf(&mut buf).await?;
     if size == 0 {
@@ -188,19 +188,6 @@ where
         let to_stream = crate::tcp_stream::create(forward_addr).await?;
         forward_traffic(stream, to_stream, data).await
     }
-}
-
-async fn handle_incoming(stream: TcpStream, config: Config, traffic_audit: TrafficAuditPtr) -> Result<()> {
-    let mut buf = [0; 512];
-    stream.peek(&mut buf).await?;
-
-    if !check_uri_path(&buf, &config.tunnel_path).await? {
-        return forward_traffic_wrapper(stream, &[], &config).await;
-    }
-
-    let peer = stream.peer_addr()?;
-
-    websocket_traffic_handler(stream, config, peer, &[], traffic_audit).await
 }
 
 async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
