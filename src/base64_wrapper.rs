@@ -2,7 +2,6 @@ use base64::{engine::general_purpose, Engine as _};
 
 /// The base64 encoding engine to use when encoding/decoding data.
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
 pub(crate) enum Base64Engine {
     /// Base64 Standard
     Standard,

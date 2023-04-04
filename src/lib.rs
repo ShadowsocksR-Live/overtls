@@ -18,6 +18,9 @@ use bytes::BytesMut;
 pub use error::{Error, Result};
 use socks5_impl::protocol::Address;
 
+#[cfg(target_os = "windows")]
+pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32;
+#[cfg(not(target_os = "windows"))]
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32 * 3;
 
 pub(crate) fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {

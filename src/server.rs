@@ -38,7 +38,9 @@ pub async fn run_server(config: &Config) -> Result<()> {
 
     let server = config.server.as_ref();
     let server = server.ok_or("server settings")?;
-    let addr = format!("{}:{}", server.listen_host, server.listen_port);
+    let h = server.listen_host.clone();
+    let p = server.listen_port;
+    let addr: SocketAddr = (h, p).to_socket_addrs()?.next().ok_or("Invalid server address")?;
 
     let certs = if let Some(ref cert) = server.certfile {
         if !config.disable_tls() {
@@ -119,7 +121,7 @@ async fn handle_incoming<S: AsyncRead + AsyncWrite + Unpin>(
         return Err(Error::from("empty request"));
     }
 
-    if !check_uri_path(&buf, &config.tunnel_path).await? {
+    if !check_uri_path(&buf, &config.tunnel_path)? {
         return forward_traffic_wrapper(stream, &buf, &config).await;
     }
 
@@ -149,7 +151,7 @@ where
     Ok(())
 }
 
-async fn check_uri_path(buf: &[u8], path: &str) -> Result<bool> {
+fn check_uri_path(buf: &[u8], path: &str) -> Result<bool> {
     let mut headers = [httparse::EMPTY_HEADER; 512];
     let mut req = httparse::Request::new(&mut headers);
     req.parse(buf)?;
