@@ -36,8 +36,7 @@ pub async fn run_server(config: &Config) -> Result<()> {
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 
-    let server = config.server.as_ref();
-    let server = server.ok_or("server settings")?;
+    let server = config.server.as_ref().ok_or("No server settings")?;
     let h = server.listen_host.clone();
     let p = server.listen_port;
     let addr: SocketAddr = (h, p).to_socket_addrs()?.next().ok_or("Invalid server address")?;
