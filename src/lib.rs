@@ -32,9 +32,19 @@ pub(crate) fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
 
 pub(crate) fn b64str_to_address(s: &str, url_safe: bool) -> Result<Address> {
     let buf = if url_safe {
-        base64_decode(s, Base64Engine::UrlSafeNoPad)?
+        let result = base64_decode(s, Base64Engine::UrlSafeNoPad);
+        if result.is_err() {
+            base64_decode(s, Base64Engine::UrlSafe)?
+        } else {
+            result?
+        }
     } else {
-        base64_decode(s, Base64Engine::StandardNoPad)?
+        let result = base64_decode(s, Base64Engine::StandardNoPad);
+        if result.is_err() {
+            base64_decode(s, Base64Engine::Standard)?
+        } else {
+            result?
+        }
     };
     Address::from_data(&buf).map_err(|e| e.into())
 }
