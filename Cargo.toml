@@ -4,6 +4,9 @@ version = "0.1.5"
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+crate-type = ["cdylib", "lib"]
+
 [dependencies]
 base64 = "0.21"
 bytes = "1.4"
@@ -29,7 +32,7 @@ url = "2.3"
 webpki = { package = "rustls-webpki", version = "0.100", features = ["alloc", "std"] }
 webpki-roots = "0.23"
 
-[target.'cfg(android)'.dependencies]
+[target.'cfg(target_os="android")'.dependencies]
 android_logger = "0.13"
 crossbeam = "0.8"
 jni = { version = "0.21", default-features = false }

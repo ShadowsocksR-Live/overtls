@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::{
-    net::{TcpStream, ToSocketAddrs},
+    net::ToSocketAddrs,
     path::PathBuf,
 };
 
@@ -182,7 +182,7 @@ impl Config {
                 let addr = addr.next().ok_or("address not exist")?;
                 let _timeout = std::time::Duration::from_secs(self.test_timeout_secs);
                 #[cfg(not(target_os = "android"))]
-                TcpStream::connect_timeout(&addr, _timeout)?;
+                std::net::TcpStream::connect_timeout(&addr, _timeout)?;
                 client.server_host = addr.ip().to_string();
             }
         }

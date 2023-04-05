@@ -140,10 +140,10 @@ pub mod native {
     ///
     /// This function should only be used in jni context.
     #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_ssrlive_overtls_vpn_LocalVpnService_onCreateNative(
+    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_onCreateNative(
         env: JNIEnv,
         class: JClass,
-        object: JObject,
+        vpn_service: JObject,
     ) {
         android_logger::init_once(
             android_logger::Config::default()
@@ -152,7 +152,7 @@ pub mod native {
         );
         log::trace!("onCreateNative");
         set_panic_handler();
-        Jni::init(env, class, object);
+        Jni::init(env, class, vpn_service);
         SocketProtector::init();
         // tun::create();
     }
@@ -161,7 +161,7 @@ pub mod native {
     ///
     /// This function should only be used in jni context.
     #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_ssrlive_overtls_vpn_LocalVpnService_onDestroyNative(_: JNIEnv, _: JClass) {
+    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_onDestroyNative(_: JNIEnv, _: JClass) {
         log::trace!("onDestroyNative");
         // tun::destroy();
         SocketProtector::release();
@@ -173,7 +173,7 @@ pub mod native {
     ///
     /// This function should only be used in jni context.
     #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_ssrlive_overtls_vpn_LocalVpnService_onStartVpn(
+    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_onStartVpn(
         _: JNIEnv,
         _: JClass,
         file_descriptor: i32,
@@ -188,7 +188,7 @@ pub mod native {
     ///
     /// This function should only be used in jni context.
     #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_ssrlive_overtls_vpn_LocalVpnService_onStopVpn(_: JNIEnv, _: JClass) {
+    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_onStopVpn(_: JNIEnv, _: JClass) {
         log::trace!("onStopVpn, pid={}", process::id());
         // tun::stop();
         socket_protector!().stop();
@@ -211,7 +211,7 @@ pub mod native {
 
     pub struct JniContext<'a> {
         pub(super) jni_env: JNIEnv<'a>,
-        pub(super) object: &'a JObject<'a>,
+        pub(super) vpn_service: &'a JObject<'a>,
         pub(super) protect_method_id: JMethodID,
     }
 
@@ -226,7 +226,7 @@ pub mod native {
             let arguments = [JValue::Int(socket).as_jni()];
             let result = unsafe {
                 self.jni_env
-                    .call_method_unchecked(self.object, self.protect_method_id, return_type, &arguments[..])
+                    .call_method_unchecked(self.vpn_service, self.protect_method_id, return_type, &arguments[..])
             };
             match result {
                 Ok(value) => {
@@ -243,15 +243,15 @@ pub mod native {
 
     pub struct Jni {
         java_vm: Arc<JavaVM>,
-        object: GlobalRef,
+        vpn_service: GlobalRef,
     }
 
     impl Jni {
-        pub fn init(env: JNIEnv, _: JClass, object: JObject) {
+        pub fn init(env: JNIEnv, _: JClass, vpn_service: JObject) {
             let mut jni = JNI.lock().unwrap();
             let java_vm = Arc::new(env.get_java_vm().unwrap());
-            let object = env.new_global_ref(object).unwrap();
-            *jni = Some(Jni { java_vm, object });
+            let vpn_service = env.new_global_ref(vpn_service).unwrap();
+            *jni = Some(Jni { java_vm, vpn_service });
         }
 
         pub fn release() {
@@ -263,10 +263,10 @@ pub mod native {
             match self.java_vm.attach_current_thread_permanently() {
                 Ok(jni_env) => match Jni::get_protect_method_id(unsafe { jni_env.unsafe_clone() }) {
                     Some(protect_method_id) => {
-                        let object = self.object.as_obj();
+                        let vpn_service = self.vpn_service.as_obj();
                         return Some(JniContext {
                             jni_env,
-                            object,
+                            vpn_service,
                             protect_method_id,
                         });
                     }
