@@ -1,9 +1,6 @@
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::{
-    net::ToSocketAddrs,
-    path::PathBuf,
-};
+use std::{net::ToSocketAddrs, path::PathBuf};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
