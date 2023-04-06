@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
     let main_body = async {
         if is_server {
             if config.exist_server() {
-                server::run_server(&config).await?;
+                server::run_server(&config, Some(shutdown_signal_clone)).await?;
             } else {
                 return Err(Error::from("Config is not a server config"));
             }

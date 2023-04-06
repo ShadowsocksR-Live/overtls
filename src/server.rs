@@ -13,7 +13,10 @@ use socks5_impl::protocol::Address;
 use std::{
     collections::HashMap,
     net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
@@ -31,7 +34,7 @@ use tungstenite::{
 const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
 
-pub async fn run_server(config: &Config) -> Result<()> {
+pub async fn run_server(config: &Config, exiting: Option<Arc<AtomicBool>>) -> Result<()> {
     log::info!("starting {} server...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
@@ -84,6 +87,11 @@ pub async fn run_server(config: &Config) -> Result<()> {
 
     loop {
         let (stream, peer_addr) = listener.accept().await?;
+        if let Some(exiting) = &exiting {
+            if exiting.load(Ordering::Relaxed) {
+                break;
+            }
+        }
         let acceptor = acceptor.clone();
         let config = config.clone();
         let traffic_audit = traffic_audit.clone();
@@ -106,6 +114,7 @@ pub async fn run_server(config: &Config) -> Result<()> {
             }
         });
     }
+    Ok(())
 }
 
 async fn handle_incoming<S: AsyncRead + AsyncWrite + Unpin>(
