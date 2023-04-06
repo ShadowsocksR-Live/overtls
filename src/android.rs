@@ -7,9 +7,10 @@ pub mod native {
     use jni::signature::{Primitive, ReturnType};
     use jni::{JNIEnv, JavaVM};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
-    use std::sync::Mutex;
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, RwLock,
+    };
     use std::thread::JoinHandle;
 
     lazy_static::lazy_static! {
@@ -150,6 +151,7 @@ pub mod native {
         class: JClass,
         vpn_service: JObject,
         config_path: JString,
+        stat_path: JString,
     ) {
         let mut env = env;
 
@@ -161,7 +163,12 @@ pub mod native {
                 .with_max_level(log::LevelFilter::Trace)
                 .with_filter(filter),
         );
+
         let block = || -> Result<()> {
+            if let Ok(stat_path) = get_java_string(&mut env, &stat_path) {
+                let mut stat = STAT_PATH.write().unwrap();
+                *stat = stat_path.to_owned();
+            }
             let config_path = get_java_string(&mut env, &config_path)?.to_owned();
             set_panic_handler();
             Jni::init(env, class, vpn_service);
@@ -325,6 +332,58 @@ pub mod native {
             }
             None
         }
+    }
+
+    #[repr(C)]
+    #[derive(Debug, Default, Copy, Clone)]
+    struct TrafficStatus {
+        tx: u64,
+        rx: u64,
+    }
+
+    lazy_static::lazy_static! {
+        static ref TRAFFIC_STATUS: RwLock<TrafficStatus> = RwLock::new(TrafficStatus::default());
+        static ref STAT_PATH: RwLock<String> = RwLock::new(String::new());
+        static ref TIME_STAMP: RwLock<std::time::Instant> = RwLock::new(std::time::Instant::now());
+    }
+
+    pub(crate) fn traffic_status_update(delta_tx: usize, delta_rx: usize) -> Result<()> {
+        {
+            let mut traffic_status = TRAFFIC_STATUS.write().unwrap();
+            traffic_status.tx += delta_tx as u64;
+            traffic_status.rx += delta_rx as u64;
+        }
+        let old_time = { TIME_STAMP.read().unwrap().clone() };
+        if std::time::Instant::now().duration_since(old_time).as_secs() >= 1 {
+            send_traffic_stat()?;
+            let mut time_stamp = TIME_STAMP.write().unwrap();
+            *time_stamp = std::time::Instant::now();
+        }
+        Ok(())
+    }
+
+    fn send_traffic_stat() -> Result<()> {
+        let stat_path = { (*STAT_PATH.read().unwrap()).clone() };
+        if stat_path.is_empty() {
+            return Ok(());
+        }
+        use std::io::{Read, Write};
+        use std::mem;
+        use std::os::unix::net::UnixStream;
+        use std::time::Duration;
+        let mut stream = UnixStream::connect(&stat_path)?;
+        stream.set_write_timeout(Some(Duration::new(1, 0)))?;
+        stream.set_read_timeout(Some(Duration::new(1, 0)))?;
+        let buf = {
+            let traffic_status = TRAFFIC_STATUS.read().unwrap();
+            unsafe { mem::transmute::<TrafficStatus, [u8; mem::size_of::<TrafficStatus>()]>(*traffic_status) }
+        };
+        stream.write_all(&buf)?;
+
+        let mut response = String::new();
+        stream.read_to_string(&mut response)?;
+
+        Ok(())
     }
 }
 

@@ -177,6 +177,11 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     src_addr.write_to_buf(&mut buf);
                     buf.put_slice(&pkt);
 
+                    #[cfg(target_os = "android")]
+                    if let Err(e) = crate::android::native::traffic_status_update(buf.len(), 0) {
+                        log::error!("{}", e);
+                    }
+
                     log::trace!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
                     let msg = Message::Binary(buf.freeze().to_vec());
                     ws_stream.send(msg).await?;
@@ -186,6 +191,14 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                  Ok::<_, Error>(())
             },
             msg = ws_stream.next() => {
+                #[cfg(target_os = "android")]
+                {
+                    let len = msg.as_ref().map(|m| m.as_ref().map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
+                    if let Err(e) = crate::android::native::traffic_status_update(0, len) {
+                        log::error!("{}", e);
+                    }
+                }
+
                 match msg {
                     Some(Ok(Message::Binary(buf))) => {
                         let mut buf = BytesMut::from(&buf[..]);
