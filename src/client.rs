@@ -13,7 +13,13 @@ use socks5_impl::{
     protocol::{Address, Reply},
     server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server},
 };
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::TcpStream,
@@ -29,7 +35,7 @@ use tungstenite::{
     protocol::{Message, Role},
 };
 
-pub async fn run_client(config: &Config) -> Result<()> {
+pub async fn run_client(config: &Config, exiting: Option<Arc<AtomicBool>>) -> Result<()> {
     log::info!("starting {} client...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
@@ -42,6 +48,12 @@ pub async fn run_client(config: &Config) -> Result<()> {
     let udp_waker = udprelay::udp_handler_watchdog(config, &incomings, &udp_tx).await?;
 
     while let Ok((conn, _)) = server.accept().await {
+        if let Some(exiting) = &exiting {
+            if exiting.load(Ordering::Relaxed) {
+                log::trace!("exiting client...");
+                break;
+            }
+        }
         let config = config.clone();
         let udp_tx = udp_tx.clone();
         let incomings = incomings.clone();

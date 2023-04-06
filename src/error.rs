@@ -15,35 +15,42 @@ pub enum Error {
     #[error("Base64 error: {0}")]
     Base64(#[from] base64::DecodeError),
 
-    #[error("tokio::sync::mpsc::error::SendError error: {0}")]
+    #[error("tokio::sync::mpsc::error::SendError {0}")]
     MpscSend(#[from] tokio::sync::mpsc::error::SendError<()>),
 
-    #[error("tokio::sync::broadcast::Sender::SendError error: {0}")]
+    #[error("tokio::sync::broadcast::Sender::SendError {0}")]
     BroadcastSend(#[from] tokio::sync::broadcast::error::SendError<(Bytes, Address, Address)>),
 
-    #[error("tokio::sync::mpsc::error::SendError error: {0}")]
+    #[error("tokio::sync::mpsc::error::SendError {0}")]
     UdpWakerSend(#[from] tokio::sync::mpsc::error::SendError<Vec<u8>>),
 
-    #[error("http::header::ToStrError error: {0}")]
+    #[error("http::header::ToStrError {0}")]
     HeaderToStr(#[from] http::header::ToStrError),
 
-    #[error("tungstenite::error::Error error: {0}")]
+    #[error("tungstenite::error::Error {0}")]
     Tungstenite(#[from] tungstenite::error::Error),
 
-    #[error("reqwest::Error error: {0}")]
+    #[error("reqwest::Error {0}")]
     Reqwest(#[from] reqwest::Error),
 
-    #[error("rustls::error::Error error: {0}")]
+    #[error("rustls::error::Error {0}")]
     Rustls(#[from] rustls::Error),
 
     #[error("tokio_rustls::rustls::client::InvalidDnsNameError {0}")]
     InvalidDnsName(#[from] tokio_rustls::rustls::client::InvalidDnsNameError),
 
-    #[error("httparse::Error error: {0}")]
+    #[error("httparse::Error {0}")]
     Httparse(#[from] httparse::Error),
 
-    #[error("url::Url::ParseError error: {0}")]
+    #[error("url::Url::ParseError {0}")]
     UrlParse(#[from] url::ParseError),
+
+    #[cfg(target_os = "android")]
+    #[error("jni::errors::Error {0}")]
+    Jni(#[from] jni::errors::Error),
+
+    #[error("std::str::Utf8Error {0}")]
+    Utf8(#[from] std::str::Utf8Error),
 
     #[error("&str error: {0}")]
     Str(String),

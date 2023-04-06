@@ -1,16 +1,16 @@
 pub mod native {
 
+    use crate::error::{Error, Result};
     use crossbeam::channel::unbounded;
     use crossbeam::channel::{Receiver, Sender};
-    use jni::objects::{GlobalRef, JClass, JMethodID, JObject, JValue};
+    use jni::objects::{GlobalRef, JClass, JMethodID, JObject, JString, JValue};
     use jni::signature::{Primitive, ReturnType};
     use jni::{JNIEnv, JavaVM};
-    use std::process;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::thread::JoinHandle;
-    // use core::tun;
 
     lazy_static::lazy_static! {
         pub static ref SOCKET_PROTECTOR: Mutex<Option<SocketProtector>> = Mutex::new(None);
@@ -136,61 +136,85 @@ pub mod native {
         }
     }
 
+    lazy_static::lazy_static! {
+        pub static ref SHUTDOWN_SIGNAL: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+        pub static ref LISTEN_ADDR: Arc<Mutex<SocketAddr>> = Arc::new(Mutex::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)));
+    }
+
     /// # Safety
     ///
-    /// This function should only be used in jni context.
+    /// Run the overtls client with config file.
     #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_onCreateNative(
+    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient(
         env: JNIEnv,
         class: JClass,
         vpn_service: JObject,
+        config_path: JString,
     ) {
+        let mut env = env;
+
+        let filter_str = "off,overtls=trace,rustls=off";
+        let filter = android_logger::FilterBuilder::new().parse(filter_str).build();
         android_logger::init_once(
             android_logger::Config::default()
-                .with_tag("overtlsVpn")
-                .with_max_level(log::LevelFilter::Trace),
+                .with_tag("overtls")
+                .with_max_level(log::LevelFilter::Trace)
+                .with_filter(filter),
         );
-        log::trace!("onCreateNative");
-        set_panic_handler();
-        Jni::init(env, class, vpn_service);
-        SocketProtector::init();
-        // tun::create();
+        let block = || -> Result<()> {
+            let config_path = get_java_string(&mut env, &config_path)?.to_owned();
+            set_panic_handler();
+            Jni::init(env, class, vpn_service);
+            SocketProtector::init();
+
+            start_protect_socket();
+
+            let config = crate::config::Config::load_from_ssrdroid_settings(config_path)?;
+            let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+            rt.block_on(async {
+                SHUTDOWN_SIGNAL.store(false, Ordering::SeqCst);
+                *LISTEN_ADDR.lock().unwrap() = config.listen_addr()?;
+                crate::client::run_client(&config, Some(SHUTDOWN_SIGNAL.clone())).await?;
+                Ok::<(), Error>(())
+            })
+        };
+        if let Err(error) = block() {
+            log::error!("failed to run client, error={:?}", error);
+        }
+    }
+
+    unsafe fn get_java_string<'a>(env: &'a mut JNIEnv, string: &'a JString) -> Result<&'a str> {
+        let str_ptr = env.get_string(string)?.as_ptr();
+        let s: &str = std::ffi::CStr::from_ptr(str_ptr).to_str()?;
+        Ok(s)
     }
 
     /// # Safety
     ///
-    /// This function should only be used in jni context.
+    /// Shutdown the client.
     #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_onDestroyNative(_: JNIEnv, _: JClass) {
-        log::trace!("onDestroyNative");
-        // tun::destroy();
+    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient(_: JNIEnv, _: JClass) {
+        stop_protect_socket();
+
+        SHUTDOWN_SIGNAL.store(true, Ordering::SeqCst);
+
+        let listen_addr = *LISTEN_ADDR.lock().unwrap();
+        let addr = if listen_addr.is_ipv6() { "::1" } else { "127.0.0.1" };
+        let _ = std::net::TcpStream::connect((addr, listen_addr.port()));
+        log::trace!("stopClient on listen address {listen_addr}");
+
         SocketProtector::release();
         Jni::release();
         remove_panic_handler();
+        log::trace!("remove_panic_handler");
     }
 
-    /// # Safety
-    ///
-    /// This function should only be used in jni context.
-    #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_onStartVpn(
-        _: JNIEnv,
-        _: JClass,
-        file_descriptor: i32,
-    ) {
-        log::trace!("onStartVpn, pid={}, fd={}", process::id(), file_descriptor);
+    fn start_protect_socket() {
         crate::android::tun_callbacks::set_socket_created_callback(Some(on_socket_created));
         socket_protector!().start();
-        // tun::start(file_descriptor);
     }
 
-    /// # Safety
-    ///
-    /// This function should only be used in jni context.
-    #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_onStopVpn(_: JNIEnv, _: JClass) {
-        log::trace!("onStopVpn, pid={}", process::id());
-        // tun::stop();
+    fn stop_protect_socket() {
         socket_protector!().stop();
         crate::android::tun_callbacks::set_socket_created_callback(None);
     }

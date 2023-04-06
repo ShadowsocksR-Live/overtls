@@ -1,6 +1,9 @@
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
-use std::{net::ToSocketAddrs, path::PathBuf};
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    path::PathBuf,
+};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
@@ -121,6 +124,22 @@ impl Config {
         }
     }
 
+    pub fn listen_addr(&self) -> Result<SocketAddr> {
+        if self.is_server {
+            let f = |s: &Server| SocketAddr::new(s.listen_host.parse().unwrap(), s.listen_port);
+            self.server
+                .as_ref()
+                .map(f)
+                .ok_or_else(|| "Server listen address is not set".into())
+        } else {
+            let f = |c: &Client| SocketAddr::new(c.listen_host.parse().unwrap(), c.listen_port);
+            self.client
+                .as_ref()
+                .map(f)
+                .ok_or_else(|| "Client listen address is not set".into())
+        }
+    }
+
     pub fn disable_tls(&self) -> bool {
         if self.is_server {
             if let Some(s) = &self.server {
@@ -184,5 +203,49 @@ impl Config {
             }
         }
         Ok(())
+    }
+
+    #[cfg(target_os = "android")]
+    pub fn load_from_ssrdroid_settings<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+        use serde_json::{Map, Value};
+        let path = path.as_ref();
+        let mut file = std::fs::File::open(path)?;
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut file, &mut content)?;
+        let map = serde_json::from_str::<Map<String, Value>>(&content)?;
+        let mut config: Config = Config::new();
+
+        let mut client = Client::default();
+        let e = "server not exist";
+        client.server_host = map.get("server").ok_or(e)?.as_str().ok_or(e)?.to_string();
+        let e = "server_port not exist";
+        client.server_port = map.get("server_port").ok_or(e)?.as_u64().ok_or(e)? as u16;
+        let e = "local_address not exist";
+        client.listen_host = map.get("local_address").ok_or(e)?.as_str().ok_or(e)?.to_string();
+        let e = "local_port not exist";
+        client.listen_port = map.get("local_port").ok_or(e)?.as_u64().ok_or(e)? as u16;
+
+        let e = "over_tls_settings not exist";
+        let v = map.get("over_tls_settings").ok_or(e)?;
+        if !v.is_null() {
+            let ot_map = serde_json::from_value::<Map<String, Value>>(v.clone())?;
+
+            let e = "enable not exist";
+            let enable = ot_map.get("enable").ok_or(e)?.as_bool().ok_or(e)?;
+            if !enable {
+                return Err("over_tls_settings is not enabled".into());
+            }
+
+            let e = "path not exist";
+            config.tunnel_path = ot_map.get("path").ok_or(e)?.as_str().ok_or(e)?.to_string();
+
+            let domain = client.server_host.clone();
+            let k = "server_domain";
+            client.server_domain = ot_map.get(k).map(|v| v.as_str().unwrap_or(&domain).to_string());
+        }
+
+        config.client = Some(client);
+        config.check_correctness()?;
+        Ok(config)
     }
 }

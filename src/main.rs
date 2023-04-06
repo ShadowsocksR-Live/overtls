@@ -1,5 +1,8 @@
 use overtls::{client, config, server, Error, Result};
-use std::fs::File;
+use std::{
+    fs::File,
+    sync::{atomic::AtomicBool, Arc},
+};
 
 mod cmdopt;
 
@@ -20,6 +23,11 @@ async fn main() -> Result<()> {
     config.is_server = is_server;
     config.check_correctness()?;
 
+    let listen_addr = config.listen_addr()?;
+
+    let shutdown_signal = Arc::new(AtomicBool::new(false));
+    let shutdown_signal_clone = shutdown_signal.clone();
+
     let main_body = async {
         if is_server {
             if config.exist_server() {
@@ -28,7 +36,7 @@ async fn main() -> Result<()> {
                 return Err(Error::from("Config is not a server config"));
             }
         } else if config.exist_client() {
-            client::run_client(&config).await?;
+            client::run_client(&config, Some(shutdown_signal_clone)).await?;
         } else {
             return Err("Config is not a client config".into());
         }
@@ -36,21 +44,19 @@ async fn main() -> Result<()> {
         Ok(())
     };
 
-    let (tx, rx) = tokio::sync::oneshot::channel();
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await?;
         log::trace!("Recieve SIGINT");
-        tx.send("Exiting signal error")?;
+        shutdown_signal.store(true, std::sync::atomic::Ordering::Relaxed);
+
+        let addr = if listen_addr.is_ipv6() { "[::1]" } else { "127.0.0.1" };
+        let _ = std::net::TcpStream::connect((addr, listen_addr.port()));
+
         Ok::<(), Error>(())
     });
-    tokio::select! {
-        biased;
-        _ = rx => {},
-        result = main_body => {
-            if let Err(e) = result {
-                log::error!("{e}");
-            }
-        },
+
+    if let Err(e) = main_body.await {
+        log::error!("{}", e);
     }
 
     Ok(())
