@@ -43,7 +43,7 @@ impl<'a> IntoClientRequest for WeirdUri<'a> {
         let uri = url::Url::parse(self.uri).map_err(|_| Error::Url(UrlError::NoPathOrQuery))?;
 
         let host = uri.host_str().ok_or(Error::Url(UrlError::EmptyHostName))?;
-        let host = format!("{}:{}", host, uri.port().unwrap_or(80));
+        let host = crate::combine_addr_and_port(host, uri.port().unwrap_or(80));
 
         let mut builder = Request::builder()
             .method("GET")

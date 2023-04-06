@@ -204,7 +204,8 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
     let b64_dst = dst_addr.as_ref().map(|dst_addr| addess_to_b64str(dst_addr, false));
 
-    let uri = format!("ws://{}:{}/{}/", client.server_host, client.server_port, tunnel_path);
+    let host_port = crate::combine_addr_and_port(&client.server_host, client.server_port);
+    let uri = format!("ws://{}/{}/", host_port, tunnel_path);
 
     let uri = WeirdUri::new(&uri, b64_dst, udp_tunnel, client.client_id.clone());
 

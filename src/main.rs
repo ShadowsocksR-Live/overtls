@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
         log::trace!("Recieve SIGINT");
         shutdown_signal.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let addr = if listen_addr.is_ipv6() { "[::1]" } else { "127.0.0.1" };
+        let addr = if listen_addr.is_ipv6() { "::1" } else { "127.0.0.1" };
         let _ = std::net::TcpStream::connect((addr, listen_addr.port()));
 
         Ok::<(), Error>(())

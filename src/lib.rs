@@ -51,3 +51,11 @@ pub(crate) fn b64str_to_address(s: &str, url_safe: bool) -> Result<Address> {
     };
     Address::from_data(&buf).map_err(|e| e.into())
 }
+
+pub(crate) fn combine_addr_and_port(addr: &str, port: u16) -> String {
+    if addr.contains(':') {
+        format!("[{}]:{}", addr, port)
+    } else {
+        format!("{}:{}", addr, port)
+    }
+}
