@@ -6,6 +6,12 @@ overtls is [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) type proxy softw
 
 The function is complete and the code is concise, and the core function is 1200 lines of code in total.
 
+> `OverTLS` is a Rust implementation of `SSRoT` without `SSR` and `SS`, only retaining `oT`, which is fast and stable.
+> ```kotlin
+>     fun isOverTLS() : Boolean =
+>         over_tls_enable && method == "none" && obfs == "plain" && protocol == "origin"
+> ```
+
 ## Principle
 
 In order to effectively deceive [GFW](https://en.wikipedia.org/wiki/Great_Firewall), directly using [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) as a proxy protocol is the simplest way. TLS protocol is an encryption protocol, which is symmetric encryption, i.e. the client and server use the same key for encryption and decryption.

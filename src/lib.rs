@@ -44,6 +44,7 @@ pub(crate) fn b64str_to_address(s: &str, url_safe: bool) -> Result<Address> {
     } else {
         let result = base64_decode(s, Base64Engine::StandardNoPad);
         if result.is_err() {
+            // backward compatibility for SSRoT
             base64_decode(s, Base64Engine::Standard)?
         } else {
             result?

@@ -89,6 +89,7 @@ pub async fn run_server(config: &Config, exiting: Option<Arc<AtomicBool>>) -> Re
         let (stream, peer_addr) = listener.accept().await?;
         if let Some(exiting) = &exiting {
             if exiting.load(Ordering::Relaxed) {
+                log::info!("exiting server...");
                 break;
             }
         }
@@ -104,6 +105,8 @@ pub async fn run_server(config: &Config, exiting: Option<Arc<AtomicBool>>) -> Re
                 }
             } else if let Err(e) = handle_incoming(stream, peer_addr, config, traffic_audit).await {
                 log::debug!("{}: {}", peer_addr, e);
+            } else {
+                log::debug!("some unknown error with {}", peer_addr);
             }
             Ok::<_, Error>(())
         };

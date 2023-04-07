@@ -23,8 +23,6 @@ async fn main() -> Result<()> {
     config.is_server = is_server;
     config.check_correctness()?;
 
-    let listen_addr = config.listen_addr()?;
-
     let shutdown_signal = Arc::new(AtomicBool::new(false));
     let shutdown_signal_clone = shutdown_signal.clone();
 
@@ -43,6 +41,8 @@ async fn main() -> Result<()> {
 
         Ok(())
     };
+
+    let listen_addr = config.listen_addr()?;
 
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await?;

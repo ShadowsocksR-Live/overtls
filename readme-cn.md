@@ -4,6 +4,12 @@ overtls 是 [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) 型代理軟件
 
 功能齊備且代碼精簡，核心功能總共也就大概 1200 行代碼。
 
+> `OverTLS` 相當於 `SSRoT` 去掉 `SSR` 和 `SS`, 唯獨保留 `oT` 的 Rust 實現，快如閃電，穩如老狗。
+> ```kotlin
+>     fun isOverTLS() : Boolean =
+>         over_tls_enable && method == "none" && obfs == "plain" && protocol == "origin"
+> ```
+
 ## 原理
 
 爲了能有效騙過 [GFW](https://en.wikipedia.org/wiki/Great_Firewall)，直接使用 [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) 作爲代理協議是最簡單的方法。
