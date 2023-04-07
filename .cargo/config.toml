@@ -1,2 +1,5 @@
 [registries.cratees-io]
 protocol = "sparse"
+
+[build]
+#target = "aarch64-linux-android"

@@ -1,17 +1,21 @@
+#[cfg(target_os = "android")]
 pub mod native {
 
     use crate::error::{Error, Result};
-    use crossbeam::channel::unbounded;
-    use crossbeam::channel::{Receiver, Sender};
-    use jni::objects::{GlobalRef, JClass, JMethodID, JObject, JString, JValue};
-    use jni::signature::{Primitive, ReturnType};
-    use jni::{JNIEnv, JavaVM};
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-    use std::sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex, RwLock,
+    use crossbeam::channel::{unbounded, Receiver, Sender};
+    use jni::{
+        objects::{GlobalRef, JClass, JMethodID, JObject, JString, JValue},
+        signature::{Primitive, ReturnType},
+        JNIEnv, JavaVM,
     };
-    use std::thread::JoinHandle;
+    use std::{
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc, Mutex, RwLock,
+        },
+        thread::JoinHandle,
+    };
 
     lazy_static::lazy_static! {
         pub static ref SOCKET_PROTECTOR: Mutex<Option<SocketProtector>> = Mutex::new(None);
@@ -363,20 +367,17 @@ pub mod native {
     }
 
     fn send_traffic_stat() -> Result<()> {
+        use std::io::{Read, Write};
         let stat_path = { (*STAT_PATH.read().unwrap()).clone() };
         if stat_path.is_empty() {
             return Ok(());
         }
-        use std::io::{Read, Write};
-        use std::mem;
-        use std::os::unix::net::UnixStream;
-        use std::time::Duration;
-        let mut stream = UnixStream::connect(&stat_path)?;
-        stream.set_write_timeout(Some(Duration::new(1, 0)))?;
-        stream.set_read_timeout(Some(Duration::new(1, 0)))?;
+        let mut stream = std::os::unix::net::UnixStream::connect(&stat_path)?;
+        stream.set_write_timeout(Some(std::time::Duration::new(1, 0)))?;
+        stream.set_read_timeout(Some(std::time::Duration::new(1, 0)))?;
         let buf = {
             let traffic_status = TRAFFIC_STATUS.read().unwrap();
-            unsafe { mem::transmute::<TrafficStatus, [u8; mem::size_of::<TrafficStatus>()]>(*traffic_status) }
+            unsafe { std::mem::transmute::<TrafficStatus, [u8; std::mem::size_of::<TrafficStatus>()]>(*traffic_status) }
         };
         stream.write_all(&buf)?;
 
@@ -387,6 +388,7 @@ pub mod native {
     }
 }
 
+#[cfg(target_os = "android")]
 pub mod tun_callbacks {
 
     use std::sync::RwLock;
