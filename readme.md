@@ -28,7 +28,15 @@ In summary, we need to prepare the following things
 
 ## Installation
 
-can be compiled directly from the source code, or you can download the pre-compiled binary file from the [Release page](https://github.com/ssrlive/overtls/releases).
+Can be compiled directly from the source code, or you can download the pre-compiled binary file from the [Release page](https://github.com/shadowsocksr-live/overtls/releases).
+
+To compile from source code, you need to install the [Rust](https://www.rust-lang.org/) programming language environment first, and then run the following command to compile the software.
+
+```bash
+git clone https://github.com/shadowsocksr-live/overtls.git
+cd overtls
+cargo build --release
+```
 
 ## Server-side one-click installation script
 
@@ -37,7 +45,7 @@ Before installation, please prepare a `VPS` host with a public `IP` and a `domai
 Currently, only linux x64 machines are supported.
 
 ```
-wget https://raw.githubusercontent.com/ssrlive/overtls/master/install/overtls-install.sh
+wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh
 chmod +x overtls-install.sh
 ./overtls-install.sh
 ```

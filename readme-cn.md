@@ -2,7 +2,7 @@
 
 overtls 是 [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) 型代理軟件，在軟件內部通過 TLS 實現數據傳輸，同時支持 TCP 和 UDP 流量轉發。
 
-功能齊備且代碼精簡，核心功能總共也就 1200 行代碼。
+功能齊備且代碼精簡，核心功能總共也就大概 1200 行代碼。
 
 ## 原理
 
@@ -27,13 +27,21 @@ overtls 客戶端首先與 overtls 服務端建立 TLS 連接，然後 overtls �
 
 ## 安裝
 
-可直接從源代碼編譯，也可以從 [發布頁面](https://github.com/ssrlive/overtls/releases) 下載預編譯的二進制文件。
+可直接從源代碼編譯，也可以從 [發布頁面](https://github.com/shadowsocksr-live/overtls/releases) 下載預編譯的二進制文件。
+
+從源碼編譯，需要先安裝 [Rust](https://www.rust-lang.org/) 編程語言環境，然後執行以下命令編譯軟件。
+
+```bash
+git clone https://github.com/shadowsocksr-live/overtls.git
+cd overtls
+cargo build --release
+```
 
 ### 服務端一鍵安裝腳本
 
 安裝前請準備好帶公網 `IP` 的 `VPS` 主機和 `域名`，並將該域名解析到此 `主機` IP 上，然後執行以下命令，按提示操作，如果一切順利，結果就將 overtls 服務端 和 `nginx` 前置代理安裝到你的主機上，並申請好了證書。目前只支持 linux `x64` 機器。
 ```bash
-wget https://raw.githubusercontent.com/ssrlive/overtls/master/install/overtls-install.sh
+wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh
 chmod +x overtls-install.sh
 ./overtls-install.sh
 ```

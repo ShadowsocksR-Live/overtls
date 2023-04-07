@@ -159,7 +159,7 @@ pub mod native {
     ) {
         let mut env = env;
 
-        let filter_str = "off,overtls=trace,rustls=off";
+        let filter_str = "off,overtls=info";
         let filter = android_logger::FilterBuilder::new().parse(filter_str).build();
         android_logger::init_once(
             android_logger::Config::default()
