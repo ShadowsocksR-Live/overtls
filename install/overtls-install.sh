@@ -23,12 +23,12 @@ Error="${Red}[Error]${Font}"
 cur_dir=`pwd`
 
 overtls_install_sh="overtls-install.sh"
-overtls_install_sh_url="https://raw.githubusercontent.com/ssrlive/overtls/master/install/overtls-install.sh"
+overtls_install_sh_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh"
 
-overtls_bin_url="https://github.com/ssrlive/overtls/releases/latest/download/overtls-linux-x64.zip"
+overtls_bin_url="https://github.com/shadowsocksr-live/overtls/releases/latest/download/overtls-linux-x64.zip"
 overtls_bin_file="overtls-linux-x64.zip"
 
-daemon_script_url="https://raw.githubusercontent.com/ssrlive/overtls/master/install/overtls-daemon.sh"
+daemon_script_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-daemon.sh"
 service_dir=/lib/systemd/system
 service_name=overtls
 service_stub=/etc/init.d/${service_name}
@@ -567,7 +567,7 @@ function main() {
     echo "####################################################################"
     echo "# Script of Install ${service_name} Server"
     echo "# Author: ssrlive"
-    echo "# Github: https://github.com/ssrlive/overtls"
+    echo "# Github: https://github.com/shadowsocksr-live/overtls"
     echo "####################################################################"
     echo
 
