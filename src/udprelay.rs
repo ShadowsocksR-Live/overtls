@@ -191,12 +191,10 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                  Ok::<_, Error>(())
             },
             msg = ws_stream.next() => {
+                let len = msg.as_ref().map(|m| m.as_ref().map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
                 #[cfg(target_os = "android")]
-                {
-                    let len = msg.as_ref().map(|m| m.as_ref().map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
-                    if let Err(e) = crate::android::native::traffic_status_update(0, len) {
-                        log::error!("{}", e);
-                    }
+                if let Err(e) = crate::android::native::traffic_status_update(0, len) {
+                    log::error!("{}", e);
                 }
 
                 match msg {
@@ -207,7 +205,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         let remote_addr = Address::from_data(&buf)?;
                         let _ = buf.split_to(remote_addr.serialized_len());
                         let pkt = buf.to_vec();
-                        log::trace!("[UDP] {} <- {} length {}", incoming_addr, remote_addr, pkt.len());
+                        log::trace!("[UDP] {} <- {} length {}", incoming_addr, remote_addr, len);
                         udp_tx.send((Bytes::from(pkt), incoming_addr, remote_addr))?;
                     },
                     Some(Ok(Message::Close(_))) => {
