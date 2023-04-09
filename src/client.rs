@@ -35,7 +35,7 @@ use tungstenite::{
     protocol::{Message, Role},
 };
 
-pub async fn run_client(config: &Config, exiting: Option<Arc<AtomicBool>>) -> Result<()> {
+pub async fn run_client(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) -> Result<()> {
     log::info!("starting {} client...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
@@ -48,9 +48,9 @@ pub async fn run_client(config: &Config, exiting: Option<Arc<AtomicBool>>) -> Re
     let udp_waker = udprelay::udp_handler_watchdog(config, &incomings, &udp_tx).await?;
 
     while let Ok((conn, _)) = server.accept().await {
-        if let Some(exiting) = &exiting {
-            if exiting.load(Ordering::Relaxed) {
-                log::trace!("exiting client...");
+        if let Some(exiting_flag) = &exiting_flag {
+            if exiting_flag.load(Ordering::Relaxed) {
+                log::info!("exiting...");
                 break;
             }
         }

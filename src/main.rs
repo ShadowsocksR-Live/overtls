@@ -23,18 +23,18 @@ async fn main() -> Result<()> {
     config.is_server = is_server;
     config.check_correctness()?;
 
-    let shutdown_signal = Arc::new(AtomicBool::new(false));
-    let shutdown_signal_clone = shutdown_signal.clone();
+    let exiting_flag = Arc::new(AtomicBool::new(false));
+    let exiting_flag_clone = exiting_flag.clone();
 
     let main_body = async {
         if is_server {
             if config.exist_server() {
-                server::run_server(&config, Some(shutdown_signal_clone)).await?;
+                server::run_server(&config, Some(exiting_flag_clone)).await?;
             } else {
                 return Err(Error::from("Config is not a server config"));
             }
         } else if config.exist_client() {
-            client::run_client(&config, Some(shutdown_signal_clone)).await?;
+            client::run_client(&config, Some(exiting_flag_clone)).await?;
         } else {
             return Err("Config is not a client config".into());
         }
@@ -46,8 +46,8 @@ async fn main() -> Result<()> {
 
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await?;
-        log::trace!("Recieve SIGINT");
-        shutdown_signal.store(true, std::sync::atomic::Ordering::Relaxed);
+        log::info!("Recieve SIGINT");
+        exiting_flag.store(true, std::sync::atomic::Ordering::Relaxed);
 
         let addr = if listen_addr.is_ipv6() { "::1" } else { "127.0.0.1" };
         let _ = std::net::TcpStream::connect((addr, listen_addr.port()));

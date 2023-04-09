@@ -6,6 +6,7 @@ pub mod native {
     use jni::{
         objects::{GlobalRef, JClass, JMethodID, JObject, JString, JValue},
         signature::{Primitive, ReturnType},
+        sys::jboolean,
         JNIEnv, JavaVM,
     };
     use std::{
@@ -156,10 +157,12 @@ pub mod native {
         vpn_service: JObject,
         config_path: JString,
         stat_path: JString,
+        verbose: jboolean,
     ) {
         let mut env = env;
 
-        let filter_str = "off,overtls=info";
+        let log_level = if verbose != 0 { "trace" } else { "info" };
+        let filter_str = &format!("off,overtls={log_level}");
         let filter = android_logger::FilterBuilder::new().parse(filter_str).build();
         android_logger::init_once(
             android_logger::Config::default()
@@ -357,7 +360,7 @@ pub mod native {
             traffic_status.tx += delta_tx as u64;
             traffic_status.rx += delta_rx as u64;
         }
-        let old_time = { TIME_STAMP.read().unwrap().clone() };
+        let old_time = { *TIME_STAMP.read().unwrap() };
         if std::time::Instant::now().duration_since(old_time).as_secs() >= 1 {
             send_traffic_stat()?;
             let mut time_stamp = TIME_STAMP.write().unwrap();

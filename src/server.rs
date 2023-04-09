@@ -34,7 +34,7 @@ use tungstenite::{
 const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
 
-pub async fn run_server(config: &Config, exiting: Option<Arc<AtomicBool>>) -> Result<()> {
+pub async fn run_server(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) -> Result<()> {
     log::info!("starting {} server...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
@@ -87,9 +87,9 @@ pub async fn run_server(config: &Config, exiting: Option<Arc<AtomicBool>>) -> Re
 
     loop {
         let (stream, peer_addr) = listener.accept().await?;
-        if let Some(exiting) = &exiting {
-            if exiting.load(Ordering::Relaxed) {
-                log::info!("exiting server...");
+        if let Some(exiting_flag) = &exiting_flag {
+            if exiting_flag.load(Ordering::Relaxed) {
+                log::info!("exiting...");
                 break;
             }
         }
