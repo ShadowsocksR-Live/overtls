@@ -125,12 +125,13 @@ EOF
 function is_glibc_ok() {
     glibc_version=$(ldd --version | awk '/ldd/{print $NF}')
     if [[ $(echo -e "$glibc_version\n2.18" | sort -V | head -n1) == "2.18" ]]; then
-        echo "GLIBC version is ${glibc_version}, greater than or equal to 2.18, it's OK."
+        echo "${OK} ${GreenBG} GLIBC version is ${glibc_version}, greater than or equal to 2.18, it's OK.${Font} "
     else
         echo -e "${Error} ${RedBG} The current system GLIBC version is ${glibc_version}, which is less than 2.18, and the installation is interrupted ${Font} "
         if [[ "${ID}" == "centos" ]]; then
             echo -e "${OK} ${GreenBG} You can try to install the GLIBC 2.18 version manually, and then re-execute this script ${Font} "
             echo -e "${OK} ${GreenBG} new version GLIBC installation command: sudo yum update glibc ${Font} "
+            echo -e "${OK} ${GreenBG} Cautions: If you do it, your system may be unstable ${Font} "
         fi
         exit 1
     fi
