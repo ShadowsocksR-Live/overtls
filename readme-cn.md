@@ -9,6 +9,7 @@ overtls 是 [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) 型代理軟件
 >     fun isOverTLS() : Boolean =
 >         over_tls_enable && method == "none" && obfs == "plain" && protocol == "origin"
 > ```
+> 這段代碼翻譯成 人話 就是：如果 `oT` 啟用了，而且 `加密方式`爲 `none`、`混淆`爲 `plain`、`協議`爲 `origin`，那麼就是 `OverTLS` 啦。
 
 ## 原理
 

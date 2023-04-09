@@ -6,7 +6,7 @@ pub mod native {
     use jni::{
         objects::{GlobalRef, JClass, JMethodID, JObject, JString, JValue},
         signature::{Primitive, ReturnType},
-        sys::jboolean,
+        sys::{jboolean, jint},
         JNIEnv, JavaVM,
     };
     use std::{
@@ -143,7 +143,7 @@ pub mod native {
     }
 
     lazy_static::lazy_static! {
-        pub static ref SHUTDOWN_SIGNAL: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+        pub static ref EXITING_FLAG: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
         pub static ref LISTEN_ADDR: Arc<Mutex<SocketAddr>> = Arc::new(Mutex::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)));
     }
 
@@ -158,7 +158,7 @@ pub mod native {
         config_path: JString,
         stat_path: JString,
         verbose: jboolean,
-    ) {
+    ) -> jint {
         let mut env = env;
 
         let log_level = if verbose != 0 { "trace" } else { "info" };
@@ -186,15 +186,16 @@ pub mod native {
             let config = crate::config::Config::load_from_ssrdroid_settings(config_path)?;
             let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
             rt.block_on(async {
-                SHUTDOWN_SIGNAL.store(false, Ordering::SeqCst);
+                EXITING_FLAG.store(false, Ordering::SeqCst);
                 *LISTEN_ADDR.lock().unwrap() = config.listen_addr()?;
-                crate::client::run_client(&config, Some(SHUTDOWN_SIGNAL.clone())).await?;
+                crate::client::run_client(&config, Some(EXITING_FLAG.clone())).await?;
                 Ok::<(), Error>(())
             })
         };
         if let Err(error) = block() {
             log::error!("failed to run client, error={:?}", error);
         }
+        0
     }
 
     unsafe fn get_java_string<'a>(env: &'a mut JNIEnv, string: &'a JString) -> Result<&'a str> {
@@ -207,10 +208,10 @@ pub mod native {
     ///
     /// Shutdown the client.
     #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient(_: JNIEnv, _: JClass) {
+    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient(_: JNIEnv, _: JClass) -> jint {
         stop_protect_socket();
 
-        SHUTDOWN_SIGNAL.store(true, Ordering::SeqCst);
+        EXITING_FLAG.store(true, Ordering::SeqCst);
 
         let listen_addr = *LISTEN_ADDR.lock().unwrap();
         let addr = if listen_addr.is_ipv6() { "::1" } else { "127.0.0.1" };
@@ -221,6 +222,7 @@ pub mod native {
         Jni::release();
         remove_panic_handler();
         log::trace!("remove_panic_handler");
+        0
     }
 
     fn start_protect_socket() {

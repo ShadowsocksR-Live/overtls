@@ -8,7 +8,7 @@ pub enum Role {
 #[derive(clap::Parser, Debug, Clone, PartialEq, Eq)]
 #[command(author, version, about = "Proxy tunnel over tls.", long_about = None)]
 pub struct CmdOpt {
-    /// Run as server or client
+    /// Role of server or client
     #[arg(short, long, value_enum, value_name = "role", default_value = "client")]
     pub role: Role,
 
