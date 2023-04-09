@@ -125,7 +125,7 @@ EOF
 function is_glibc_ok() {
     glibc_version=$(ldd --version | awk '/ldd/{print $NF}')
     if [[ $(echo -e "$glibc_version\n2.18" | sort -V | head -n1) == "2.18" ]]; then
-        echo "${OK} ${GreenBG} GLIBC version is ${glibc_version}, greater than or equal to 2.18, it's OK.${Font} "
+        echo -e "${OK} ${GreenBG} GLIBC version is ${glibc_version}, greater than or equal to 2.18, it's OK.${Font} "
     else
         echo -e "${Error} ${RedBG} The current system GLIBC version is ${glibc_version}, which is less than 2.18, and the installation is interrupted ${Font} "
         if [[ "${ID}" == "centos" ]]; then
