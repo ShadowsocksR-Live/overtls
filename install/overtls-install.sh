@@ -582,7 +582,7 @@ function install_overtls_main() {
     echo
 
     local qrcode=$( ${target_dir}/${bin_name} -q -c ${config_file_path} )
-    qrencode -t ANSI ${qrcode} | cat
+    qrencode -t UTF8 ${qrcode} | cat
 }
 
 function main() {
