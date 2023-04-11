@@ -1,3 +1,4 @@
+pub(crate) mod android;
 pub(crate) mod base64_wrapper;
 pub mod client;
 pub mod config;
@@ -9,9 +10,6 @@ pub(crate) mod traffic_audit;
 pub(crate) mod udprelay;
 pub(crate) mod webapi;
 pub(crate) mod weirduri;
-
-#[cfg(target_os = "android")]
-pub(crate) mod android;
 
 use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;

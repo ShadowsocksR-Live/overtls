@@ -129,9 +129,9 @@ function is_glibc_ok() {
     else
         echo -e "${Error} ${RedBG} The current system GLIBC version is ${glibc_version}, which is less than 2.18, and the installation is interrupted ${Font} "
         if [[ "${ID}" == "centos" ]]; then
-            echo -e "${OK} ${GreenBG} You can try to install the GLIBC 2.18 version manually, and then re-execute this script ${Font} "
-            echo -e "${OK} ${GreenBG} new version GLIBC installation command: sudo yum update glibc ${Font} "
-            echo -e "${OK} ${GreenBG} Cautions: If you do it, your system may be unstable ${Font} "
+            echo -e "${Info} ${Yellow} You can try to install the GLIBC 2.18 version manually, and then re-execute this script ${Font} "
+            echo -e "${Info} ${Yellow} new version GLIBC installation command: sudo yum update glibc ${Font} "
+            echo -e "${Info} ${Yellow} Cautions: If you do it, your system may be unstable ${Font} "
         fi
         exit 1
     fi
@@ -152,11 +152,11 @@ function dependency_install() {
 
     if [[ "${ID}" == "centos" ]]; then
        ${INS} -y install crontabs
-       ${INS} -y install python3 make zlib zlib-devel gcc-c++ libtool openssl openssl-devel
+       ${INS} -y install qrencode python3 make zlib zlib-devel gcc-c++ libtool openssl openssl-devel
     else
         ${INS} install cron vim curl -y
         ${INS} update -y
-        ${INS} install python3 cmake make zlib1g zlib1g-dev build-essential autoconf libtool openssl libssl-dev -y
+        ${INS} install qrencode python3 cmake make zlib1g zlib1g-dev build-essential autoconf libtool openssl libssl-dev -y
         if [[ "${ID}" == "ubuntu" && `echo "${VERSION_ID}" | cut -d '.' -f1` -ge 20 ]]; then
             ${INS} install inetutils-ping -y
         fi
@@ -428,8 +428,12 @@ function write_overtls_config_file() {
     mkdir -p ${config_dir}
     rm -rf ${config_file_path}
 
+    local hostname=$(echo $HOSTNAME)
+    local identity=$(random_string_gen 4)
+
     cat > ${config_file_path} <<EOF
 {
+    "remarks": "${hostname}-${identity}",
     "tunnel_path": "/${reverse_proxy_location}/",
 
     "server_settings": {
@@ -576,6 +580,9 @@ function install_overtls_main() {
     echo
     echo "============================="
     echo
+
+    local qrcode=$( ${target_dir}/${bin_name} -q -c ${config_file_path} )
+    qrencode -t ANSI ${qrcode} | cat
 }
 
 function main() {

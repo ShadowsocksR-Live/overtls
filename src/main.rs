@@ -20,6 +20,13 @@ async fn main() -> Result<()> {
 
     let f = File::open(&opt.config)?;
     let mut config: config::Config = serde_json::from_reader(f)?;
+
+    if opt.qrcode {
+        let qrcode = config.generate_ssr_qrcode()?;
+        println!("{}", qrcode);
+        return Ok(());
+    }
+
     config.is_server = is_server;
     config.check_correctness()?;
 

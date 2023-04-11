@@ -19,6 +19,10 @@ pub struct CmdOpt {
     /// Verbose mode.
     #[arg(short, long)]
     pub verbose: bool,
+
+    /// Generate QR code for client.
+    #[arg(short, long)]
+    pub qrcode: bool,
 }
 
 impl CmdOpt {

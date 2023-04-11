@@ -1,4 +1,5 @@
-#[cfg(target_os = "android")]
+#![cfg(target_os = "android")]
+
 pub mod native {
 
     use crate::error::{Error, Result};
@@ -393,7 +394,6 @@ pub mod native {
     }
 }
 
-#[cfg(target_os = "android")]
 pub mod tun_callbacks {
 
     use std::sync::RwLock;

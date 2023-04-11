@@ -11,6 +11,7 @@ pub struct Config {
     pub server: Option<Server>,
     #[serde(rename(deserialize = "client_settings", serialize = "client_settings"))]
     pub client: Option<Client>,
+    pub remarks: Option<String>,
     pub method: Option<String>,
     pub password: Option<String>,
     pub tunnel_path: String,
@@ -62,6 +63,7 @@ impl Default for Config {
 impl Config {
     pub fn new() -> Self {
         Config {
+            remarks: None,
             method: None,
             password: None,
             tunnel_path: "/tunnel/".to_string(),
@@ -246,5 +248,27 @@ impl Config {
         config.client = Some(client);
         config.check_correctness()?;
         Ok(config)
+    }
+
+    pub fn generate_ssr_qrcode(&self) -> Result<String> {
+        if self.client.is_none() {
+            return Err("client is not set".into());
+        }
+
+        let engine = crate::Base64Engine::UrlSafeNoPad;
+        let client = self.client.as_ref().unwrap();
+        let method = self.method.as_ref().map_or("none".to_string(), |m| m.clone());
+        let password = self.password.as_ref().map_or("password".to_string(), |p| p.clone());
+        let password = crate::base64_encode(password.as_bytes(), engine);
+        let remarks = self.remarks.as_ref().map_or("remarks".to_string(), |r| r.clone());
+        let remarks = crate::base64_encode(remarks.as_bytes(), engine);
+        let domain = client.server_domain.as_ref().map_or("".to_string(), |d| d.clone());
+        let domain = crate::base64_encode(domain.as_bytes(), engine);
+        let tunnel_path = crate::base64_encode(self.tunnel_path.as_bytes(), engine);
+        let host = &client.server_host;
+        let port = client.server_port;
+
+        let url = format!("{host}:{port}:origin:{method}:plain:{password}/?remarks={remarks}&ot_enable=1&ot_domain={domain}&ot_path={tunnel_path}");
+        Ok(format!("ssr://{}", crate::base64_encode(url.as_bytes(), engine)))
     }
 }

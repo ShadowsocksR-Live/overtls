@@ -1,4 +1,5 @@
 {
+    "remark": "nickname of this config",
     "method": "none",
     "password": "password",
     "tunnel_path": "/secret-tunnel-path/",
