@@ -251,12 +251,8 @@ impl Config {
     }
 
     pub fn generate_ssr_qrcode(&self) -> Result<String> {
-        if self.client.is_none() {
-            return Err("client is not set".into());
-        }
-
+        let client = self.client.as_ref().ok_or(Error::from("client is not set"))?;
         let engine = crate::Base64Engine::UrlSafeNoPad;
-        let client = self.client.as_ref().unwrap();
         let method = self.method.as_ref().map_or("none".to_string(), |m| m.clone());
         let password = self.password.as_ref().map_or("password".to_string(), |p| p.clone());
         let password = crate::base64_encode(password.as_bytes(), engine);
