@@ -184,12 +184,16 @@ pub mod native {
 
             start_protect_socket();
 
+            let callback = |addr| {
+                log::trace!("Listening on {}", addr);
+            };
+
             let config = crate::config::Config::load_from_ssrdroid_settings(config_path)?;
             let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
             rt.block_on(async {
                 EXITING_FLAG.store(false, Ordering::SeqCst);
                 *LISTEN_ADDR.lock().unwrap() = config.listen_addr()?;
-                crate::client::run_client(&config, Some(EXITING_FLAG.clone())).await?;
+                crate::client::run_client(&config, Some(EXITING_FLAG.clone()), Some(callback)).await?;
                 Ok::<(), Error>(())
             })
         };

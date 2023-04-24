@@ -35,7 +35,10 @@ use tungstenite::{
     protocol::{Message, Role},
 };
 
-pub async fn run_client(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) -> Result<()> {
+pub async fn run_client<F>(config: &Config, exiting_flag: Option<Arc<AtomicBool>>, callback: Option<F>) -> Result<()>
+where
+    F: FnOnce(SocketAddr) -> () + Send + Sync + 'static,
+{
     log::info!("starting {} client...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
@@ -43,6 +46,10 @@ pub async fn run_client(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) 
     let client = config.client.as_ref().ok_or("client")?;
     let addr = SocketAddr::new(client.listen_host.parse()?, client.listen_port);
     let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
+
+    if let Some(callback) = callback {
+        callback(server.local_addr()?);
+    }
 
     let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
     let udp_waker = udprelay::udp_handler_watchdog(config, &incomings, &udp_tx).await?;

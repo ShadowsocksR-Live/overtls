@@ -41,7 +41,10 @@ async fn main() -> Result<()> {
                 return Err(Error::from("Config is not a server config"));
             }
         } else if config.exist_client() {
-            client::run_client(&config, Some(exiting_flag_clone)).await?;
+            let callback = |addr| {
+                log::trace!("Listening on {}", addr);
+            };
+            client::run_client(&config, Some(exiting_flag_clone), Some(callback)).await?;
         } else {
             return Err("Config is not a client config".into());
         }
