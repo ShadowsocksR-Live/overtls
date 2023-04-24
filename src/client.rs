@@ -37,7 +37,7 @@ use tungstenite::{
 
 pub async fn run_client<F>(config: &Config, exiting_flag: Option<Arc<AtomicBool>>, callback: Option<F>) -> Result<()>
 where
-    F: FnOnce(SocketAddr) -> () + Send + Sync + 'static,
+    F: FnOnce(SocketAddr) + Send + Sync + 'static,
 {
     log::info!("starting {} client...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
