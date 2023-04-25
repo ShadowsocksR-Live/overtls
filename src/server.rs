@@ -5,7 +5,6 @@ use crate::{
     tls::*,
     traffic_audit::{TrafficAudit, TrafficAuditPtr},
     weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP_TUNNEL},
-    STREAM_BUFFER_SIZE,
 };
 use bytes::{BufMut, BytesMut};
 use futures_util::{SinkExt, StreamExt};
@@ -350,7 +349,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
         loop {
             tokio::select! {
                 Ok(data) = async {
-                    let mut b2 = [0; STREAM_BUFFER_SIZE];
+                    let mut b2 = [0; crate::STREAM_BUFFER_SIZE];
                     let n = outgoing.read(&mut b2).await?;
                     Ok::<_, Error>(Some(b2[..n].to_vec()))
                  } => {
@@ -390,8 +389,8 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     let udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
     let udp_socket_v6 = UdpSocket::bind("[::]:0").await?;
 
-    let mut buf = vec![0u8; STREAM_BUFFER_SIZE];
-    let mut buf_v6 = vec![0u8; STREAM_BUFFER_SIZE];
+    let mut buf = vec![0u8; crate::STREAM_BUFFER_SIZE];
+    let mut buf_v6 = vec![0u8; crate::STREAM_BUFFER_SIZE];
 
     let dst_src_pairs = Arc::new(Mutex::new(HashMap::new()));
 

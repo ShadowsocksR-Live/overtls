@@ -5,7 +5,6 @@ use crate::{
     tls::*,
     udprelay,
     weirduri::WeirdUri,
-    STREAM_BUFFER_SIZE,
 };
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
@@ -138,7 +137,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
     target_addr: Address,
 ) -> Result<()> {
     loop {
-        let mut buf = BytesMut::with_capacity(STREAM_BUFFER_SIZE);
+        let mut buf = BytesMut::with_capacity(crate::STREAM_BUFFER_SIZE);
         tokio::select! {
             result = incoming.read_buf(&mut buf) => {
                 let len = result?;

@@ -1,5 +1,7 @@
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
+#[cfg(any(target_os = "ios", target_os = "android"))]
+use serde_json::{Map, Value};
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     path::PathBuf,
@@ -119,7 +121,7 @@ impl Config {
     pub fn forward_addr(&self) -> Option<String> {
         if self.is_server {
             let f = |s: &Server| s.forward_addr.clone();
-            let default = Some("http://127.0.0.1:80".to_owned());
+            let default = Some(format!("http://{}:80", crate::LOCAL_HOST_V4));
             self.server.as_ref().map(f).unwrap_or(default)
         } else {
             None
@@ -191,15 +193,17 @@ impl Config {
                 client.server_domain = Some(client.server_host.clone());
             }
             if client.listen_host.is_empty() {
-                client.listen_host = "127.0.0.1".to_string();
+                client.listen_host = crate::LOCAL_HOST_V4.to_string();
             }
 
             if !self.is_server {
                 let mut addr = (client.server_host.clone(), client.server_port).to_socket_addrs()?;
                 let addr = addr.next().ok_or("address not exist")?;
-                let _timeout = std::time::Duration::from_secs(self.test_timeout_secs);
                 #[cfg(not(target_os = "android"))]
-                std::net::TcpStream::connect_timeout(&addr, _timeout)?;
+                {
+                    let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
+                    std::net::TcpStream::connect_timeout(&addr, timeout)?;
+                }
                 client.server_host = addr.ip().to_string();
             }
         }
@@ -207,13 +211,9 @@ impl Config {
     }
 
     #[cfg(target_os = "android")]
-    pub fn load_from_ssrdroid_settings<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
-        use serde_json::{Map, Value};
-        let path = path.as_ref();
-        let mut file = std::fs::File::open(path)?;
-        let mut content = String::new();
-        std::io::Read::read_to_string(&mut file, &mut content)?;
-        let map = serde_json::from_str::<Map<String, Value>>(&content)?;
+    /// load from ssrdroid settings file
+    pub fn from_config_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+        let map = Self::parse_json_file(path)?;
         let mut config: Config = Config::new();
 
         let mut client = Client::default();
@@ -248,6 +248,57 @@ impl Config {
         config.client = Some(client);
         config.check_correctness()?;
         Ok(config)
+    }
+
+    #[cfg(target_os = "ios")]
+    /// load from iShadowsocksR profile file
+    pub fn from_config_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+        let map = Self::parse_json_file(path)?;
+        let e = "ot_enable not exist";
+        let enable = map.get("ot_enable").ok_or(e)?.as_bool().ok_or(e)?;
+        if !enable {
+            return Err("OverTLS is not enabled".into());
+        }
+
+        let mut config: Config = Config::new();
+
+        let mut client = Client::default();
+        let e = "server not exist";
+        client.server_host = map.get("host").ok_or(e)?.as_str().ok_or(e)?.to_string();
+        let e = "server_port not exist";
+        client.server_port = map.get("port").ok_or(e)?.as_u64().ok_or(e)? as u16;
+        client.listen_host = crate::LOCAL_HOST_V4.to_string();
+        let e = "listen_port not exist";
+        client.listen_port = map.get("listen_port").ok_or(e)?.as_u64().ok_or(e)? as u16;
+        let domain = client.server_host.clone();
+        client.server_domain = map.get("ot_domain").map(|v| v.as_str().unwrap_or(&domain).to_string());
+
+        config.client = Some(client);
+
+        let e = "ot_path not exist";
+        config.tunnel_path = map.get("ot_path").ok_or(e)?.as_str().ok_or(e)?.to_string();
+
+        config.check_correctness()?;
+        Ok(config)
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    /// load from overtls config file
+    pub fn from_config_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+        let f = std::fs::File::open(&path)?;
+        let mut config: Config = serde_json::from_reader(f)?;
+        config.check_correctness()?;
+        Ok(config)
+    }
+
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    fn parse_json_file<P: AsRef<std::path::Path>>(path: P) -> Result<Map<String, Value>> {
+        let path = path.as_ref();
+        let mut file = std::fs::File::open(path)?;
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut file, &mut content)?;
+        let map = serde_json::from_str::<Map<String, Value>>(&content)?;
+        Ok(map)
     }
 
     pub fn generate_ssr_qrcode(&self) -> Result<String> {

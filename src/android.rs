@@ -163,7 +163,8 @@ pub mod native {
         let mut env = env;
 
         let log_level = if verbose != 0 { "trace" } else { "info" };
-        let filter_str = &format!("off,overtls={log_level}");
+        let root = module_path!().split("::").next().unwrap();
+        let filter_str = &format!("off,{root}={log_level}");
         let filter = android_logger::FilterBuilder::new().parse(filter_str).build();
         android_logger::init_once(
             android_logger::Config::default()
@@ -188,7 +189,7 @@ pub mod native {
                 log::trace!("Listening on {}", addr);
             };
 
-            let config = crate::config::Config::load_from_ssrdroid_settings(config_path)?;
+            let config = crate::config::Config::from_config_file(config_path)?;
             let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
             rt.block_on(async {
                 EXITING_FLAG.store(false, Ordering::SeqCst);
@@ -218,9 +219,9 @@ pub mod native {
 
         EXITING_FLAG.store(true, Ordering::SeqCst);
 
-        let listen_addr = *LISTEN_ADDR.lock().unwrap();
-        let addr = if listen_addr.is_ipv6() { "::1" } else { "127.0.0.1" };
-        let _ = std::net::TcpStream::connect((addr, listen_addr.port()));
+        let l_addr = *LISTEN_ADDR.lock().unwrap();
+        let addr = if l_addr.is_ipv6() { "::1" } else { crate::LOCAL_HOST_V4 };
+        let _ = std::net::TcpStream::connect((addr, l_addr.port()));
         log::trace!("stopClient on listen address {listen_addr}");
 
         SocketProtector::release();

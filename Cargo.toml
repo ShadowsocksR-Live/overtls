@@ -16,6 +16,7 @@ env_logger = "0.10"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 http = "0.2"
 httparse = "1.8"
+lazy_static = "1.4"
 log = "0.4"
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "json"] }
 rustls = "0.21"
@@ -36,4 +37,3 @@ webpki-roots = "0.23"
 android_logger = "0.13"
 crossbeam = "0.8"
 jni = { version = "0.21", default-features = false }
-lazy_static = "1.4"

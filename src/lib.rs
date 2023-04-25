@@ -1,4 +1,5 @@
 pub(crate) mod android;
+pub(crate) mod api;
 pub(crate) mod base64_wrapper;
 pub mod client;
 pub mod config;
@@ -20,6 +21,8 @@ use socks5_impl::protocol::Address;
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32;
 #[cfg(not(target_os = "windows"))]
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32 * 3;
+
+pub const LOCAL_HOST_V4: &str = "127.0.0.1";
 
 pub(crate) fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     let mut buf = BytesMut::with_capacity(1024);

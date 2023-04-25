@@ -1,4 +1,4 @@
-use overtls::{client, config, server, Error, Result};
+use overtls::{client, config, server, Error, Result, LOCAL_HOST_V4};
 use std::{
     fs::File,
     sync::{atomic::AtomicBool, Arc},
@@ -52,15 +52,15 @@ async fn main() -> Result<()> {
         Ok(())
     };
 
-    let listen_addr = config.listen_addr()?;
+    let local_addr = config.listen_addr()?;
 
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await?;
         log::info!("Recieve SIGINT");
         exiting_flag.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let addr = if listen_addr.is_ipv6() { "::1" } else { "127.0.0.1" };
-        let _ = std::net::TcpStream::connect((addr, listen_addr.port()));
+        let addr = if local_addr.is_ipv6() { "::1" } else { LOCAL_HOST_V4 };
+        let _ = std::net::TcpStream::connect((addr, local_addr.port()));
 
         Ok::<(), Error>(())
     });
