@@ -55,8 +55,22 @@ async fn main() -> Result<()> {
     let local_addr = config.listen_addr()?;
 
     tokio::spawn(async move {
-        tokio::signal::ctrl_c().await?;
-        log::info!("Recieve SIGINT");
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{signal, SignalKind};
+            let mut kill_signal = signal(SignalKind::terminate())?;
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => log::info!("Ctrl-C received, shutting down..."),
+                _ = kill_signal.recv() => log::info!("Kill signal received, shutting down..."),
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            tokio::signal::ctrl_c().await?;
+            log::info!("Ctrl-C received, shutting down...");
+        }
+
         exiting_flag.store(true, std::sync::atomic::Ordering::Relaxed);
 
         let addr = if local_addr.is_ipv6() { "::1" } else { LOCAL_HOST_V4 };
