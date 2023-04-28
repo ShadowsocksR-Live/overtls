@@ -187,13 +187,13 @@ pub mod native {
 
             let callback = |addr| {
                 log::trace!("Listening on {}", addr);
+                *LISTEN_ADDR.lock().unwrap() = addr;
             };
 
             let config = crate::config::Config::from_config_file(config_path)?;
             let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
             rt.block_on(async {
                 EXITING_FLAG.store(false, Ordering::SeqCst);
-                *LISTEN_ADDR.lock().unwrap() = config.listen_addr()?;
                 crate::client::run_client(&config, Some(EXITING_FLAG.clone()), Some(callback)).await?;
                 Ok::<(), Error>(())
             })
@@ -222,7 +222,7 @@ pub mod native {
         let l_addr = *LISTEN_ADDR.lock().unwrap();
         let addr = if l_addr.is_ipv6() { "::1" } else { crate::LOCAL_HOST_V4 };
         let _ = std::net::TcpStream::connect((addr, l_addr.port()));
-        log::trace!("stopClient on listen address {listen_addr}");
+        log::trace!("stopClient on listen address {l_addr}");
 
         SocketProtector::release();
         Jni::release();
