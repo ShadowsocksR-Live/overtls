@@ -194,12 +194,19 @@ function domain_check() {
     stty erase '^H' && read -p "Please enter your domain name (for example: mygooodsite.com): " web_svr_domain
     local web_svr_ip_addr=`ping ${web_svr_domain} -c 1 | sed '1{s/[^(]*(//;s/).*//;q}' | sed '1{s/[^(]*(//;s/).*//;q}'`
     echo -e "${OK} ${GreenBG} Obtaining public IP information, please wait patiently ${Font}"
-    web_svr_local_ip_addr=`curl ip.sb`
+    local web_svr_local_ip_v4_addr=`curl -4 ip.sb`
+    local web_svr_local_ip_v6_addr=`curl -6 ip.sb`
     echo -e "DNS resolution IP: ${web_svr_ip_addr}"
-    echo -e "Local IP: ${web_svr_local_ip_addr}"
+    echo -e "Local V4 IP: ${web_svr_local_ip_v4_addr}"
+    echo -e "Local V6 IP: ${web_svr_local_ip_v6_addr}"
     sleep 2
-    if [[ $(echo ${web_svr_local_ip_addr} | tr a-z A-Z) = $(echo ${web_svr_ip_addr} | tr a-z A-Z) ]]; then
-        echo -e "${OK} ${GreenBG} The DNS resolution IP matches local IP ${Font}"
+    if [[ $(echo ${web_svr_local_ip_v4_addr} | tr a-z A-Z) = $(echo ${web_svr_ip_addr} | tr a-z A-Z) ]]; then
+        echo -e "${OK} ${GreenBG} The DNS resolution IP matches local V4 IP ${Font}"
+        web_svr_local_ip_addr=${web_svr_local_ip_v4_addr}
+        sleep 2
+    elif [[ $(echo ${web_svr_local_ip_v6_addr} | tr a-z A-Z) = $(echo ${web_svr_ip_addr} | tr a-z A-Z) ]]; then
+        echo -e "${OK} ${GreenBG} The DNS resolution IP matches local V6 IP ${Font}"
+        web_svr_local_ip_addr=${web_svr_local_ip_v6_addr}
         sleep 2
     else
         echo -e "${Error} ${RedBG} The DNS resolution IP does not match the local IP. Do you want to continue the installation? (y/n) ${Font}" && read install
