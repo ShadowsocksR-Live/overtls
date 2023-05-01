@@ -295,9 +295,25 @@ EOF
 
 function do_lets_encrypt_certificate_authority() {
     local org_pwd=`pwd`
+    local renew=""
 
-    mkdir ${site_cert_dir}
+    mkdir -p ${site_cert_dir}
     cd ${site_cert_dir}
+
+    if [ -f "./full_chained_cert.pem" ]; then
+       echo -e "${Error} ${RedBG} A certificate already exists. Lets encrypt has maximum limit of 5 renewals per week. ${Font}"
+       echo -e "${Error} ${RedBG} Do you want to delete it and create a new one? (y/n) ${Font}" && read renew
+       case $renew in
+       [yY][eE][sS]|[yY])
+           echo -e "${GreenBG} Attempting to renew certificate ${Font}"
+           sleep 2
+           ;;
+       *)
+           echo -e "${GreenBG} Skipping certificate renewal ${Font}"
+           return 0
+           ;;
+       esac
+    fi
     rm -rf *
 
     openssl genrsa 4096 > account.key
