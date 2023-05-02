@@ -22,7 +22,7 @@ pub enum Error {
     BroadcastSend(#[from] tokio::sync::broadcast::error::SendError<(Bytes, Address, Address)>),
 
     #[error("tokio::sync::mpsc::error::SendError {0}")]
-    UdpWakerSend(#[from] tokio::sync::mpsc::error::SendError<Vec<u8>>),
+    MpscSendVec(#[from] tokio::sync::mpsc::error::SendError<Vec<u8>>),
 
     #[error("http::header::ToStrError {0}")]
     HeaderToStr(#[from] http::header::ToStrError),

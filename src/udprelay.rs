@@ -33,13 +33,11 @@ use tungstenite::protocol::Message;
 pub(crate) type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Address)>;
 pub(crate) type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;
 pub(crate) type SocketAddrSet = Arc<Mutex<HashSet<SocketAddr>>>;
-pub(crate) type UdpWaker = mpsc::Sender<()>;
 
 pub(crate) async fn handle_s5_upd_associate(
     associate: Associate<UdpNeedReply>,
     udp_tx: UdpRequestSender,
     incomings: SocketAddrSet,
-    udp_waker: UdpWaker,
 ) -> Result<()> {
     let listen_ip = associate.local_addr()?.ip();
 
@@ -48,8 +46,6 @@ pub(crate) async fn handle_s5_upd_associate(
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
         Ok((listen_udp, listen_addr)) => {
             log::info!("[UDP] listen on {listen_addr}");
-
-            let _ = udp_waker.send(()).await;
 
             let s5_listen_addr = listen_addr.into();
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
@@ -166,6 +162,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<()> {
     let mut udp_rx = udp_tx.subscribe();
 
+    let mut res = Ok::<_, Error>(());
     loop {
         let _res = tokio::select! {
             Ok((pkt, dst_addr, src_addr)) = udp_rx.recv() => {
@@ -216,7 +213,8 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         log::trace!("[UDP] unexpected ws message");
                     },
                     Some(Err(err)) => {
-                        log::trace!("[UDP] ws stream error {}", err);
+                        log::trace!("[UDP] {err}");
+                        res = Err(err.into());
                         break;
                     },
                     None => {
@@ -229,44 +227,44 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
         };
     }
 
-    log::trace!("[UDP] run_udp_loop exiting.");
+    log::trace!("[UDP] run_udp_loop exiting...");
 
-    Ok(())
+    res
 }
 
 pub(crate) async fn udp_handler_watchdog(
     config: &Config,
     incomings: &SocketAddrSet,
     udp_tx: &UdpRequestSender,
-) -> Result<UdpWaker> {
+    exiting_flag: Option<Arc<AtomicBool>>,
+) -> Result<()> {
     let config = config.clone();
     let incomings = incomings.clone();
     let udp_tx = udp_tx.clone();
-    let (tx, mut rx) = mpsc::channel::<()>(10);
 
-    let tx2 = tx.clone();
     tokio::spawn(async move {
-        let running = Arc::new(AtomicBool::new(false));
-        while rx.recv().await.is_some() {
-            if running.load(Ordering::Relaxed) {
-                continue;
+        loop {
+            if let Some(ref flag) = exiting_flag {
+                if flag.load(Ordering::Relaxed) {
+                    break;
+                }
             }
-            running.store(true, Ordering::Relaxed);
+            let (tx, mut rx) = mpsc::channel::<()>(10);
+
             let udp_tx = udp_tx.clone();
             let incomings = incomings.clone();
             let config = config.clone();
-            let running = running.clone();
-            let tx2 = tx2.clone();
-            tokio::spawn(async move {
-                log::trace!("[UDP] udp client watchdog thread started");
-                let result = run_udp_loop(udp_tx, incomings, config).await;
-                log::trace!("[UDP] udp client watchdog thread stopped for {:?}", result);
-                running.store(false, Ordering::Relaxed);
-                time::sleep(Duration::from_secs(1)).await;
-                let _ = tx2.send(()).await; // restart watchdog
+            log::trace!("[UDP] udp client guard thread started");
+            let handle = tokio::spawn(async move {
+                if let Err(e) = run_udp_loop(udp_tx, incomings, config).await {
+                    log::trace!("[UDP] udp client guard thread stopped for {e}");
+                }
+                let _ = tx.send(()).await;
             });
+            let _ = rx.recv().await;
+            let _ = handle.await;
+            time::sleep(Duration::from_secs(1)).await;
         }
     });
-    tx.send(()).await?; // bootstrap
-    Ok(tx)
+    Ok(())
 }
