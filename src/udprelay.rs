@@ -260,7 +260,8 @@ pub(crate) async fn udp_handler_watchdog(
                     log::trace!("[UDP] {}", e);
                 }
                 let _ = tx.send(()).await;
-            }).await;
+            })
+            .await;
             let _ = rx.recv().await;
             time::sleep(Duration::from_secs(1)).await;
         }
