@@ -255,14 +255,13 @@ pub(crate) async fn udp_handler_watchdog(
             let incomings = incomings.clone();
             let config = config.clone();
             log::trace!("[UDP] udp client guard thread started");
-            let handle = tokio::spawn(async move {
+            let _ = tokio::spawn(async move {
                 if let Err(e) = run_udp_loop(udp_tx, incomings, config).await {
-                    log::trace!("[UDP] udp client guard thread stopped for {e}");
+                    log::trace!("[UDP] {}", e);
                 }
                 let _ = tx.send(()).await;
-            });
+            }).await;
             let _ = rx.recv().await;
-            let _ = handle.await;
             time::sleep(Duration::from_secs(1)).await;
         }
     });
