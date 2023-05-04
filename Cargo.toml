@@ -25,10 +25,10 @@ serde = { version = "1.0", features = [ "derive" ] }
 serde_json = "1.0"
 socks5-impl = "0.2"
 thiserror = "1.0"
-tokio = { version = "1.27", features = [ "full" ] }
+tokio = { version = "1.28", features = [ "full" ] }
 tokio-rustls = "0.24"
 tokio-tungstenite = { git = "https://github.com/snapview/tokio-tungstenite.git", branch = "master", features = [ "rustls-tls-webpki-roots" ] }
-tungstenite = { version = "0.19.0", features = [ "rustls-tls-webpki-roots" ] }
+tungstenite = { version = "0.19", features = [ "rustls-tls-webpki-roots" ] }
 url = "2.3"
 webpki = { package = "rustls-webpki", version = "0.100", features = ["alloc", "std"] }
 webpki-roots = "0.23"
