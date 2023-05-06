@@ -1,8 +1,5 @@
 use overtls::{client, config, server, Error, Result, LOCAL_HOST_V4};
-use std::{
-    fs::File,
-    sync::{atomic::AtomicBool, Arc},
-};
+use std::sync::{atomic::AtomicBool, Arc};
 
 mod cmdopt;
 
@@ -18,8 +15,7 @@ async fn main() -> Result<()> {
 
     let is_server = opt.is_server();
 
-    let f = File::open(&opt.config)?;
-    let mut config: config::Config = serde_json::from_reader(f)?;
+    let mut config = config::Config::from_config_file(&opt.config)?;
 
     if opt.qrcode {
         let qrcode = config.generate_ssr_qrcode()?;
@@ -27,8 +23,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    config.is_server = is_server;
-    config.check_correctness()?;
+    config.check_correctness(is_server)?;
 
     let exiting_flag = Arc::new(AtomicBool::new(false));
     let exiting_flag_clone = exiting_flag.clone();

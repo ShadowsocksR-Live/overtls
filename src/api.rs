@@ -55,7 +55,8 @@ pub unsafe extern "C" fn over_tls_client_run(
             }
         };
 
-        let config = crate::config::Config::from_config_file(config_path)?;
+        let mut config = crate::config::Config::from_config_file(config_path)?;
+        config.check_correctness(false)?;
         let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
         rt.block_on(async {
             EXITING_FLAG.store(false, Ordering::SeqCst);

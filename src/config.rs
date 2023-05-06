@@ -1,7 +1,5 @@
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
-#[cfg(target_os = "android")]
-use serde_json::{Map, Value};
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     path::PathBuf,
@@ -155,7 +153,8 @@ impl Config {
         false
     }
 
-    pub fn check_correctness(&mut self) -> Result<()> {
+    pub fn check_correctness(&mut self, is_server: bool) -> Result<()> {
+        self.is_server = is_server;
         if self.is_server {
             self.client = None;
         } else {
@@ -210,63 +209,11 @@ impl Config {
         Ok(())
     }
 
-    #[cfg(target_os = "android")]
-    /// load from ssrdroid settings file
-    pub fn from_config_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
-        let map = Self::parse_json_file(path)?;
-        let mut config: Config = Config::new();
-
-        let mut client = Client::default();
-        let e = "server not exist";
-        client.server_host = map.get("server").ok_or(e)?.as_str().ok_or(e)?.to_string();
-        let e = "server_port not exist";
-        client.server_port = map.get("server_port").ok_or(e)?.as_u64().ok_or(e)? as u16;
-        let e = "local_address not exist";
-        client.listen_host = map.get("local_address").ok_or(e)?.as_str().ok_or(e)?.to_string();
-        let e = "local_port not exist";
-        client.listen_port = map.get("local_port").ok_or(e)?.as_u64().ok_or(e)? as u16;
-
-        let e = "over_tls_settings not exist";
-        let v = map.get("over_tls_settings").ok_or(e)?;
-        if !v.is_null() {
-            let ot_map = serde_json::from_value::<Map<String, Value>>(v.clone())?;
-
-            let e = "enable not exist";
-            let enable = ot_map.get("enable").ok_or(e)?.as_bool().ok_or(e)?;
-            if !enable {
-                return Err("over_tls_settings is not enabled".into());
-            }
-
-            let e = "path not exist";
-            config.tunnel_path = ot_map.get("path").ok_or(e)?.as_str().ok_or(e)?.to_string();
-
-            let domain = client.server_host.clone();
-            let k = "server_domain";
-            client.server_domain = ot_map.get(k).map(|v| v.as_str().unwrap_or(&domain).to_string());
-        }
-
-        config.client = Some(client);
-        config.check_correctness()?;
-        Ok(config)
-    }
-
-    #[cfg(not(target_os = "android"))]
     /// load from overtls config file
     pub fn from_config_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
         let f = std::fs::File::open(&path)?;
-        let mut config: Config = serde_json::from_reader(f)?;
-        config.check_correctness()?;
+        let config: Config = serde_json::from_reader(f)?;
         Ok(config)
-    }
-
-    #[cfg(target_os = "android")]
-    fn parse_json_file<P: AsRef<std::path::Path>>(path: P) -> Result<Map<String, Value>> {
-        let path = path.as_ref();
-        let mut file = std::fs::File::open(path)?;
-        let mut content = String::new();
-        std::io::Read::read_to_string(&mut file, &mut content)?;
-        let map = serde_json::from_str::<Map<String, Value>>(&content)?;
-        Ok(map)
     }
 
     pub fn generate_ssr_qrcode(&self) -> Result<String> {
