@@ -1,3 +1,5 @@
+project.xcworkspace/
+xcuserdata/
 .*
 build/
 tmp/

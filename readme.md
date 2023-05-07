@@ -106,3 +106,24 @@ Note the `tunnel_path` configuration, please make sure to change it to your own 
 >    For testing purposes, the `disable_tls` option is provided to have the ability to disable `TLS`; that is, if this option exists and is true, the software will transmit traffic in `plain text`; for security reasons, please do not use it on official occasions.
 
 This example shows the configuration file of the least entry, the complete configuration file can refer to [config.json](config.json).
+
+
+## Building iOS framework
+
+### Install **Rust** build tools
+- Install Xcode Command Line Tools: `xcode-select --install`
+- Install Rust programming language: `curl https://sh.rustup.rs -sSf | sh`
+- Install iOS target support: `rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios`
+- Install `cbindgen` tool: `cargo install cbindgen`
+
+### Building iOS framework
+Due to an unknown reason at present, compiling Rust code from Xcode fails, so you have to manually compile it.
+Please run the following command in zsh (or bash):
+```
+cd overtls
+
+cargo build --release --target aarch64-apple-ios
+cargo build --release --target x86_64-apple-ios
+lipo -create target/aarch64-apple-ios/release/libovertls.a target/x86_64-apple-ios/release/libovertls.a -output target/libovertls.a
+cbindgen --config cbindgen.toml -l C -o target/overtls-ios.h
+```
