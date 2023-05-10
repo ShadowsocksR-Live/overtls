@@ -22,11 +22,28 @@ Error="${Red}[Error]${Font}"
 
 cur_dir=`pwd`
 
+CPU_ARCH=`uname -m`
+case ${CPU_ARCH} in
+    x86_64)
+        bin_target="x86_64-unknown-linux-gnu"
+        ;;
+    aarch64)
+        bin_target="aarch64-unknown-linux-gnu"
+        ;;
+    armv7l)
+        bin_target="armv7-unknown-linux-gnueabihf"
+        ;;
+    *)
+        echo -e "${Error} ${RedBG} The current CPU architecture ${CPU_ARCH} is not supported. Please contact the author! ${Font}"
+        exit 1
+        ;;
+esac
+
 overtls_install_sh="overtls-install.sh"
 overtls_install_sh_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh"
 
-overtls_bin_url="https://github.com/shadowsocksr-live/overtls/releases/latest/download/overtls-x86_64-unknown-linux-gnu.zip"
-overtls_bin_file="overtls-x86_64-unknown-linux-gnu.zip"
+overtls_bin_url="https://github.com/shadowsocksr-live/overtls/releases/latest/download/overtls-${bin_target}.zip"
+overtls_bin_file="overtls-${bin_target}.zip"
 
 daemon_script_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-daemon.sh"
 service_dir=/lib/systemd/system

@@ -48,7 +48,7 @@ cargo build --release
 
 Before installation, please prepare a `VPS` host with a public `IP` and a `domain name`, and resolve the `domain name` to this host `IP`, then run the following command and follow the prompts, if everything goes smoothly, the result will be overtls server and nginx front proxy installed on your host, and apply for a certificate.
 
-Currently, only linux x64 machines are supported.
+Currently only 3 `CPU` architectures of `Linux` machines are supported: `x86_64`， `armv7` and `arm64`.
 
 ```
 wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh

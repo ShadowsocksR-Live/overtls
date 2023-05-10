@@ -59,7 +59,7 @@ jobs:
           if [[ "${{ matrix.host_os }}" == "windows-latest" ]]; then
             powershell Compress-Archive -Path target/${{ matrix.target }}/release/overtls.exe, ./config.json -DestinationPath release/overtls-${{ matrix.target }}.zip
           else
-            zip release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json
+            zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json
           fi
 
       - name: Upload

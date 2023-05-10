@@ -46,7 +46,9 @@ cargo build --release
 
 ### 服務端一鍵安裝腳本
 
-安裝前請準備好帶公網 `IP` 的 `VPS` 主機和 `域名`，並將該域名解析到此 `主機` IP 上，然後執行以下命令，按提示操作，如果一切順利，結果就將 overtls 服務端 和 `nginx` 前置代理安裝到你的主機上，並申請好了證書。目前只支持 linux `x64` 機器。
+安裝前請準備好帶公網 `IP` 的 `VPS` 主機和 `域名`，並將該域名解析到此 `主機` IP 上，然後執行以下命令，按提示操作，如果一切順利，結果就將 overtls 服務端 和 `nginx` 前置代理安裝到你的主機上，並申請好了證書。
+
+目前只支持 3 種 `CPU` 架構的 `Linux` 機器： `x86_64`、`armv7` 和 `arm64`。
 ```bash
 wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh
 chmod +x overtls-install.sh
