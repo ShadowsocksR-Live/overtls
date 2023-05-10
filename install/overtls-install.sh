@@ -25,8 +25,8 @@ cur_dir=`pwd`
 overtls_install_sh="overtls-install.sh"
 overtls_install_sh_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh"
 
-overtls_bin_url="https://github.com/shadowsocksr-live/overtls/releases/latest/download/overtls-linux-x64.zip"
-overtls_bin_file="overtls-linux-x64.zip"
+overtls_bin_url="https://github.com/shadowsocksr-live/overtls/releases/latest/download/overtls-x86_64-unknown-linux-gnu.zip"
+overtls_bin_file="overtls-x86_64-unknown-linux-gnu.zip"
 
 daemon_script_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-daemon.sh"
 service_dir=/lib/systemd/system

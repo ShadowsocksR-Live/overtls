@@ -56,7 +56,11 @@ jobs:
           else
             cargo build --all-features --release --target ${{ matrix.target }}
           fi
-          mv target/${{ matrix.target }}/release/overtls release/overtls-${{ matrix.target }}
+          if [[ "${{ matrix.host_os }}" == "windows-latest" ]]; then
+            Compress-Archive -Path target/${{ matrix.target }}/release/overtls, ./config.json -DestinationPath release/overtls-${{ matrix.target }}.zip
+          else
+            zip release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json
+          fi
 
       - name: Upload
         uses: softprops/action-gh-release@v1
