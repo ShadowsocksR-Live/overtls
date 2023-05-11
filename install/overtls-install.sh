@@ -52,6 +52,7 @@ overtls_bin_url="https://github.com/shadowsocksr-live/overtls/releases/latest/do
 overtls_bin_file="overtls-${bin_target}.zip"
 
 daemon_script_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-daemon.sh"
+daemon_script_file="overtls-daemon.sh"
 service_dir=/lib/systemd/system
 service_name=overtls
 service_stub=/etc/init.d/${service_name}
@@ -216,7 +217,8 @@ function domain_check() {
     echo "请输入 你的网站域名 (形如 mygooodsite.com)"
     stty erase '^H' && read -p "Please enter your domain name (for example: mygooodsite.com): " web_svr_domain
     local web_svr_ip_addr=`ping ${web_svr_domain} -c 1 | sed '1{s/[^(]*(//;s/).*//;q}' | sed '1{s/[^(]*(//;s/).*//;q}'`
-    echo -e "${OK} ${GreenBG} Obtaining public IP information, please wait patiently ${Font}"
+    echo -e "${OK} ${GreenBG} 正獲取公網 IP, 請耐心等待... ${Font}"
+    echo -e "${OK} ${GreenBG} Obtaining public IP information, please wait patiently... ${Font}"
     local web_svr_local_ip_v4_addr=`curl -4 ip.sb`
     local web_svr_local_ip_v6_addr=`curl -6 ip.sb`
     echo -e "DNS resolution IP: ${web_svr_ip_addr}"
@@ -501,44 +503,16 @@ EOF
 
 }
 
-function write_service_description_file() {
-    local svc_name=${1}
-    local svc_stub=${2}
-    local service_dir_local=${3}
-    local service_file_path=${service_dir_local}/${svc_name}.service
-
-    cat > ${service_file_path} <<-EOF
-[Unit]
-    Description=${svc_name}
-    After=network.target
-[Service]
-    Type=forking
-    ExecStart=${svc_stub} start
-    ExecReload=${svc_stub} restart
-    ExecStop=${svc_stub} stop
-    PrivateTmp=true
-    Restart=on-failure
-    RestartSec=35s
-    LimitNOFILE=1000000
-    LimitCORE=infinity
-[Install]
-    WantedBy=multi-user.target
-EOF
-
-    chmod 754 ${service_file_path}
-}
-
 function install_overtls_service() {
     ldconfig
     cd ${cur_dir}
 
     # Download ${service_name} service script
-    if ! curl -L ${daemon_script_url} -o ${service_stub} ; then
+    if ! curl -L ${daemon_script_url} -o ./${daemon_script_file} ; then
         echo -e "[${red}Error${plain}] Failed to download ${service_name} service script!"
         exit 1
     fi
 
-    chmod +x ${service_stub}
     if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" ]]; then
         update-rc.d -f ${service_name} defaults
     elif [[ "${ID}" == "centos" ]]; then
@@ -549,7 +523,14 @@ function install_overtls_service() {
         exit 1
     fi
 
+    # write_service_description_file and write_service_stub_file_for_systemd are defined in ${daemon_script_file}
+    source ./${daemon_script_file}
+
     write_service_description_file ${service_name} ${service_stub} ${service_dir}
+
+    local service_bin_path="${target_dir}/${bin_name}"
+    local command_line="setsid nohup ${service_bin_path} -r server -c ${config_file_path}"
+    write_service_stub_file_for_systemd "${service_name}" "${service_stub}" "${service_bin_path}" "${command_line}"
 
     echo "${service_stub} starting..."
     systemctl enable ${service_name}.service
