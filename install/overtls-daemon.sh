@@ -34,6 +34,15 @@ function write_service_stub_file_for_systemd() {
     cat > ${service_stub_path} <<-EOF
 #!/bin/bash
 
+### BEGIN INIT INFO
+# Provides:          ${service_name}
+# Required-Start:    \$network \$syslog
+# Required-Stop:     \$network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Description:       Start or stop the ${service_name} service
+### END INIT INFO
+
 NAME=${service_name}
 SVC_BIN_PATH=${service_bin_path}
 

@@ -513,6 +513,15 @@ function install_overtls_service() {
         exit 1
     fi
 
+    # write_service_description_file and write_service_stub_file_for_systemd are defined in ${daemon_script_file}
+    source ./${daemon_script_file}
+
+    write_service_description_file ${service_name} ${service_stub} ${service_dir}
+
+    local service_bin_path="${target_dir}/${bin_name}"
+    local command_line="setsid nohup ${service_bin_path} -r server -c ${config_file_path}"
+    write_service_stub_file_for_systemd "${service_name}" "${service_stub}" "${service_bin_path}" "${command_line}"
+
     if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" ]]; then
         update-rc.d -f ${service_name} defaults
     elif [[ "${ID}" == "centos" ]]; then
@@ -522,15 +531,6 @@ function install_overtls_service() {
         echo Unsupported OS ${ID}
         exit 1
     fi
-
-    # write_service_description_file and write_service_stub_file_for_systemd are defined in ${daemon_script_file}
-    source ./${daemon_script_file}
-
-    write_service_description_file ${service_name} ${service_stub} ${service_dir}
-
-    local service_bin_path="${target_dir}/${bin_name}"
-    local command_line="setsid nohup ${service_bin_path} -r server -c ${config_file_path}"
-    write_service_stub_file_for_systemd "${service_name}" "${service_stub}" "${service_bin_path}" "${command_line}"
 
     echo "${service_stub} starting..."
     systemctl enable ${service_name}.service
