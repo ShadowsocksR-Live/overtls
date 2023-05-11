@@ -1,30 +1,17 @@
 #!/bin/bash
-# description: A secure socks5 proxy, designed to protect your Internet traffic.
-
-### BEGIN INIT INFO
-# Provides:          overtls
-# Required-Start:    $network $syslog
-# Required-Stop:     $network
-# Default-Start:     2 3 4 5
-# Default-Stop:      0 1 6
-# Short-Description: Fast tunnel proxy that helps you bypass network censorship
-# Description:       Start or stop the overtls server
-### END INIT INFO
-
-# Author: ssrlive
 
 NAME="overtls"
-DAEMON=/usr/bin/overtls
-CONF=/etc/overtls/config.json
+SVC_BIN_PATH=/usr/bin/overtls
+CONFIG_FILE_PATH=/etc/overtls/config.json
 
-cmd_set_log_level="export RUST_LOG=${NAME}=error"
-command_start="setsid nohup ${DAEMON} -r server -c ${CONF}"
+cmd_set_log_level="export RUST_LOG=off"
+command_start="setsid nohup ${SVC_BIN_PATH} -r server -c ${CONFIG_FILE_PATH}"
 
 PID=0
 RETVAL=0
 
 function check_running(){
-    PID=$(ps -ef | grep -v grep | grep -i "${DAEMON}" | awk '{print $2}')
+    PID=$(ps -ef | grep -v grep | grep -i "${SVC_BIN_PATH}" | awk '{print $2}')
     if [ -n "${PID}" ]; then
         return 0
     else

@@ -22,22 +22,28 @@ Error="${Red}[Error]${Font}"
 
 cur_dir=`pwd`
 
-CPU_ARCH=`uname -m`
-case ${CPU_ARCH} in
-    x86_64)
-        bin_target="x86_64-unknown-linux-gnu"
-        ;;
-    aarch64)
-        bin_target="aarch64-unknown-linux-gnu"
-        ;;
-    armv7l)
-        bin_target="armv7-unknown-linux-gnueabihf"
-        ;;
-    *)
-        echo -e "${Error} ${RedBG} The current CPU architecture ${CPU_ARCH} is not supported. Please contact the author! ${Font}"
-        exit 1
-        ;;
-esac
+function get_binary_target() {
+    local _binary_target=""
+    local CPU_ARCH=`uname -m`
+    case ${CPU_ARCH} in
+        x86_64)
+            _binary_target="x86_64-unknown-linux-gnu"
+            ;;
+        aarch64)
+            _binary_target="aarch64-unknown-linux-gnu"
+            ;;
+        armv7l)
+            _binary_target="armv7-unknown-linux-gnueabihf"
+            ;;
+        *)
+            echo -e "${Error} ${RedBG} The current CPU architecture ${CPU_ARCH} is not supported. Please contact the author! ${Font}"
+            exit 1
+            ;;
+    esac
+    echo ${_binary_target}
+}
+
+bin_target=$(get_binary_target)
 
 overtls_install_sh="overtls-install.sh"
 overtls_install_sh_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh"
