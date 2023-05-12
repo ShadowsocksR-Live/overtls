@@ -43,13 +43,13 @@ function get_binary_target() {
     echo ${_binary_target}
 }
 
-bin_target=$(get_binary_target)
+cpu_arch_target=$(get_binary_target)
 
 overtls_install_sh="overtls-install.sh"
 overtls_install_sh_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh"
 
-overtls_bin_url="https://github.com/shadowsocksr-live/overtls/releases/latest/download/overtls-${bin_target}.zip"
-overtls_bin_file="overtls-${bin_target}.zip"
+overtls_bin_url="https://github.com/shadowsocksr-live/overtls/releases/latest/download/overtls-${cpu_arch_target}.zip"
+overtls_bin_zip_file="overtls-${cpu_arch_target}.zip"
 
 daemon_script_url="https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-daemon.sh"
 daemon_script_file="overtls-daemon.sh"
@@ -57,13 +57,12 @@ service_dir=/lib/systemd/system
 service_name=overtls
 service_stub=/etc/init.d/${service_name}
 
-config_dir="/etc/overtls"
-config_file_path="${config_dir}/config.json"
+config_file_path="/etc/overtls/config.json"
 nginx_conf_dir="/etc/nginx/conf.d"
 nginx_conf_file="${nginx_conf_dir}/overtls.conf"
 site_dir="/fakesite"
 site_cert_dir="/fakesite_cert"
-target_dir=/usr/bin
+target_bin_path="/usr/bin/overtls"
 bin_name=overtls
 
 export web_svr_domain=""
@@ -458,29 +457,32 @@ EOF
 }
 
 function download_n_install_overtls_server_bin() {
-    rm -rf ${overtls_bin_file}
+    rm -rf ${overtls_bin_zip_file}
     wget ${overtls_bin_url}
     if [ $? -ne 0 ]; then echo "wget failed"; exit -1; fi
 
     rm -rf ${bin_name}
-    unzip ${overtls_bin_file} ${bin_name}
+    unzip ${overtls_bin_zip_file} ${bin_name}
     if [ $? -ne 0 ]; then echo "unzip failed"; exit -1; fi
 
     chmod +x ${bin_name}
-    rm -rf ${overtls_bin_file}
+    rm -rf ${overtls_bin_zip_file}
 
-    rm -rf ${target_dir}/${bin_name}
+    rm -rf ${target_bin_path}
+    local target_dir="$(dirname "${target_bin_path}")"
     mv ${bin_name} ${target_dir}
 }
 
 function write_overtls_config_file() {
-    mkdir -p ${config_dir}
-    rm -rf ${config_file_path}
+    local local_cfg_file_path="${1}"
+    local dir_path="$(dirname "${local_cfg_file_path}")"
+    mkdir -p "${dir_path}"
+    rm -rf "${local_cfg_file_path}"
 
     local hostname=$(echo $HOSTNAME)
     local identity=$(random_string_gen 4)
 
-    cat > ${config_file_path} <<EOF
+    cat > ${local_cfg_file_path} <<EOF
 {
     "remarks": "${hostname}-${identity}",
     "tunnel_path": "/${reverse_proxy_location}/",
@@ -501,9 +503,13 @@ function write_overtls_config_file() {
 }
 EOF
 
+    echo "${local_cfg_file_path}"
 }
 
-function install_overtls_service() {
+function create_overtls_systemd_service() {
+    local service_bin_path="${1}"
+    local local_cfg_file_path="${2}"
+
     ldconfig
     cd ${cur_dir}
 
@@ -518,8 +524,7 @@ function install_overtls_service() {
 
     write_service_description_file ${service_name} ${service_stub} ${service_dir}
 
-    local service_bin_path="${target_dir}/${bin_name}"
-    local command_line="setsid nohup ${service_bin_path} -r server -c ${config_file_path}"
+    local command_line="setsid nohup ${service_bin_path} -r server -c ${local_cfg_file_path}"
     write_service_stub_file_for_systemd "${service_name}" "${service_stub}" "${service_bin_path}" "${command_line}"
 
     if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" ]]; then
@@ -528,7 +533,7 @@ function install_overtls_service() {
         chkconfig --add ${service_name}
         chkconfig ${service_name} on
     else
-        echo Unsupported OS ${ID}
+        echo "Unsupported OS ${ID}"
         exit 1
     fi
 
@@ -550,12 +555,58 @@ function do_uninstall_service_action() {
 
     systemctl stop ${service_name}.service
 
-    rm -rf ${config_dir}
+    rm -rf ${config_file_path}
     rm -rf ${service_stub}
-    rm -rf ${target_dir}/${bin_name}
+    rm -rf ${target_bin_path}
     rm -rf ${service_dir}/${service_name}.service
 
     echo "${service_name} uninstall success!"
+}
+
+function check_file_exists() {
+    local file_path="${1}"
+
+    if [[ -z "${file_path}" ]]; then
+        echo -e "${RedBG} Error: file path given is empty. ${Font}" 
+        exit 1
+    fi
+
+    if [ ! -f "${file_path}" ]; then
+        echo -e "${RedBG} Error: ${file_path} not found. ${Font}" 
+        exit 1
+    fi
+}
+
+function install_binary_as_systemd_service() {
+    local local_bin_file_path=${1}
+    local local_cfg_file_path=${2}
+
+    is_root
+    is_glibc_ok
+    check_system
+    dependency_install
+
+    if systemctl is-active --quiet ${service_name} ; then
+        echo "${service_name} is running"
+        echo -e "${Error} ${RedBG} Do you want to remove ${service_name} really and install a new one? (Y/N) ${Font}" && read action
+        case ${action} in
+        [yY][eE][sS]|[yY])
+            echo -e "${GreenBG} Continue to install ${Font}" 
+            sleep 2
+            ;;
+        *)
+            echo -e "${RedBG} Installation terminated ${Font}" 
+            exit 2
+            ;;
+        esac
+    fi
+
+    do_uninstall_service_action
+
+    check_file_exists "${local_bin_file_path}"
+    check_file_exists "${local_cfg_file_path}"
+
+    create_overtls_systemd_service "${local_bin_file_path}" "${local_cfg_file_path}"
 }
 
 # Uninstall overtls
@@ -592,10 +643,11 @@ function install_overtls_main() {
     nginx_web_server_config_end
 
     download_n_install_overtls_server_bin
-    write_overtls_config_file
+    local cfg_path=$(write_overtls_config_file "${config_file_path}")
 
-    if [ -f ${target_dir}/${bin_name} ]; then
-        install_overtls_service
+    local svc_bin_path="${target_bin_path}"
+    if [ -f ${svc_bin_path} ]; then
+        create_overtls_systemd_service ${svc_bin_path} ${cfg_path}
     else
         echo "${service_name} install failed, please contact the author!"
         exit 1
@@ -604,12 +656,12 @@ function install_overtls_main() {
     echo
     echo "======== config.json ========"
     echo
-    cat ${config_file_path}
+    cat ${cfg_path}
     echo
     echo "============================="
     echo
 
-    local qrcode=$( ${target_dir}/${bin_name} -q -c ${config_file_path} )
+    local qrcode=$( ${svc_bin_path} -q -c ${cfg_path} )
     qrencode -t UTF8 ${qrcode} | cat
 }
 
@@ -633,6 +685,11 @@ function main() {
             ;;
         uninstall)
             uninstall_overtls
+            ;;
+        service)
+            local customer_binary_path="$2"
+            local customer_cfg_file_path="$3"
+            install_binary_as_systemd_service "${customer_binary_path}" "${customer_cfg_file_path}"
             ;;
         *)
             echo "Arguments error! [${action}]"
