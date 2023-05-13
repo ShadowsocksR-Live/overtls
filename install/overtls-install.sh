@@ -459,14 +459,14 @@ EOF
 }
 
 function download_n_install_overtls_server_bin() {
-    local local_bin_path=${target_bin_path}
+    local local_bin_path="${target_bin_path}"
 
     rm -rf ${overtls_bin_zip_file}
-    wget ${overtls_bin_url}
+    wget ${overtls_bin_url} >/dev/null 2>&1
     if [ $? -ne 0 ]; then echo "wget failed"; exit -1; fi
 
     rm -rf ${bin_name}
-    unzip ${overtls_bin_zip_file} ${bin_name}
+    unzip ${overtls_bin_zip_file} ${bin_name} >/dev/null 2>&1
     if [ $? -ne 0 ]; then echo "unzip failed"; exit -1; fi
 
     chmod +x ${bin_name}
@@ -668,8 +668,8 @@ function install_overtls_main() {
     local svc_bin_path=$(download_n_install_overtls_server_bin)
     local cfg_path=$(write_overtls_config_file "${config_file_path}")
 
-    if [ -f ${svc_bin_path} ]; then
-        create_overtls_systemd_service ${svc_bin_path} ${cfg_path}
+    if [ -f "${svc_bin_path}" ]; then
+        create_overtls_systemd_service "${svc_bin_path}" "${cfg_path}"
     else
         echo "${service_name} install failed, please contact the author!"
         exit 1
