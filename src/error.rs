@@ -49,6 +49,10 @@ pub enum Error {
     #[error("jni::errors::Error {0}")]
     Jni(#[from] jni::errors::Error),
 
+    #[cfg(target_family = "unix")]
+    #[error("daemonize::Error {0}")]
+    Daemonize(#[from] daemonize::Error),
+
     #[error("std::str::Utf8Error {0}")]
     Utf8(#[from] std::str::Utf8Error),
 

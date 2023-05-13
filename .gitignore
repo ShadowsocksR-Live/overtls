@@ -1,3 +1,5 @@
+nginx_signing.key
+overtls-daemon.sh
 project.xcworkspace/
 xcuserdata/
 .*

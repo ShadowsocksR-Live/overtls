@@ -54,6 +54,7 @@ Currently only 3 `CPU` architectures of `Linux` machines are supported: `x86_64`
 wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh
 chmod +x overtls-install.sh
 ./overtls-install.sh
+sudo systemctl start overtls
 ```
 
 ## Usage

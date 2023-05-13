@@ -33,6 +33,9 @@ url = "2.3"
 webpki = { package = "rustls-webpki", version = "0.100", features = ["alloc", "std"] }
 webpki-roots = "0.23"
 
+[target.'cfg(target_family="unix")'.dependencies]
+daemonize = "0.5"
+
 [target.'cfg(target_os="android")'.dependencies]
 android_logger = "0.13"
 crossbeam = "0.8"

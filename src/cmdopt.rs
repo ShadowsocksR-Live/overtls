@@ -20,6 +20,11 @@ pub struct CmdOpt {
     #[arg(short, long)]
     pub verbose: bool,
 
+    #[cfg(target_family = "unix")]
+    #[arg(short, long)]
+    /// Daemonize for unix family.
+    pub daemonize: bool,
+
     /// Generate QR code for client.
     #[arg(short, long)]
     pub qrcode: bool,

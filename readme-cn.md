@@ -53,6 +53,7 @@ cargo build --release
 wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh
 chmod +x overtls-install.sh
 ./overtls-install.sh
+sudo systemctl start overtls
 ```
 
 ## 用法

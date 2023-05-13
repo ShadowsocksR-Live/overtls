@@ -46,7 +46,6 @@ function write_service_stub_file_for_systemd() {
 NAME=${service_name}
 SVC_BIN_PATH=${service_bin_path}
 
-cmd_set_log_level="export RUST_LOG=off"
 command_start="${service_full_command_line}"
 
 PID=0
@@ -67,8 +66,7 @@ function do_start(){
         echo "\${NAME} (pid \${PID}) is already running..."
         exit 0
     else
-        \${cmd_set_log_level}
-        \${command_start} &
+        \${command_start}
         RETVAL=\$?
         if [ \${RETVAL} -eq 0 ]; then
             echo "Starting \${NAME} success"

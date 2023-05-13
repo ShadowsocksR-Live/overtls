@@ -3,8 +3,7 @@ use std::sync::{atomic::AtomicBool, Arc};
 
 mod cmdopt;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let opt = cmdopt::CmdOpt::parse_cmd();
 
     dotenvy::dotenv().ok();
@@ -25,11 +24,29 @@ async fn main() -> Result<()> {
 
     config.check_correctness(is_server)?;
 
+    #[cfg(unix)]
+    if opt.daemonize {
+        let stdout = std::fs::File::create("/tmp/overtls.out")?;
+        let stderr = std::fs::File::create("/tmp/overtls.err")?;
+        let daemonize = daemonize::Daemonize::new()
+            .working_directory("/tmp")
+            .umask(0o777)
+            .stdout(stdout)
+            .stderr(stderr)
+            .privileged_action(|| "Executed before drop privileges");
+        let _ = daemonize.start()?;
+    }
+
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    rt.block_on(async_main(config))
+}
+
+async fn async_main(config: config::Config) -> Result<()> {
     let exiting_flag = Arc::new(AtomicBool::new(false));
     let exiting_flag_clone = exiting_flag.clone();
 
     let main_body = async {
-        if is_server {
+        if config.is_server {
             if config.exist_server() {
                 server::run_server(&config, Some(exiting_flag_clone)).await?;
             } else {

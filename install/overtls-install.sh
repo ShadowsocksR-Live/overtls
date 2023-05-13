@@ -139,6 +139,8 @@ EOF
             wget -nc https://nginx.org/keys/nginx_signing.key
             apt-key add nginx_signing.key
         fi
+    elif [[ "${ID}" == "linuxmint" ]]; then
+        INS="apt"
     else
         echo -e "${Error} ${RedBG} Current system is ${ID} ${VERSION_ID} is not in the list of supported systems, installation is interrupted ${Font} "
         exit 1
@@ -457,6 +459,8 @@ EOF
 }
 
 function download_n_install_overtls_server_bin() {
+    local local_bin_path=${target_bin_path}
+
     rm -rf ${overtls_bin_zip_file}
     wget ${overtls_bin_url}
     if [ $? -ne 0 ]; then echo "wget failed"; exit -1; fi
@@ -468,9 +472,11 @@ function download_n_install_overtls_server_bin() {
     chmod +x ${bin_name}
     rm -rf ${overtls_bin_zip_file}
 
-    rm -rf ${target_bin_path}
-    local target_dir="$(dirname "${target_bin_path}")"
+    rm -rf ${local_bin_path}
+    local target_dir="$(dirname "${local_bin_path}")"
     mv ${bin_name} ${target_dir}
+
+    echo "${local_bin_path}"
 }
 
 function write_overtls_config_file() {
@@ -524,10 +530,10 @@ function create_overtls_systemd_service() {
 
     write_service_description_file ${service_name} ${service_stub} ${service_dir}
 
-    local command_line="setsid nohup ${service_bin_path} -r server -c ${local_cfg_file_path}"
+    local command_line="${service_bin_path} -d -r server -c ${local_cfg_file_path}"
     write_service_stub_file_for_systemd "${service_name}" "${service_stub}" "${service_bin_path}" "${command_line}"
 
-    if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" ]]; then
+    if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" || "${ID}" == "linuxmint" ]]; then
         update-rc.d -f ${service_name} defaults
     elif [[ "${ID}" == "centos" ]]; then
         chkconfig --add ${service_name}
@@ -538,27 +544,44 @@ function create_overtls_systemd_service() {
     fi
 
     echo "${service_stub} starting..."
+
     systemctl enable ${service_name}.service
+    sleep 2
+
+    systemctl daemon-reload
+
+    # FIXME: If running script with `service` parameter, this line will failed and cause the script to exit abnormally.
     systemctl start ${service_name}.service
+    sleep 2
 }
 
 function do_uninstall_service_action() {
-    ${service_stub} status > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        ${service_stub} stop
-    fi
-    if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" ]]; then
-        update-rc.d -f ${service_name} remove
-    elif [[ "${ID}" == "centos" ]]; then
-        chkconfig --del ${service_name}
-    fi
+    ldconfig
+
+    # ${service_stub} status > /dev/null 2>&1
+    # if [ $? -eq 0 ]; then
+    #     ${service_stub} stop
+    # fi
+
+    # if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" || "${ID}" == "linuxmint" ]]; then
+    #     update-rc.d -f ${service_name} remove
+    # elif [[ "${ID}" == "centos" ]]; then
+    #     chkconfig --del ${service_name}
+    # fi
+
+    sleep 2
 
     systemctl stop ${service_name}.service
+    sleep 2
+
+    systemctl disable ${service_name}.service
 
     rm -rf ${config_file_path}
     rm -rf ${service_stub}
     rm -rf ${target_bin_path}
     rm -rf ${service_dir}/${service_name}.service
+
+    systemctl daemon-reload
 
     echo "${service_name} uninstall success!"
 }
@@ -642,10 +665,9 @@ function install_overtls_main() {
     acme_cron_update
     nginx_web_server_config_end
 
-    download_n_install_overtls_server_bin
+    local svc_bin_path=$(download_n_install_overtls_server_bin)
     local cfg_path=$(write_overtls_config_file "${config_file_path}")
 
-    local svc_bin_path="${target_bin_path}"
     if [ -f ${svc_bin_path} ]; then
         create_overtls_systemd_service ${svc_bin_path} ${cfg_path}
     else
@@ -700,5 +722,5 @@ function main() {
     exit 0
 }
 
-main $1
+main "$@"
 
