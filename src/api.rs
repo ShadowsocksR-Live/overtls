@@ -3,7 +3,6 @@
 use crate::error::{Error, Result};
 use crate::LOCAL_HOST_V4;
 use std::os::raw::{c_char, c_int, c_void};
-use std::sync::RwLock;
 use std::{
     net::SocketAddr,
     sync::{
@@ -12,15 +11,23 @@ use std::{
     },
 };
 
-struct RawPtr(*mut c_void);
-unsafe impl Send for RawPtr {}
-unsafe impl Sync for RawPtr {}
+#[derive(Clone)]
+struct CCallback(Option<unsafe extern "C" fn(c_int, *mut c_void)>, *mut c_void);
+
+impl CCallback {
+    unsafe fn call(self, arg: c_int) {
+        if let Some(cb) = self.0 {
+            cb(arg, self.1);
+        }
+    }
+}
+
+unsafe impl Send for CCallback {}
+unsafe impl Sync for CCallback {}
 
 lazy_static::lazy_static! {
     static ref EXITING_FLAG: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     static ref LISTEN_ADDR: Arc<Mutex<SocketAddr>> = Arc::new(Mutex::new(format!("{}:0", LOCAL_HOST_V4).parse::<SocketAddr>().unwrap()));
-    static ref CALLBACK: RwLock<Option<extern "C" fn(c_int, *mut c_void)>> = RwLock::new(None);
-    static ref CALLBACK_P: Arc<Mutex<RawPtr>> = Arc::new(Mutex::new(RawPtr(std::ptr::null_mut())));
 }
 
 /// # Safety
@@ -30,28 +37,25 @@ lazy_static::lazy_static! {
 pub unsafe extern "C" fn over_tls_client_run(
     config_path: *const c_char,
     verbose: c_char,
-    callback: Option<extern "C" fn(c_int, *mut c_void)>,
-    p: *mut c_void,
+    callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
+    ctx: *mut c_void,
 ) -> c_int {
-    let config_path = std::ffi::CStr::from_ptr(config_path).to_str().unwrap();
-    let log_level = if verbose != 0 { "trace" } else { "info" };
-    let root = module_path!().split("::").next().unwrap();
-    let default = format!("off,{}={}", root, log_level);
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
-
-    *CALLBACK.write().unwrap() = callback;
-    CALLBACK_P.lock().unwrap().0 = p;
+    let ccb = CCallback(callback, ctx);
 
     let block = || -> Result<()> {
+        let config_path = std::ffi::CStr::from_ptr(config_path).to_str()?;
+        let log_level = if verbose != 0 { "trace" } else { "info" };
+        let root = module_path!().split("::").next().ok_or("module path error")?;
+        let default = format!("off,{}={}", root, log_level);
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
+
         let cb = |addr: SocketAddr| {
             log::trace!("Listening on {}", addr);
             let port = addr.port();
             let addr = format!("{}:{}", LOCAL_HOST_V4, port).parse::<SocketAddr>().unwrap();
             *LISTEN_ADDR.lock().unwrap() = addr;
-            let cb = CALLBACK.read().unwrap();
-            if let Some(cb) = cb.as_ref() {
-                let p = CALLBACK_P.lock().unwrap().0;
-                cb(port as c_int, p);
+            unsafe {
+                ccb.call(port as c_int);
             }
         };
 
