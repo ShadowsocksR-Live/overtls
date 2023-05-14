@@ -649,6 +649,10 @@ function uninstall_overtls() {
 function print_qrcode() {
     local ot_exe_path="${1}"
     local ot_cfg_path="${2}"
+
+    check_file_exists "${ot_exe_path}"
+    check_file_exists "${ot_cfg_path}"
+
     local qrcode="$( ${ot_exe_path} -q -c ${ot_cfg_path} )"
     echo "${qrcode}"
     qrencode -t UTF8 "${qrcode}" | cat
@@ -721,8 +725,8 @@ function main() {
             install_binary_as_systemd_service "${customer_binary_path}" "${customer_cfg_file_path}"
             ;;
         qrcode)
-            local svc_bin_path="${1}"
-            local cfg_path="${2}"
+            local svc_bin_path="${2}"
+            local cfg_path="${3}"
             print_qrcode "${svc_bin_path}" "${cfg_path}"
             ;;
         *)
