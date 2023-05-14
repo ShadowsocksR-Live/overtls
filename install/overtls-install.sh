@@ -646,6 +646,14 @@ function uninstall_overtls() {
     fi
 }
 
+function print_qrcode() {
+    local ot_exe_path="${1}"
+    local ot_cfg_path="${2}"
+    local qrcode="$( ${ot_exe_path} -q -c ${ot_cfg_path} )"
+    echo "${qrcode}"
+    qrencode -t UTF8 "${qrcode}" | cat
+}
+
 function install_overtls_main() {
     is_root
     is_glibc_ok
@@ -683,8 +691,7 @@ function install_overtls_main() {
     echo "============================="
     echo
 
-    local qrcode=$( ${svc_bin_path} -q -c ${cfg_path} )
-    qrencode -t UTF8 ${qrcode} | cat
+    print_qrcode "${svc_bin_path}" "${cfg_path}"
 }
 
 function main() {
@@ -712,6 +719,11 @@ function main() {
             local customer_binary_path="$2"
             local customer_cfg_file_path="$3"
             install_binary_as_systemd_service "${customer_binary_path}" "${customer_cfg_file_path}"
+            ;;
+        qrcode)
+            local svc_bin_path="${1}"
+            local cfg_path="${2}"
+            print_qrcode "${svc_bin_path}" "${cfg_path}"
             ;;
         *)
             echo "Arguments error! [${action}]"
