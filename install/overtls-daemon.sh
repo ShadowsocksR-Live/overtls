@@ -1,10 +1,9 @@
 function write_service_description_file() {
     local svc_name=${1}
     local svc_stub=${2}
-    local service_dir_local=${3}
-    local service_file_path=${service_dir_local}/${svc_name}.service
+    local service_desc_file_path="${3}"
 
-    cat > ${service_file_path} <<-EOF
+    cat > ${service_desc_file_path} <<-EOF
 [Unit]
     Description=${svc_name}
     After=network.target
@@ -22,7 +21,7 @@ function write_service_description_file() {
     WantedBy=multi-user.target
 EOF
 
-    chmod 754 ${service_file_path}
+    chmod 754 ${service_desc_file_path}
 }
 
 function write_service_stub_file_for_systemd() {

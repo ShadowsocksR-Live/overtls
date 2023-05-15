@@ -527,7 +527,8 @@ function create_overtls_systemd_service() {
     # write_service_description_file and write_service_stub_file_for_systemd are defined in ${daemon_script_file}
     source ./${daemon_script_file}
 
-    write_service_description_file ${service_name} ${service_stub} ${service_dir}
+    local svc_desc_file_path=${service_dir}/${service_name}.service
+    write_service_description_file ${service_name} ${service_stub} "${svc_desc_file_path}"
 
     local command_line="${service_bin_path} -d -r server -c ${local_cfg_file_path}"
     write_service_stub_file_for_systemd "${service_name}" "${service_stub}" "${service_bin_path}" "${command_line}"
