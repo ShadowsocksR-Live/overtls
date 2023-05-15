@@ -8,8 +8,8 @@
 #==========================================================
 
 #fonts color
-Green="\033[32m" 
-Red="\033[31m" 
+Green="\033[32m"
+Red="\033[31m"
 Yellow="\033[33m"
 GreenBG="\033[42;37m"
 RedBG="\033[41;37m"
@@ -88,12 +88,12 @@ function random_string_gen() {
 # Reverse proxy entry point.
 export reverse_proxy_location=$(random_string_gen 20)
 
-function is_root() {
+function check_root_account() {
     if [ `id -u` == 0 ]; then
-        echo -e "${OK} ${GreenBG} The current account is the root user, enter the installation process ${Font} "
+        echo -e "${OK} ${GreenBG} Current account is the root user, enter the installation process ${Font} "
         sleep 3
     else
-        echo -e "${Error} ${RedBG} The current account is not the root user, please switch to the root user and re-execute this script ${Font}" 
+        echo -e "${Error} ${RedBG} Current account is not root user, please switch to the root user and re-execute this script ${Font}"
         exit 1
     fi
 }
@@ -118,7 +118,7 @@ baseurl=http://nginx.org/packages/mainline/centos/7/\$basearch/
 gpgcheck=0
 enabled=1
 EOF
-        echo -e "${OK} ${GreenBG} nginx source installation complete ${Font}" 
+        echo -e "${OK} ${GreenBG} nginx source installation complete ${Font}"
     elif [[ "${ID}" == "debian" && ${VERSION_ID} -ge 8 ]]; then
         echo -e "${OK} ${GreenBG} Current system is Debian ${VERSION_ID} ${VERSION} ${Font} "
         INS="apt"
@@ -176,8 +176,8 @@ function dependency_install() {
     ${INS} install curl wget git lsof -y
 
     if [[ "${ID}" == "centos" ]]; then
-       ${INS} -y install crontabs
-       ${INS} -y install qrencode python3 make zlib zlib-devel gcc-c++ libtool openssl openssl-devel
+        ${INS} -y install crontabs
+        ${INS} -y install qrencode python3 make zlib zlib-devel gcc-c++ libtool openssl openssl-devel
     else
         ${INS} install cron vim curl -y
         ${INS} update -y
@@ -236,15 +236,15 @@ function domain_check() {
         sleep 2
     else
         echo -e "${Error} ${RedBG} The DNS resolution IP does not match the local IP. Do you want to continue the installation? (y/n) ${Font}" && read install
-        case $install in
-        [yY][eE][sS]|[yY])
-            echo -e "${GreenBG} Continue to install ${Font}" 
-            sleep 2
-            ;;
-        *)
-            echo -e "${RedBG} Installation terminated ${Font}" 
-            exit 2
-            ;;
+        case ${install} in
+            [yY][eE][sS]|[yY])
+                echo -e "${GreenBG} Continue to install ${Font}"
+                sleep 2
+                ;;
+            *)
+                echo -e "${RedBG} Installation terminated ${Font}"
+                exit 2
+                ;;
         esac
     fi
     
@@ -330,22 +330,21 @@ function do_lets_encrypt_certificate_authority() {
         echo -e "${Error} ${RedBG} A certificate already exists. Lets encrypt has maximum limit of 5 renewals per week. ${Font}"
         echo -e "${Error} ${RedBG} Do you want to delete it and create a new one? (y/n) ${Font}" && read renew
         case $renew in
-        [yY][eE][sS]|[yY])
-            echo -e "${GreenBG} Attempting to renew certificate ${Font}"
-            sleep 2
-            ;;
-        *)
-            echo -e "${GreenBG} Skipping certificate renewal ${Font}"
-            cd ${org_pwd}
-            return 0
-            ;;
+            [yY][eE][sS]|[yY])
+                echo -e "${GreenBG} Attempting to renew certificate ${Font}"
+                sleep 2
+                ;;
+            *)
+                echo -e "${GreenBG} Skipping certificate renewal ${Font}"
+                cd ${org_pwd}
+                return 0
+                ;;
         esac
     fi
     rm -rf *
 
     openssl genrsa 4096 > account.key
     judge "[CA] Create account key"
-
 
     local openssl_cnf="/etc/ssl/openssl.cnf"
     if [[ "${ID}" == "centos" ]]; then
@@ -419,7 +418,7 @@ function nginx_web_server_config_end() {
         index index.php index.html index.htm index.nginx-debian.html;
         root  ${site_dir};
         error_page 400 = /400.html;
-        
+
         location ~ \\.php$ {
             # include snippets/fastcgi-php.conf;
             # fastcgi_pass unix:/run/php/php7.4-fpm.sock;
@@ -444,7 +443,7 @@ function nginx_web_server_config_end() {
 
         location /.well-known/acme-challenge/ {
         }
-        
+
         location / {
             # rewrite ^/(.*)$ https://${web_svr_domain}:${web_svr_listen_port}/$1 permanent;
         }
@@ -590,12 +589,12 @@ function check_file_exists() {
     local file_path="${1}"
 
     if [[ -z "${file_path}" ]]; then
-        echo -e "${RedBG} Error: file path given is empty. ${Font}" 
+        echo -e "${RedBG} Error: file path given is empty. ${Font}"
         exit 1
     fi
 
     if [ ! -f "${file_path}" ]; then
-        echo -e "${RedBG} Error: ${file_path} not found. ${Font}" 
+        echo -e "${RedBG} Error: ${file_path} not found. ${Font}"
         exit 1
     fi
 }
@@ -604,7 +603,6 @@ function install_binary_as_systemd_service() {
     local local_bin_file_path=${1}
     local local_cfg_file_path=${2}
 
-    is_root
     is_glibc_ok
     check_system
     dependency_install
@@ -613,14 +611,14 @@ function install_binary_as_systemd_service() {
         echo "${service_name} is running"
         echo -e "${Error} ${RedBG} Do you want to remove ${service_name} really and install a new one? (Y/N) ${Font}" && read action
         case ${action} in
-        [yY][eE][sS]|[yY])
-            echo -e "${GreenBG} Continue to install ${Font}" 
-            sleep 2
-            ;;
-        *)
-            echo -e "${RedBG} Installation terminated ${Font}" 
-            exit 2
-            ;;
+            [yY][eE][sS]|[yY])
+                echo -e "${GreenBG} Continue to install ${Font}"
+                sleep 2
+                ;;
+            *)
+                echo -e "${RedBG} Installation terminated ${Font}"
+                exit 2
+                ;;
         esac
     fi
 
@@ -659,7 +657,6 @@ function print_qrcode() {
 }
 
 function install_overtls_main() {
-    is_root
     is_glibc_ok
     check_system
     dependency_install
@@ -707,19 +704,19 @@ function main() {
     echo "####################################################################"
     echo
 
-    # Make sure only root can run our script
-    [[ $EUID -ne 0 ]] && echo -e "[${red}Error${plain}] This script must be run as root!" && exit 1
-
-    local action=$1
-    [ -z $1 ] && action=install
+    local action=${1}
+    [ -z ${1} ] && action="install"
     case "${action}" in
         install)
+            check_root_account
             install_overtls_main
             ;;
         uninstall)
+            check_root_account
             uninstall_overtls
             ;;
         service)
+            check_root_account
             local customer_binary_path="$2"
             local customer_cfg_file_path="$3"
             install_binary_as_systemd_service "${customer_binary_path}" "${customer_cfg_file_path}"
