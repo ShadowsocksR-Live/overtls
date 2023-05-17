@@ -65,6 +65,8 @@ site_cert_dir="/fakesite_cert"
 target_bin_path="/usr/bin/overtls"
 bin_name=overtls
 
+INSTALL_CMD="apt"
+
 export web_svr_domain=""
 export web_svr_local_ip_addr=""
 export web_svr_listen_port="443"
@@ -106,7 +108,7 @@ VERSION=`echo ${VERSION} | awk -F "[()]" '{print $2}'`
 function check_system() {
     if [[ "${ID}" == "centos" && ${VERSION_ID} -ge 7 ]]; then
         echo -e "${OK} ${GreenBG} Current system is Centos ${VERSION_ID} ${VERSION} ${Font} "
-        INS="yum"
+        INSTALL_CMD="yum"
         echo -e "${OK} ${GreenBG} Please wait patiently during SElinux settings, do not perform other operations ${Font} "
         setsebool -P httpd_can_network_connect 1
         echo -e "${OK} ${GreenBG} SElinux setup complete ${Font} "
@@ -121,7 +123,7 @@ EOF
         echo -e "${OK} ${GreenBG} nginx source installation complete ${Font}"
     elif [[ "${ID}" == "debian" && ${VERSION_ID} -ge 8 ]]; then
         echo -e "${OK} ${GreenBG} Current system is Debian ${VERSION_ID} ${VERSION} ${Font} "
-        INS="apt"
+        INSTALL_CMD="apt"
         ## Add nginx apt source
         if [ ! -f nginx_signing.key ]; then
             echo "deb http://nginx.org/packages/mainline/debian/ ${VERSION} nginx" >> /etc/apt/sources.list
@@ -131,7 +133,7 @@ EOF
         fi
     elif [[ "${ID}" == "ubuntu" && `echo "${VERSION_ID}" | cut -d '.' -f1` -ge 16 ]]; then
         echo -e "${OK} ${GreenBG} Current system is Ubuntu ${VERSION_ID} ${VERSION_CODENAME} ${Font} "
-        INS="apt"
+        INSTALL_CMD="apt"
         ## Add nginx apt source
         if [ ! -f nginx_signing.key ]; then
             echo "deb http://nginx.org/packages/mainline/ubuntu/ ${VERSION_CODENAME} nginx" >> /etc/apt/sources.list
@@ -140,7 +142,7 @@ EOF
             apt-key add nginx_signing.key
         fi
     elif [[ "${ID}" == "linuxmint" ]]; then
-        INS="apt"
+        INSTALL_CMD="apt"
     else
         echo -e "${Error} ${RedBG} Current system is ${ID} ${VERSION_ID} is not in the list of supported systems, installation is interrupted ${Font} "
         exit 1
@@ -173,29 +175,29 @@ function judge() {
 }
 
 function dependency_install() {
-    ${INS} install curl wget git lsof -y
+    ${INSTALL_CMD} install curl wget git lsof -y
 
     if [[ "${ID}" == "centos" ]]; then
-        ${INS} -y install crontabs
-        ${INS} -y install qrencode python3 make zlib zlib-devel gcc-c++ libtool openssl openssl-devel
+        ${INSTALL_CMD} -y install crontabs
+        ${INSTALL_CMD} -y install qrencode python3 make zlib zlib-devel gcc-c++ libtool openssl openssl-devel
     else
-        ${INS} install cron vim curl -y
-        ${INS} update -y
-        ${INS} install qrencode python3 cmake make zlib1g zlib1g-dev build-essential autoconf libtool openssl libssl-dev -y
+        ${INSTALL_CMD} install cron vim curl -y
+        ${INSTALL_CMD} update -y
+        ${INSTALL_CMD} install qrencode python3 cmake make zlib1g zlib1g-dev build-essential autoconf libtool openssl libssl-dev -y
         if [[ "${ID}" == "ubuntu" && `echo "${VERSION_ID}" | cut -d '.' -f1` -ge 20 ]]; then
-            ${INS} install inetutils-ping -y
+            ${INSTALL_CMD} install inetutils-ping -y
         fi
     fi
     judge "Installing crontab"
 
     # New system does not require net-tools for IP determination.
-    # ${INS} install net-tools -y
+    # ${INSTALL_CMD} install net-tools -y
     # judge "Installing net-tools"
 
-    ${INS} install bc -y
+    ${INSTALL_CMD} install bc -y
     judge "Installing bc"
 
-    ${INS} install unzip -y
+    ${INSTALL_CMD} install unzip -y
     judge "Installing unzip"
 }
 
@@ -211,6 +213,20 @@ function random_listen_port() {
         fi
     done
     echo ${overtls_port}
+}
+
+function check_file_exists() {
+    local file_path="${1}"
+
+    if [[ -z "${file_path}" ]]; then
+        echo -e "${RedBG} Error: file path given is empty. ${Font}"
+        exit 1
+    fi
+
+    if [ ! -f "${file_path}" ]; then
+        echo -e "${RedBG} Error: ${file_path} not found. ${Font}"
+        exit 1
+    fi
 }
 
 function domain_check() {
@@ -269,9 +285,9 @@ function nginx_install() {
     fi
 
     if [[ "${ID}" == "ubuntu" ]]; then
-        ${INS} install nginx-extras -y
+        ${INSTALL_CMD} install nginx-extras -y
     else
-        ${INS} install nginx -y
+        ${INSTALL_CMD} install nginx -y
     fi
 
     if [[ -d /etc/nginx ]]; then
@@ -511,17 +527,38 @@ EOF
     echo "${local_cfg_file_path}"
 }
 
+function check_install_systemd_svc_params() {
+    local role="${1}"
+    local service_bin_path="${2}"
+    local local_cfg_file_path="${3}"
+
+    if [[ "${role}" != "server" && "${role}" != "client" ]]; then
+        echo -e "${RedBG} Invalid role specified. Must be either 'client' or 'server'. ${Font}"
+        exit 1
+    fi
+
+    check_file_exists "${service_bin_path}"
+    check_file_exists "${local_cfg_file_path}"
+}
+
 function create_overtls_systemd_service() {
-    local service_bin_path="${1}"
-    local local_cfg_file_path="${2}"
+    local role="${1}"
+    local service_bin_path="${2}"
+    local local_cfg_file_path="${3}"
+
+    check_install_systemd_svc_params "${role}" "${service_bin_path}" "${local_cfg_file_path}"
+
+    local work_dir=$(cd $(dirname "$0") && pwd)
 
     ldconfig
-    cd ${cur_dir}
+    cd ${work_dir}
 
-    # Download ${service_name} service script
-    if ! curl -L ${daemon_script_url} -o ./${daemon_script_file} ; then
-        echo -e "[${red}Error${plain}] Failed to download ${service_name} service script!"
-        exit 1
+    if [ ! -f "./${daemon_script_file}" ]; then
+        # Download ${service_name} service script
+        if ! curl -L ${daemon_script_url} -o ./${daemon_script_file} ; then
+            echo -e "${RedBG} Failed to download ${service_name} service script! ${Font}"
+            exit 1
+        fi
     fi
 
     # write_service_description_file and write_service_stub_file_for_systemd are defined in ${daemon_script_file}
@@ -530,7 +567,7 @@ function create_overtls_systemd_service() {
     local svc_desc_file_path=${service_dir}/${service_name}.service
     write_service_description_file ${service_name} ${service_stub} "${svc_desc_file_path}"
 
-    local command_line="${service_bin_path} -d -r server -c ${local_cfg_file_path}"
+    local command_line="${service_bin_path} -d -r ${role} -c ${local_cfg_file_path}"
     write_service_stub_file_for_systemd "${service_name}" "${service_stub}" "${service_bin_path}" "${command_line}"
 
     if [[ "${ID}" == "ubuntu" || "${ID}" == "debian" || "${ID}" == "linuxmint" ]]; then
@@ -586,27 +623,14 @@ function do_uninstall_service_action() {
     echo "${service_name} uninstall success!"
 }
 
-function check_file_exists() {
-    local file_path="${1}"
-
-    if [[ -z "${file_path}" ]]; then
-        echo -e "${RedBG} Error: file path given is empty. ${Font}"
-        exit 1
-    fi
-
-    if [ ! -f "${file_path}" ]; then
-        echo -e "${RedBG} Error: ${file_path} not found. ${Font}"
-        exit 1
-    fi
-}
-
 function install_binary_as_systemd_service() {
-    local local_bin_file_path=${1}
-    local local_cfg_file_path=${2}
+    local role="${1}"
+    local local_bin_file_path=${2}
+    local local_cfg_file_path=${3}
 
-    is_glibc_ok
+    check_install_systemd_svc_params "${role}" "${local_bin_file_path}" "${local_cfg_file_path}"
+
     check_system
-    dependency_install
 
     if systemctl is-active --quiet ${service_name} ; then
         echo "${service_name} is running"
@@ -625,10 +649,7 @@ function install_binary_as_systemd_service() {
 
     do_uninstall_service_action
 
-    check_file_exists "${local_bin_file_path}"
-    check_file_exists "${local_cfg_file_path}"
-
-    create_overtls_systemd_service "${local_bin_file_path}" "${local_cfg_file_path}"
+    create_overtls_systemd_service "${role}" "${local_bin_file_path}" "${local_cfg_file_path}"
 }
 
 # Uninstall overtls
@@ -657,7 +678,7 @@ function print_qrcode() {
     qrencode -t UTF8 "${qrcode}" | cat
 }
 
-function install_overtls_main() {
+function install_overtls_remote_server() {
     is_glibc_ok
     check_system
     dependency_install
@@ -679,7 +700,7 @@ function install_overtls_main() {
     local cfg_path=$(write_overtls_config_file "${config_file_path}")
 
     if [ -f "${svc_bin_path}" ]; then
-        create_overtls_systemd_service "${svc_bin_path}" "${cfg_path}"
+        create_overtls_systemd_service "server" "${svc_bin_path}" "${cfg_path}"
     else
         echo "${service_name} install failed, please contact the author!"
         exit 1
@@ -710,7 +731,7 @@ function main() {
     case "${action}" in
         install)
             check_root_account
-            install_overtls_main
+            install_overtls_remote_server
             ;;
         uninstall)
             check_root_account
@@ -718,13 +739,17 @@ function main() {
             ;;
         service)
             check_root_account
-            local customer_binary_path="$2"
-            local customer_cfg_file_path="$3"
-            install_binary_as_systemd_service "${customer_binary_path}" "${customer_cfg_file_path}"
+            local role="${2}"
+            local customer_binary_path="$3"
+            local customer_cfg_file_path="$4"
+            check_install_systemd_svc_params "${role}" "${customer_binary_path}" "${customer_cfg_file_path}"
+            install_binary_as_systemd_service "${role}" "${customer_binary_path}" "${customer_cfg_file_path}"
             ;;
         qrcode)
             local svc_bin_path="${2}"
             local cfg_path="${3}"
+            check_system
+            sudo ${INSTALL_CMD} -y install qrencode >/dev/null 2>&1
             print_qrcode "${svc_bin_path}" "${cfg_path}"
             ;;
         *)
