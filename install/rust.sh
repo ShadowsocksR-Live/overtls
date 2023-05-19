@@ -1,6 +1,6 @@
 #!/bin/bash
 
-function dependency_install() {
+function linux_dependency_install() {
     source /etc/os-release
 
     if [[ "${ID}" == "centos" && ${VERSION_ID} -ge 7 ]]; then
@@ -41,7 +41,25 @@ EOF
 }
 
 function main() {
-    dependency_install
+    if cargo --version; then
+        echo "Rust is already installed, skipping..."
+        exit 0
+    fi
+    local os_name=$(uname)
+    if [[ "${os_name}" == "Darwin" ]]; then
+        if ! xcode-select -p >/dev/null; then
+            echo "Xcode is not installed, please install it first"
+            exit 1
+        else
+            echo "Xcode is installed, continue..."
+            xcode-select --install 2>&1 | grep installed || { echo "Xcode Command Line Tools not found. Please install and try again." && exit 1; }
+        fi
+    elif [[ "${os_name}" == "Linux" ]]; then
+        linux_dependency_install
+    else
+        echo "Unsupported system: ${os_name}, installation is interrupted "
+        exit 1
+    fi
     rust_install
 }
 

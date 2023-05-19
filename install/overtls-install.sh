@@ -169,16 +169,25 @@ function script_file_full_path() {
     echo $(readlink -f "$0")
 }
 
+function is_git_repo() {
+    repo_path="${1}"
+    if [ -d "${repo_path}/.git" ]; then
+        return 0 # 0 is true
+    else
+        return 1 # 1 is false
+    fi
+}
+
 # Check if the script's two levels up directory is "overtls/install"
 function is_script_located_in_source_tree() {
     local script_dir="$(dirname $(script_file_full_path))"
 
     parent_dir=$(dirname "$script_dir")  # Get the parent directory
 
-    if [ "$(basename $parent_dir)/$(basename $script_dir)" = "overtls/install" ]; then
-        return 0    # Return true if the path matches
+    if [ "$(basename $parent_dir)/$(basename $script_dir)" = "overtls/install" ] && is_git_repo "${parent_dir}"; then
+        return 0    # Return true if the path matches and is a git repo
     else
-        return 1    # Return false if the path doesn't match
+        return 1    # Return false if the path doesn't match or is not a git repo
     fi
 }
 
@@ -510,15 +519,6 @@ function download_n_install_overtls_server_bin() {
     mv ${bin_name} ${target_dir}
 
     echo "${local_bin_path}"
-}
-
-function is_git_repo() {
-    repo_path="${1}"
-    if [ -d "${repo_path}/.git" ]; then
-        return 0 # 0 is true
-    else
-        return 1 # 1 is false
-    fi
 }
 
 function build_overtls_server_bin() {
