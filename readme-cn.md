@@ -50,6 +50,8 @@ cargo build --release
 
 目前只支持 3 種 `CPU` 架構的 `Linux` 機器： `x86_64`、`armv7` 和 `arm64`。
 ```bash
+sudo apt install -y wget # Debian/Ubuntu
+sudo yum install -y wget # CentOS
 wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install.sh
 chmod +x overtls-install.sh
 ./overtls-install.sh
