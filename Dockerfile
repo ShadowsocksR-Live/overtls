@@ -11,7 +11,7 @@ RUN apt-get update && \
 
 RUN git clone https://github.com/shadowsocksr-live/overtls.git && \
     cd overtls && \
-    cargo build --release && \
+    cargo build --release
 
 
 
