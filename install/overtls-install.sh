@@ -711,6 +711,42 @@ function install_binary_as_systemd_service() {
     create_overtls_systemd_service "${role}" "${local_bin_file_path}" "${local_cfg_file_path}"
 }
 
+function macos_install_binary_as_service() {
+    local role="${1}"
+    local local_bin_file_path=${2}
+    local local_cfg_file_path=${3}
+    local svc_daemon_file_path="~/Library/LaunchAgents/${service_name}.plist"
+
+    cat > ${svc_daemon_file_path} <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>${service_name}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${local_bin_file_path}</string>
+        <string>-r</string>
+        <string>${role}</string>
+        <string>-c</string>
+        <string>${local_cfg_file_path}</string>
+        <string>-d</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/usr/local</string>
+  </dict>
+</plist>
+EOF
+
+    launchctl load ${svc_daemon_file_path}
+    launchctl start ${service_name}
+}
+
 # Uninstall overtls
 function uninstall_overtls() {
     printf "Are you sure uninstall ${service_name}? (y/n)\n"
@@ -825,18 +861,35 @@ function main() {
             uninstall_overtls
             ;;
         service)
-            check_root_account
             local role="${2}"
             local customer_binary_path="$3"
             local customer_cfg_file_path="$4"
             check_install_systemd_svc_params "${role}" "${customer_binary_path}" "${customer_cfg_file_path}"
-            install_binary_as_systemd_service "${role}" "${customer_binary_path}" "${customer_cfg_file_path}"
+            if [[ "$(uname)" == "Linux" ]]; then
+                check_root_account
+                install_binary_as_systemd_service "${role}" "${customer_binary_path}" "${customer_cfg_file_path}"
+            elif [[ "$(uname)" == "Darwin" ]]; then
+                macos_install_binary_as_service "${role}" "${customer_binary_path}" "${customer_cfg_file_path}"
+            else
+                echo -e "${RedBG} Unsupported operating system! ${Font}"
+                exit 1
+            fi
             ;;
         qrcode)
             local svc_bin_path="${2}"
             local cfg_path="${3}"
-            check_system
-            sudo ${INSTALL_CMD} -y install qrencode >/dev/null 2>&1
+            if [[ "$(uname)" == "Darwin" ]]; then
+                if ! command -v qrencode &> /dev/null ; then
+                    if ! command -v brew &> /dev/null ; then
+                        echo -e "${Info} ${Yellow} Homebrew not found, please install it first! ${Font}"
+                        exit 1
+                    fi
+                    brew install qrencode >/dev/null 2>&1
+                fi
+            elif [[ "$(uname)" == "Linux" ]]; then
+                check_system
+                sudo ${INSTALL_CMD} -y install qrencode >/dev/null 2>&1
+            fi
             print_qrcode "${svc_bin_path}" "${cfg_path}"
             ;;
         *)
