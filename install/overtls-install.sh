@@ -728,6 +728,8 @@ function macos_install_binary_as_service() {
     <true/>
     <key>KeepAlive</key>
     <false/>
+    <key>StartInterval</key>
+    <integer>3</integer>
     <key>ProgramArguments</key>
     <array>
         <string>${local_bin_file_path}</string>
