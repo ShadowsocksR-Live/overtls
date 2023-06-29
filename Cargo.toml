@@ -1,6 +1,6 @@
 [package]
 name = "overtls"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,6 +10,7 @@ crate-type = ["staticlib", "cdylib", "lib"]
 [dependencies]
 base64 = "0.21"
 bytes = "1.4"
+chrono = "0.4"
 clap = { version = "4.3", features = ["derive"] }
 dotenvy = "0.15"
 env_logger = "0.10"

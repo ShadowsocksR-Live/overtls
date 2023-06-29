@@ -40,10 +40,10 @@ pub unsafe extern "C" fn over_tls_client_run(
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
 ) -> c_int {
-    let log_level = if verbose != 0 { "trace" } else { "info" };
-    let root = module_path!().split("::").next().unwrap();
-    let default = format!("off,{}={}", root, log_level);
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
+    use log::LevelFilter;
+    let log_level = if verbose != 0 { LevelFilter::Trace } else { LevelFilter::Info };
+    log::set_max_level(log_level);
+    log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()).unwrap();
 
     _over_tls_client_run(config_path, callback, ctx)
 }

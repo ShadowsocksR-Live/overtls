@@ -3,6 +3,7 @@ pub(crate) mod api;
 pub(crate) mod base64_wrapper;
 pub mod client;
 pub mod config;
+pub mod dump_logger;
 pub mod error;
 pub mod server;
 pub(crate) mod tcp_stream;
