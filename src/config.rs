@@ -129,16 +129,10 @@ impl Config {
     pub fn listen_addr(&self) -> Result<SocketAddr> {
         if self.is_server {
             let f = |s: &Server| SocketAddr::new(s.listen_host.parse().unwrap(), s.listen_port);
-            self.server
-                .as_ref()
-                .map(f)
-                .ok_or_else(|| "Server listen address is not set".into())
+            self.server.as_ref().map(f).ok_or_else(|| "Server listen address is not set".into())
         } else {
             let f = |c: &Client| SocketAddr::new(c.listen_host.parse().unwrap(), c.listen_port);
-            self.client
-                .as_ref()
-                .map(f)
-                .ok_or_else(|| "Client listen address is not set".into())
+            self.client.as_ref().map(f).ok_or_else(|| "Client listen address is not set".into())
         }
     }
 
@@ -230,7 +224,9 @@ impl Config {
         let host = &client.server_host;
         let port = client.server_port;
 
-        let url = format!("{host}:{port}:origin:{method}:plain:{password}/?remarks={remarks}&ot_enable=1&ot_domain={domain}&ot_path={tunnel_path}");
+        let url = format!(
+            "{host}:{port}:origin:{method}:plain:{password}/?remarks={remarks}&ot_enable=1&ot_domain={domain}&ot_path={tunnel_path}"
+        );
         Ok(format!("ssr://{}", crate::base64_encode(url.as_bytes(), engine)))
     }
 }

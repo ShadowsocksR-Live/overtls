@@ -22,12 +22,7 @@ pub(crate) struct WeirdUri<'a> {
 }
 
 impl<'a> WeirdUri<'a> {
-    pub(crate) fn new(
-        uri: &'a str,
-        target_address: Option<String>,
-        udp_tunnel: Option<bool>,
-        client_id: Option<String>,
-    ) -> Self {
+    pub(crate) fn new(uri: &'a str, target_address: Option<String>, udp_tunnel: Option<bool>, client_id: Option<String>) -> Self {
         Self {
             uri,
             target_address,

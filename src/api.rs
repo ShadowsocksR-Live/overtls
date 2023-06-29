@@ -40,14 +40,23 @@ pub unsafe extern "C" fn over_tls_client_run(
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
 ) -> c_int {
+    let log_level = if verbose != 0 { "trace" } else { "info" };
+    let root = module_path!().split("::").next().unwrap();
+    let default = format!("off,{}={}", root, log_level);
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
+
+    _over_tls_client_run(config_path, callback, ctx)
+}
+
+unsafe fn _over_tls_client_run(
+    config_path: *const c_char,
+    callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
+    ctx: *mut c_void,
+) -> c_int {
     let ccb = CCallback(callback, ctx);
 
     let block = || -> Result<()> {
         let config_path = std::ffi::CStr::from_ptr(config_path).to_str()?;
-        let log_level = if verbose != 0 { "trace" } else { "info" };
-        let root = module_path!().split("::").next().ok_or("module path error")?;
-        let default = format!("off,{}={}", root, log_level);
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
 
         let cb = |addr: SocketAddr| {
             log::trace!("Listening on {}", addr);

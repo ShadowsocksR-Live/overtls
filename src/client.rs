@@ -232,10 +232,7 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     stream.read_buf(&mut buf).await?;
 
     let response = Response::try_parse(&buf)?.ok_or("response parse failed")?.1;
-    let remote_key = response
-        .headers()
-        .get("Sec-WebSocket-Accept")
-        .ok_or(format!("{:?}", response))?;
+    let remote_key = response.headers().get("Sec-WebSocket-Accept").ok_or(format!("{:?}", response))?;
 
     let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
 

@@ -113,10 +113,7 @@ impl TrafficAudit {
     }
 
     pub fn set_enable_of(&mut self, client_id: &str, enable: bool) {
-        self.client_map
-            .entry(client_id.to_string())
-            .or_default()
-            .set_enable(enable);
+        self.client_map.entry(client_id.to_string()).or_default().set_enable(enable);
     }
 
     pub fn get_enable_of(&self, client_id: &str) -> bool {
@@ -125,9 +122,7 @@ impl TrafficAudit {
     }
 
     pub fn reset(&mut self) {
-        self.client_map
-            .iter_mut()
-            .for_each(|(_, client_node)| client_node.reset());
+        self.client_map.iter_mut().for_each(|(_, client_node)| client_node.reset());
     }
 
     pub fn reset_of(&mut self, client_id: &str) {

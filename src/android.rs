@@ -25,11 +25,7 @@ pub mod native {
 
     macro_rules! socket_protector {
         () => {
-            crate::android::native::SOCKET_PROTECTOR
-                .lock()
-                .unwrap()
-                .as_mut()
-                .unwrap()
+            crate::android::native::SOCKET_PROTECTOR.lock().unwrap().as_mut().unwrap()
         };
     }
 
@@ -273,12 +269,8 @@ pub mod native {
             let return_type = ReturnType::Primitive(Primitive::Boolean);
             let arguments = [JValue::Int(socket).as_jni()];
             let result = unsafe {
-                self.jni_env.call_method_unchecked(
-                    self.vpn_service,
-                    self.protect_method_id,
-                    return_type,
-                    &arguments[..],
-                )
+                self.jni_env
+                    .call_method_unchecked(self.vpn_service, self.protect_method_id, return_type, &arguments[..])
             };
             match result {
                 Ok(value) => {
