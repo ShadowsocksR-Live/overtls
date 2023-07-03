@@ -8,7 +8,7 @@ use crate::{
 };
 use bytes::{BufMut, BytesMut};
 use futures_util::{SinkExt, StreamExt};
-use socks5_impl::protocol::Address;
+use socks5_impl::protocol::{Address, AddressType};
 use std::{
     collections::HashMap,
     net::{SocketAddr, ToSocketAddrs},
@@ -43,31 +43,33 @@ pub async fn run_server(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) 
     let p = server.listen_port;
     let addr: SocketAddr = (h, p).to_socket_addrs()?.next().ok_or("Invalid server address")?;
 
-    let certs = if let Some(ref cert) = server.certfile {
+    let certs = server.certfile.as_ref().and_then(|cert| {
         if !config.disable_tls() {
             server_load_certs(cert).ok()
         } else {
             None
         }
-    } else {
-        None
-    };
+    });
 
-    let keys = if let Some(ref key) = server.keyfile {
+    let keys = server.keyfile.as_ref().and_then(|key| {
         if !config.disable_tls() {
-            server_load_keys(key).ok()
+            let keys = server_load_keys(key).ok();
+            if keys.as_ref().map(|keys| keys.len()).unwrap_or(0) > 0 {
+                keys
+            } else {
+                None
+            }
         } else {
             None
         }
-    } else {
-        None
-    };
+    });
 
-    let svr_cfg = if let (Some(certs), Some(mut keys)) = (certs, keys) {
+    let svr_cfg = if let (Some(certs), Some(keys)) = (certs, keys) {
+        let key = keys.get(0).ok_or("no keys")?.clone();
         rustls::ServerConfig::builder()
             .with_safe_defaults()
             .with_no_client_auth()
-            .with_single_cert(certs, keys.remove(0))
+            .with_single_cert(certs, key)
             .ok()
     } else {
         None
@@ -99,20 +101,16 @@ pub async fn run_server(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) 
         let incoming_task = async move {
             if let Some(acceptor) = acceptor {
                 let stream = acceptor.accept(stream).await?;
-                if let Err(e) = handle_incoming(stream, peer_addr, config, traffic_audit).await {
-                    log::debug!("{}: {}", peer_addr, e);
-                }
-            } else if let Err(e) = handle_incoming(stream, peer_addr, config, traffic_audit).await {
-                log::debug!("{}: {}", peer_addr, e);
+                handle_incoming(stream, peer_addr, config, traffic_audit).await?;
             } else {
-                log::debug!("some unknown error with {}", peer_addr);
+                handle_incoming(stream, peer_addr, config, traffic_audit).await?;
             }
             Ok::<_, Error>(())
         };
 
         tokio::spawn(async move {
-            if let Err(err) = incoming_task.await {
-                log::debug!("{:?}", err);
+            if let Err(e) = incoming_task.await {
+                log::debug!("{peer_addr}: {e}");
             }
         });
     }
@@ -189,7 +187,7 @@ where
     let tls_enable = scheme == "https";
     let host = url.host_str().ok_or("url host not exist")?;
     let port = url.port_or_known_default().ok_or("port not exist")?;
-    let forward_addr = &SocketAddr::new(host.parse()?, port);
+    let forward_addr = SocketAddr::new(host.parse()?, port);
 
     if tls_enable {
         let cert_store = retrieve_root_cert_store_for_client(&None)?;
@@ -291,7 +289,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         let addr_str = b64str_to_address(&target_address, false)?.to_string();
         let dst_addr = addr_str.to_socket_addrs()?.next().ok_or("addr string parse failed")?;
         log::trace!("{} -> {} {client_id:?} uri path: \"{}\"", peer, dst_addr, uri_path);
-        result = normal_tunnel(ws_stream, config, traffic_audit, &client_id, &dst_addr).await;
+        result = normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, dst_addr).await;
         if let Err(ref e) = result {
             log::debug!("{} <> {} connection closed error: {}", peer, dst_addr, e);
         } else {
@@ -303,79 +301,56 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 
 async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
+    peer: SocketAddr,
     _config: Config,
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
-    dst_addr: &SocketAddr,
+    dst_addr: SocketAddr,
 ) -> Result<()> {
     let mut outgoing = crate::tcp_stream::create(dst_addr).await?;
-
-    let (ws_stream_tx, mut ws_stream_rx) = tokio::sync::mpsc::channel(1024);
-    let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel(1024);
-
-    let ws_stream_to_outgoing = async move {
-        loop {
-            tokio::select! {
-                Some(msg) = ws_stream.next() => {
-                    let msg = msg?;
-                    if let Some(client_id) = &client_id {
-                        let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-                        traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
-                    }
-                    if msg.is_close() {
+    let mut buffer = [0; crate::STREAM_BUFFER_SIZE];
+    loop {
+        tokio::select! {
+            msg = ws_stream.next() => {
+                let msg = msg.ok_or(format!("{peer} -> {dst_addr} no Websocket message"))??;
+                if let Some(client_id) = &client_id {
+                    let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
+                    traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
+                }
+                match msg {
+                    Message::Close(_) => {
+                        log::trace!("{peer} <> {dst_addr} incoming connection closed normally");
                         break;
                     }
-                    if msg.is_text() || msg.is_binary() {
-                        outgoing_tx.send(msg.into_data()).await?;
+                    Message::Text(_) | Message::Binary(_) => {
+                        outgoing.write_all(&msg.into_data()).await?;
                     }
-                }
-                Some(data) = ws_stream_rx.recv() => {
-                    let msg = Message::binary(data);
-                    if let Some(client_id) = &client_id {
-                        let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-                        traffic_audit.lock().await.add_downstream_traffic_of(client_id, len);
-                    }
-                    ws_stream.send(msg).await?;
-                }
-                else => {
-                    break;
+                    _ => {}
                 }
             }
-        }
-        Ok::<_, Error>(())
-    };
-
-    let outgoing_to_ws_stream = async move {
-        loop {
-            tokio::select! {
-                Ok(data) = async {
-                    let mut b2 = [0; crate::STREAM_BUFFER_SIZE];
-                    let n = outgoing.read(&mut b2).await?;
-                    Ok::<_, Error>(Some(b2[..n].to_vec()))
-                 } => {
-                    if let Some(data) = data {
-                        if data.is_empty() {
-                            break;
+            len = outgoing.read(&mut buffer) => {
+                match len {
+                    Ok(0) => {
+                        ws_stream.send(Message::Close(None)).await?;
+                        log::trace!("{} <> {} outgoing connection reached EOF", peer, dst_addr);
+                        break;
+                    }
+                    Ok(n) => {
+                        let msg = Message::Binary(buffer[..n].to_vec());
+                        if let Some(client_id) = &client_id {
+                            let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
+                            traffic_audit.lock().await.add_downstream_traffic_of(client_id, len);
                         }
-                        ws_stream_tx.send(data).await?;
-                    } else {
+                        ws_stream.send(msg).await?;
+                    }
+                    Err(e) => {
+                        ws_stream.send(Message::Close(None)).await?;
+                        log::debug!("{} <> {} outgoing connection closed \"{}\"", peer, dst_addr, e);
                         break;
                     }
                 }
-                Some(msg) = outgoing_rx.recv() => {
-                    outgoing.write_all(&msg).await?;
-                }
-                else => {
-                    break;
-                }
             }
         }
-        Ok::<_, Error>(())
-    };
-
-    tokio::select! {
-        r = ws_stream_to_outgoing => { if let Err(e) = r { log::debug!("{} ws_stream_to_outgoing \"{}\"", dst_addr, e); } }
-        r = outgoing_to_ws_stream => { if let Err(e) = r { log::debug!("{} outgoing_to_ws_stream \"{}\"", dst_addr, e); } }
     }
     Ok(())
 }
@@ -417,7 +392,21 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
 
                     dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr);
 
-                    let dst_addr = SocketAddr::try_from(dst_addr)?;
+                    let dst_addr = if dst_addr.port() == 53 {
+                        match dst_addr.get_type() {
+                            AddressType::IPv4 => {
+                                "8.8.8.8:53".parse::<SocketAddr>()?
+                            }
+                            AddressType::IPv6 => {
+                                "[2001:4860:4860::8888]:53".parse::<SocketAddr>()?
+                            }
+                            _ => {
+                                return Err(Error::from("invalid address type"));
+                            }
+                        }
+                    } else {
+                        dst_addr.to_socket_addrs()?.next().ok_or("invalid address")?
+                    };
 
                     if dst_addr.is_ipv4() {
                         udp_socket.send_to(&pkt, &dst_addr).await?;

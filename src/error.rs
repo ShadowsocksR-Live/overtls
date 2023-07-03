@@ -56,19 +56,13 @@ pub enum Error {
     #[error("std::str::Utf8Error {0}")]
     Utf8(#[from] std::str::Utf8Error),
 
-    #[error("&str error: {0}")]
-    Str(String),
-
     #[error("String error: {0}")]
     String(String),
-
-    #[error("&String error: {0}")]
-    RefString(String),
 }
 
 impl From<&str> for Error {
     fn from(s: &str) -> Self {
-        Error::Str(s.to_string())
+        Error::String(s.to_string())
     }
 }
 
@@ -80,7 +74,7 @@ impl From<String> for Error {
 
 impl From<&String> for Error {
     fn from(s: &String) -> Self {
-        Error::RefString(s.to_string())
+        Error::String(s.to_string())
     }
 }
 

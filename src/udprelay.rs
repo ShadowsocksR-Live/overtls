@@ -9,7 +9,7 @@ use socks5_impl::{
     protocol::{Address, Reply, UdpHeader},
     server::{
         connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},
-        Associate,
+        UdpAssociate,
     },
 };
 use std::{
@@ -35,7 +35,7 @@ pub(crate) type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;
 pub(crate) type SocketAddrSet = Arc<Mutex<HashSet<SocketAddr>>>;
 
 pub(crate) async fn handle_s5_upd_associate(
-    associate: Associate<UdpNeedReply>,
+    associate: UdpAssociate<UdpNeedReply>,
     udp_tx: UdpRequestSender,
     incomings: SocketAddrSet,
 ) -> Result<()> {
@@ -146,10 +146,10 @@ pub(crate) async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddr
     let svr_addr = addr.next().ok_or("client address not exist")?;
 
     if !config.disable_tls() {
-        let ws_stream = client::create_tls_ws_stream(&svr_addr, None, &config, Some(true)).await?;
+        let ws_stream = client::create_tls_ws_stream(svr_addr, None, &config, Some(true)).await?;
         _run_udp_loop(udp_tx, incomings, ws_stream).await?;
     } else {
-        let ws_stream = client::create_plaintext_ws_stream(&svr_addr, None, &config, Some(true)).await?;
+        let ws_stream = client::create_plaintext_ws_stream(svr_addr, None, &config, Some(true)).await?;
         _run_udp_loop(udp_tx, incomings, ws_stream).await?;
     }
     Ok(())
@@ -161,6 +161,8 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
 ) -> Result<()> {
     let mut udp_rx = udp_tx.subscribe();
+
+    let mut timer = tokio::time::interval(Duration::from_secs(30));
 
     let mut res = Ok::<_, Error>(());
     loop {
@@ -179,7 +181,11 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         log::error!("{}", e);
                     }
 
-                    log::trace!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
+                    if dst_addr.port() == 53 {
+                        log::trace!("[UDP] DNS query package {src_addr} -> {dst_addr}");
+                    } else {
+                        log::trace!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
+                    }
                     let msg = Message::Binary(buf.freeze().to_vec());
                     ws_stream.send(msg).await?;
                 } else {
@@ -209,6 +215,9 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         log::trace!("[UDP] ws stream closed by remote");
                         break;
                     },
+                    Some(Ok(Message::Pong(_))) => {
+                        log::trace!("[UDP] Websocket pong from remote");
+                    },
                     Some(Ok(_)) => {
                         log::trace!("[UDP] unexpected ws message");
                     },
@@ -224,6 +233,11 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                 }
                 Ok::<_, Error>(())
             },
+            _ = timer.tick() => {
+                ws_stream.send(Message::Ping(vec![])).await?;
+                log::trace!("[UDP] Websocket ping from local");
+                Ok::<_, Error>(())
+            }
         };
     }
 

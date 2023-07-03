@@ -2,7 +2,7 @@ use crate::error::Result;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
 
-pub(crate) async fn create(addr: &SocketAddr) -> Result<TcpStream> {
+pub(crate) async fn create(addr: SocketAddr) -> Result<TcpStream> {
     #[cfg(target_os = "android")]
     {
         let socket = if addr.is_ipv4() {
@@ -16,7 +16,7 @@ pub(crate) async fn create(addr: &SocketAddr) -> Result<TcpStream> {
         use std::os::unix::io::AsRawFd;
         crate::android::tun_callbacks::on_socket_created(socket.as_raw_fd());
 
-        Ok(socket.connect(*addr).await?)
+        Ok(socket.connect(addr).await?)
     }
 
     #[cfg(not(target_os = "android"))]

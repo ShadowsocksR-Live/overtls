@@ -44,7 +44,7 @@ pub(crate) fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> R
 
 pub(crate) async fn create_tls_client_stream(
     root_cert_store: RootCertStore,
-    addr: &SocketAddr,
+    addr: SocketAddr,
     domain: &str,
 ) -> Result<TlsStream<TcpStream>> {
     let config = rustls::ClientConfig::builder()
