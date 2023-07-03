@@ -43,31 +43,33 @@ pub async fn run_server(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) 
     let p = server.listen_port;
     let addr: SocketAddr = (h, p).to_socket_addrs()?.next().ok_or("Invalid server address")?;
 
-    let certs = if let Some(ref cert) = server.certfile {
+    let certs = server.certfile.as_ref().and_then(|cert| {
         if !config.disable_tls() {
             server_load_certs(cert).ok()
         } else {
             None
         }
-    } else {
-        None
-    };
+    });
 
-    let keys = if let Some(ref key) = server.keyfile {
+    let keys = server.keyfile.as_ref().and_then(|key| {
         if !config.disable_tls() {
-            server_load_keys(key).ok()
+            let keys = server_load_keys(key).ok();
+            if keys.as_ref().map(|keys| keys.len()).unwrap_or(0) > 0 {
+                keys
+            } else {
+                None
+            }
         } else {
             None
         }
-    } else {
-        None
-    };
+    });
 
-    let svr_cfg = if let (Some(certs), Some(mut keys)) = (certs, keys) {
+    let svr_cfg = if let (Some(certs), Some(keys)) = (certs, keys) {
+        let key = keys.get(0).ok_or("no keys")?.clone();
         rustls::ServerConfig::builder()
             .with_safe_defaults()
             .with_no_client_auth()
-            .with_single_cert(certs, keys.remove(0))
+            .with_single_cert(certs, key)
             .ok()
     } else {
         None

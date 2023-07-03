@@ -9,7 +9,7 @@ use socks5_impl::{
     protocol::{Address, Reply, UdpHeader},
     server::{
         connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},
-        Associate,
+        UdpAssociate,
     },
 };
 use std::{
@@ -35,7 +35,7 @@ pub(crate) type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;
 pub(crate) type SocketAddrSet = Arc<Mutex<HashSet<SocketAddr>>>;
 
 pub(crate) async fn handle_s5_upd_associate(
-    associate: Associate<UdpNeedReply>,
+    associate: UdpAssociate<UdpNeedReply>,
     udp_tx: UdpRequestSender,
     incomings: SocketAddrSet,
 ) -> Result<()> {
@@ -179,7 +179,11 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         log::error!("{}", e);
                     }
 
-                    log::trace!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
+                    if dst_addr.port() == 53 {
+                        log::trace!("[UDP] DNS query package {src_addr} -> {dst_addr}");
+                    } else {
+                        log::trace!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
+                    }
                     let msg = Message::Binary(buf.freeze().to_vec());
                     ws_stream.send(msg).await?;
                 } else {

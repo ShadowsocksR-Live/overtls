@@ -81,7 +81,7 @@ async fn handle_incoming(
 ) -> Result<()> {
     let peer_addr = conn.peer_addr()?;
     match conn.handshake().await? {
-        Connection::Associate(asso, _) => {
+        Connection::UdpAssociate(asso, _) => {
             if let Some(udp_tx) = udp_tx {
                 if let Err(e) = udprelay::handle_s5_upd_associate(asso, udp_tx, incomings).await {
                     log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");

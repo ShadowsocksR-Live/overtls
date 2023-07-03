@@ -13,18 +13,18 @@ pub(crate) const CLIENT_ID: &str = "Client-Id";
 /// For example, we can pass the remote server IP to the server.
 /// This is useful for servers that are behind a reverse proxy.
 #[derive(Debug, Clone)]
-pub(crate) struct WeirdUri<'a> {
-    pub(crate) uri: &'a str,
+pub(crate) struct WeirdUri {
+    pub(crate) uri: String,
     pub(crate) target_address: Option<String>,
     pub(crate) sec_websocket_key: String,
     pub(crate) udp_tunnel: Option<bool>,
     pub(crate) client_id: Option<String>,
 }
 
-impl<'a> WeirdUri<'a> {
-    pub(crate) fn new(uri: &'a str, target_address: Option<String>, udp_tunnel: Option<bool>, client_id: Option<String>) -> Self {
+impl WeirdUri {
+    pub(crate) fn new(uri: &str, target_address: Option<String>, udp_tunnel: Option<bool>, client_id: Option<String>) -> Self {
         Self {
-            uri,
+            uri: uri.to_owned(),
             target_address,
             sec_websocket_key: generate_key(),
             udp_tunnel,
@@ -33,9 +33,9 @@ impl<'a> WeirdUri<'a> {
     }
 }
 
-impl<'a> IntoClientRequest for WeirdUri<'a> {
+impl IntoClientRequest for WeirdUri {
     fn into_client_request(self) -> Result<Request> {
-        let uri = url::Url::parse(self.uri).map_err(|_| Error::Url(UrlError::NoPathOrQuery))?;
+        let uri = url::Url::parse(&self.uri).map_err(|_| Error::Url(UrlError::NoPathOrQuery))?;
 
         let host = uri.host_str().ok_or(Error::Url(UrlError::EmptyHostName))?;
         let host = crate::combine_addr_and_port(host, uri.port().unwrap_or(80));
@@ -67,7 +67,7 @@ impl<'a> IntoClientRequest for WeirdUri<'a> {
     }
 }
 
-impl std::fmt::Display for WeirdUri<'_> {
+impl std::fmt::Display for WeirdUri {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Ok(req) = self.clone().into_client_request() {
             write!(f, "{req:?}")
