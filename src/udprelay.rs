@@ -32,12 +32,12 @@ use tungstenite::protocol::Message;
 
 pub(crate) type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Address)>;
 pub(crate) type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;
-pub(crate) type SocketAddrSet = Arc<Mutex<HashSet<SocketAddr>>>;
+pub(crate) type SocketAddrHashSet = Arc<Mutex<HashSet<SocketAddr>>>;
 
 pub(crate) async fn handle_s5_upd_associate(
     associate: UdpAssociate<UdpNeedReply>,
     udp_tx: UdpRequestSender,
-    incomings: SocketAddrSet,
+    incomings: SocketAddrHashSet,
 ) -> Result<()> {
     let listen_ip = associate.local_addr()?.ip();
 
@@ -45,7 +45,7 @@ pub(crate) async fn handle_s5_upd_associate(
     let udp_listener = UdpSocket::bind(SocketAddr::from((listen_ip, 0))).await;
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
         Ok((listen_udp, listen_addr)) => {
-            log::info!("[UDP] listen on {listen_addr}");
+            log::info!("[UDP] {listen_addr} listen on");
 
             let s5_listen_addr = listen_addr.into();
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
@@ -65,7 +65,7 @@ pub(crate) async fn handle_s5_upd_associate(
 
             reply_listener.shutdown().await?;
 
-            log::trace!("[UDP] listener {listen_addr} closed with {res:?}");
+            log::trace!("[UDP] {listen_addr} listener closed with {res:?}");
 
             {
                 let incoming = *incoming_addr.lock().await;
@@ -92,7 +92,7 @@ pub(crate) const fn command_max_serialized_len() -> usize {
 async fn socks5_to_relay(
     listen_udp: Arc<AssociatedUdpSocket>,
     incoming: Arc<Mutex<SocketAddr>>,
-    incomings: SocketAddrSet,
+    incomings: SocketAddrHashSet,
     udp_tx: UdpRequestSender,
 ) -> Result<()> {
     loop {
@@ -110,7 +110,7 @@ async fn socks5_to_relay(
         incoming.lock().await.clone_from(&src_addr);
         incomings.lock().await.insert(src_addr);
 
-        log::trace!("[UDP] incoming packet {src_addr} -> {dst_addr} {} bytes", pkt.len());
+        log::trace!("[UDP] {src_addr} -> {dst_addr} incoming packet size {}", pkt.len());
         let src_addr = src_addr.into();
         let _ = udp_tx.send((pkt, dst_addr, src_addr));
     }
@@ -123,10 +123,10 @@ async fn relay_to_socks5(
     incoming_addr: Arc<Mutex<SocketAddr>>,
     mut udp_rx: UdpRequestReceiver,
 ) -> Result<()> {
-    while let Ok((pkt, addr, _)) = udp_rx.recv().await {
+    while let Ok((pkt, addr, from_addr)) = udp_rx.recv().await {
         let to_addr = SocketAddr::try_from(addr.clone())?;
         if *incoming_addr.lock().await == to_addr {
-            log::trace!("[UDP] feedback to incoming {to_addr}");
+            log::trace!("[UDP] {to_addr} <- {from_addr} feedback to incoming");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
         }
     }
@@ -134,13 +134,13 @@ async fn relay_to_socks5(
     Ok(())
 }
 
-pub(crate) fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, SocketAddrSet) {
-    let incomings = Arc::new(Mutex::new(HashSet::<SocketAddr>::new()));
+pub(crate) fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, SocketAddrHashSet) {
+    let incomings: SocketAddrHashSet = Arc::new(Mutex::new(HashSet::<SocketAddr>::new()));
     let (tx, rx) = tokio::sync::broadcast::channel::<(Bytes, Address, Address)>(10);
     (tx, rx, incomings)
 }
 
-pub(crate) async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrSet, config: Config) -> Result<()> {
+pub(crate) async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrHashSet, config: Config) -> Result<()> {
     let client = config.client.as_ref().ok_or("config client not exist")?;
     let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
     let svr_addr = addr.next().ok_or("client address not exist")?;
@@ -157,7 +157,7 @@ pub(crate) async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddr
 
 async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
     udp_tx: UdpRequestSender,
-    incomings: SocketAddrSet,
+    incomings: SocketAddrHashSet,
     mut ws_stream: WebSocketStream<S>,
 ) -> Result<()> {
     let mut udp_rx = udp_tx.subscribe();
@@ -182,14 +182,14 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     }
 
                     if dst_addr.port() == 53 {
-                        log::trace!("[UDP] DNS query package {src_addr} -> {dst_addr}");
+                        log::trace!("[UDP] {src_addr} -> {dst_addr} DNS query package");
                     } else {
-                        log::trace!("[UDP] send to remote {src_addr} -> {dst_addr} {} bytes", buf.len());
+                        log::trace!("[UDP] {src_addr} -> {dst_addr} send to remote size {}", buf.len());
                     }
                     let msg = Message::Binary(buf.freeze().to_vec());
                     ws_stream.send(msg).await?;
                 } else {
-                    log::trace!("[UDP] skip feedback packet {src_addr} -> {dst_addr}");
+                    log::trace!("[UDP] {dst_addr} <- {src_addr} skip feedback packet");
                 }
                  Ok::<_, Error>(())
             },
@@ -219,15 +219,15 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         log::trace!("[UDP] Websocket pong from remote");
                     },
                     Some(Ok(_)) => {
-                        log::trace!("[UDP] unexpected ws message");
+                        log::trace!("[UDP] unexpected Websocket message");
                     },
                     Some(Err(err)) => {
-                        log::trace!("[UDP] {err}");
+                        log::trace!("[UDP] error \"{err}\"");
                         res = Err(err.into());
                         break;
                     },
                     None => {
-                        log::trace!("[UDP] ws stream closed by local");
+                        log::trace!("[UDP] Websocket stream closed by local");
                         break;
                     }
                 }
@@ -241,14 +241,14 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
         };
     }
 
-    log::trace!("[UDP] run_udp_loop exiting...");
+    log::trace!("[UDP] _run_udp_loop exiting...");
 
     res
 }
 
 pub(crate) async fn udp_handler_watchdog(
     config: &Config,
-    incomings: &SocketAddrSet,
+    incomings: &SocketAddrHashSet,
     udp_tx: &UdpRequestSender,
     exiting_flag: Option<Arc<AtomicBool>>,
 ) -> Result<()> {

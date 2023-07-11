@@ -77,7 +77,7 @@ async fn handle_incoming(
     conn: IncomingConnection,
     config: Config,
     udp_tx: Option<udprelay::UdpRequestSender>,
-    incomings: udprelay::SocketAddrSet,
+    incomings: udprelay::SocketAddrHashSet,
 ) -> Result<()> {
     let peer_addr = conn.peer_addr()?;
     match conn.handshake().await? {

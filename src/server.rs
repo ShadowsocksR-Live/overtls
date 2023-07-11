@@ -8,7 +8,7 @@ use crate::{
 };
 use bytes::{BufMut, BytesMut};
 use futures_util::{SinkExt, StreamExt};
-use socks5_impl::protocol::{Address, AddressType};
+use socks5_impl::protocol::Address;
 use std::{
     collections::HashMap,
     net::{SocketAddr, ToSocketAddrs},
@@ -281,7 +281,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         log::trace!("[UDP] {} tunneling established", peer);
         result = create_udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
         if let Err(ref e) = result {
-            log::debug!("[UDP] {} closed error: {}", peer, e);
+            log::debug!("[UDP] {} closed with error \"{}\"", peer, e);
         } else {
             log::trace!("[UDP] {} closed.", peer);
         }
@@ -392,21 +392,10 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
 
                     dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr);
 
-                    let dst_addr = if dst_addr.port() == 53 {
-                        match dst_addr.get_type() {
-                            AddressType::IPv4 => {
-                                "8.8.8.8:53".parse::<SocketAddr>()?
-                            }
-                            AddressType::IPv6 => {
-                                "[2001:4860:4860::8888]:53".parse::<SocketAddr>()?
-                            }
-                            _ => {
-                                return Err(Error::from("invalid address type"));
-                            }
-                        }
-                    } else {
-                        dst_addr.to_socket_addrs()?.next().ok_or("invalid address")?
-                    };
+                    let mut dst_addr = dst_addr.to_socket_addrs()?.next().ok_or("invalid address")?;
+                    if dst_addr.port() == 53 && addr_is_private(&dst_addr) {
+                        dst_addr = "8.8.8.8:53".parse::<SocketAddr>()?;
+                    }
 
                     if dst_addr.is_ipv4() {
                         udp_socket.send_to(&pkt, &dst_addr).await?;
@@ -429,6 +418,13 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
         }
     }
     Ok(())
+}
+
+fn addr_is_private(addr: &SocketAddr) -> bool {
+    match addr {
+        SocketAddr::V4(addr) => addr.ip().is_private() || addr.ip().is_loopback() || addr.ip().is_link_local(),
+        SocketAddr::V6(_) => false,
+    }
 }
 
 async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
