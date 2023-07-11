@@ -56,6 +56,9 @@ pub enum Error {
     #[error("std::str::Utf8Error {0}")]
     Utf8(#[from] std::str::Utf8Error),
 
+    #[error("socks5_impl::Error {0}")]
+    Socks5(#[from] socks5_impl::Error),
+
     #[error("String error: {0}")]
     String(String),
 }

@@ -10,7 +10,7 @@ use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
     protocol::{Address, Reply},
-    server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server},
+    server::{auth::NoAuth, connection::connect::NeedReply, ClientConnection, Connect, IncomingConnection, Server},
 };
 use std::{
     net::SocketAddr,
@@ -73,15 +73,16 @@ where
     Ok(())
 }
 
-async fn handle_incoming(
-    conn: IncomingConnection,
+async fn handle_incoming<S: 'static>(
+    conn: IncomingConnection<S>,
     config: Config,
     udp_tx: Option<udprelay::UdpRequestSender>,
     incomings: udprelay::SocketAddrHashSet,
 ) -> Result<()> {
     let peer_addr = conn.peer_addr()?;
-    match conn.handshake().await? {
-        Connection::UdpAssociate(asso, _) => {
+    let (conn, _res) = conn.authenticate().await?;
+    match conn.wait_request().await? {
+        ClientConnection::UdpAssociate(asso, _) => {
             if let Some(udp_tx) = udp_tx {
                 if let Err(e) = udprelay::handle_s5_upd_associate(asso, udp_tx, incomings).await {
                     log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");
@@ -91,11 +92,11 @@ async fn handle_incoming(
                 conn.shutdown().await?;
             }
         }
-        Connection::Bind(bind, _) => {
+        ClientConnection::Bind(bind, _) => {
             let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
             conn.shutdown().await?;
         }
-        Connection::Connect(connect, addr) => {
+        ClientConnection::Connect(connect, addr) => {
             if let Err(e) = handle_socks5_cmd_connection(connect, addr.clone(), config).await {
                 log::debug!("{} <> {} {}", peer_addr, addr, e);
             }
