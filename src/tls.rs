@@ -5,6 +5,7 @@ use std::{
     io::BufReader,
     net::SocketAddr,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use tokio::net::TcpStream;
 use tokio_rustls::{
@@ -42,15 +43,36 @@ pub(crate) fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> R
     Ok(root_cert_store)
 }
 
+mod danger {
+    pub struct NoCertificateVerification {}
+
+    impl rustls::client::ServerCertVerifier for NoCertificateVerification {
+        fn verify_server_cert(
+            &self,
+            _end_entity: &rustls::Certificate,
+            _intermediates: &[rustls::Certificate],
+            _server_name: &rustls::ServerName,
+            _scts: &mut dyn Iterator<Item = &[u8]>,
+            _ocsp: &[u8],
+            _now: std::time::SystemTime,
+        ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
+            Ok(rustls::client::ServerCertVerified::assertion())
+        }
+    }
+}
+
 pub(crate) async fn create_tls_client_stream(
     root_cert_store: RootCertStore,
     addr: SocketAddr,
     domain: &str,
 ) -> Result<TlsStream<TcpStream>> {
-    let config = rustls::ClientConfig::builder()
+    let mut config = rustls::ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(root_cert_store)
         .with_no_client_auth();
+    config
+        .dangerous()
+        .set_certificate_verifier(Arc::new(danger::NoCertificateVerification {}));
     let connector = TlsConnector::from(std::sync::Arc::new(config));
 
     let stream = crate::tcp_stream::create(addr).await?;
