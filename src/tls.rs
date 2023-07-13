@@ -4,7 +4,8 @@ use std::{
     fs::File,
     io::BufReader,
     net::SocketAddr,
-    path::{Path, PathBuf}, sync::Arc,
+    path::{Path, PathBuf},
+    sync::Arc,
 };
 use tokio::net::TcpStream;
 use tokio_rustls::{
@@ -69,7 +70,9 @@ pub(crate) async fn create_tls_client_stream(
         .with_safe_defaults()
         .with_root_certificates(root_cert_store)
         .with_no_client_auth();
-    config.dangerous().set_certificate_verifier(Arc::new(danger::NoCertificateVerification {}));
+    config
+        .dangerous()
+        .set_certificate_verifier(Arc::new(danger::NoCertificateVerification {}));
     let connector = TlsConnector::from(std::sync::Arc::new(config));
 
     let stream = crate::tcp_stream::create(addr).await?;
