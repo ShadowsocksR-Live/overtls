@@ -392,11 +392,7 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
 
                     dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr);
 
-                    let mut dst_addr = dst_addr.to_socket_addrs()?.next().ok_or("invalid address")?;
-                    if dst_addr.port() == 53 && addr_is_private(&dst_addr) {
-                        dst_addr = "8.8.8.8:53".parse::<SocketAddr>()?;
-                    }
-
+                    let dst_addr = dst_addr.to_socket_addrs()?.next().ok_or("invalid address")?;
                     if dst_addr.is_ipv4() {
                         udp_socket.send_to(&pkt, &dst_addr).await?;
                     } else {
@@ -418,13 +414,6 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
         }
     }
     Ok(())
-}
-
-fn addr_is_private(addr: &SocketAddr) -> bool {
-    match addr {
-        SocketAddr::V4(addr) => addr.ip().is_private() || addr.ip().is_loopback() || addr.ip().is_link_local(),
-        SocketAddr::V6(_) => false,
-    }
 }
 
 async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
