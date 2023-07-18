@@ -52,7 +52,7 @@ pub(crate) fn b64str_to_address(s: &str, url_safe: bool) -> Result<Address> {
             result?
         }
     };
-    Address::from_data(&buf).map_err(|e| e.into())
+    Address::try_from(&buf[..]).map_err(|e| e.into())
 }
 
 pub(crate) fn combine_addr_and_port(addr: &str, port: u16) -> String {
