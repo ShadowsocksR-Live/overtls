@@ -45,7 +45,7 @@ pub(crate) async fn handle_s5_upd_associate(
     let udp_listener = UdpSocket::bind(SocketAddr::from((listen_ip, 0))).await;
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
         Ok((listen_udp, listen_addr)) => {
-            log::info!("[UDP] {listen_addr} listen on");
+            log::trace!("[UDP] {listen_addr} listen on");
 
             let s5_listen_addr = listen_addr.into();
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
@@ -123,10 +123,10 @@ async fn relay_to_socks5(
     incoming_addr: Arc<Mutex<SocketAddr>>,
     mut udp_rx: UdpRequestReceiver,
 ) -> Result<()> {
-    while let Ok((pkt, addr, from_addr)) = udp_rx.recv().await {
+    while let Ok((pkt, addr, _from_addr)) = udp_rx.recv().await {
         let to_addr = SocketAddr::try_from(addr.clone())?;
         if *incoming_addr.lock().await == to_addr {
-            log::trace!("[UDP] {to_addr} <- {from_addr} feedback to incoming");
+            log::trace!("[UDP] {to_addr} <- {_from_addr} feedback to incoming");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
         }
     }
@@ -168,8 +168,8 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
     loop {
         let _res = tokio::select! {
             Ok((pkt, dst_addr, src_addr)) = udp_rx.recv() => {
-                let flag = { incomings.lock().await.contains(&SocketAddr::try_from(dst_addr.clone())?) };
-                if !flag {
+                let direction = { incomings.lock().await.contains(&SocketAddr::try_from(dst_addr.clone())?) };
+                if !direction {
                     // packet send to remote server, format: dst_addr + src_addr + pkt
                     let mut buf = BytesMut::new();
                     dst_addr.write_to_buf(&mut buf);
@@ -182,9 +182,9 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     }
 
                     if dst_addr.port() == 53 {
-                        log::trace!("[UDP] {src_addr} -> {dst_addr} DNS query package");
+                        log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query package size {}", buf.len());
                     } else {
-                        log::trace!("[UDP] {src_addr} -> {dst_addr} send to remote size {}", buf.len());
+                        log::debug!("[UDP] {src_addr} -> {dst_addr} send to remote size {}", buf.len());
                     }
                     let msg = Message::Binary(buf.freeze().to_vec());
                     ws_stream.send(msg).await?;
@@ -208,7 +208,12 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         let remote_addr = Address::try_from(&buf[..])?;
                         let _ = buf.split_to(remote_addr.serialized_len());
                         let pkt = buf.to_vec();
-                        log::trace!("[UDP] {} <- {} length {}", incoming_addr, remote_addr, len);
+
+                        if remote_addr.port() == 53 {
+                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} DNS response package size {}", len);
+                        } else {
+                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} recv from remote size {}", len);
+                        }
                         udp_tx.send((Bytes::from(pkt), incoming_addr, remote_addr))?;
                     },
                     Some(Ok(Message::Close(_))) => {
