@@ -1,6 +1,7 @@
 use crate::{
     client,
     config::Config,
+    dns,
     error::{Error, Result},
 };
 use bytes::{BufMut, Bytes, BytesMut};
@@ -164,6 +165,8 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
 
     let mut timer = tokio::time::interval(Duration::from_secs(30));
 
+    let cache = dns::create_dns_cache();
+
     let mut res = Ok::<_, Error>(());
     loop {
         let _res = tokio::select! {
@@ -182,7 +185,15 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     }
 
                     if dst_addr.port() == 53 {
-                        log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query package size {}", buf.len());
+                        let msg = dns::parse_data_to_dns_message(&pkt, false)?;
+                        let domain = dns::extract_domain_from_dns_message(&msg)?;
+                        if let Some(cached_message) = dns::dns_cache_get_message(&cache, &msg) {
+                            log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query package for \"{}\" hit cache", domain);
+                            let data = cached_message.to_vec().map_err(|e| e.to_string())?;
+                            udp_tx.send((Bytes::from(data), src_addr, dst_addr))?;
+                            continue;
+                        }
+                        log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query package for \"{}\" size {}", domain, buf.len());
                     } else {
                         log::debug!("[UDP] {src_addr} -> {dst_addr} send to remote size {}", buf.len());
                     }
@@ -210,7 +221,16 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         let pkt = buf.to_vec();
 
                         if remote_addr.port() == 53 {
-                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} DNS response package size {}", len);
+                            let msg = dns::parse_data_to_dns_message(&pkt, false)?;
+                            let domain = dns::extract_domain_from_dns_message(&msg)?;
+                            let ipaddr = match dns::extract_ipaddr_from_dns_message(&msg) {
+                                Ok(ipaddr) => {
+                                    format!("{:?}", ipaddr)
+                                }
+                                Err(mut e) => {e.truncate(48); e},
+                            };
+                            dns::dns_cache_put_message(&cache, &msg).await;
+                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} DNS response package size {len} for \"{}\" <==> \"{}\"", domain, ipaddr);
                         } else {
                             log::debug!("[UDP] {incoming_addr} <- {remote_addr} recv from remote size {}", len);
                         }
