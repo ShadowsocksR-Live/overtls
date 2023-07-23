@@ -24,8 +24,6 @@ pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32;
 #[cfg(not(target_os = "windows"))]
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32 * 3;
 
-pub const LOCAL_HOST_V4: &str = "127.0.0.1";
-
 pub(crate) fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     let mut buf = BytesMut::with_capacity(1024);
     addr.write_to_buf(&mut buf);

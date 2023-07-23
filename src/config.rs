@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::{
-    net::{SocketAddr, ToSocketAddrs},
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
     path::PathBuf,
 };
 
@@ -119,7 +119,7 @@ impl Config {
     pub fn forward_addr(&self) -> Option<String> {
         if self.is_server {
             let f = |s: &Server| s.forward_addr.clone();
-            let default = Some(format!("http://{}:80", crate::LOCAL_HOST_V4));
+            let default = Some(format!("http://{}:80", Ipv4Addr::LOCALHOST));
             self.server.as_ref().map(f).unwrap_or(default)
         } else {
             None
@@ -169,7 +169,7 @@ impl Config {
 
         if let Some(server) = &mut self.server {
             if server.listen_host.is_empty() {
-                server.listen_host = "0.0.0.0".to_string();
+                server.listen_host = Ipv4Addr::UNSPECIFIED.to_string();
             }
             if server.listen_port == 0 {
                 server.listen_port = 443;
@@ -185,9 +185,6 @@ impl Config {
             if client.server_domain.is_none() || client.server_domain.as_ref().unwrap_or(&"".to_string()).is_empty() {
                 client.server_domain = Some(client.server_host.clone());
             }
-            if client.listen_host.is_empty() {
-                client.listen_host = crate::LOCAL_HOST_V4.to_string();
-            }
 
             if !self.is_server {
                 let mut addr = (client.server_host.clone(), client.server_port).to_socket_addrs()?;
@@ -197,7 +194,13 @@ impl Config {
                     let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
                     std::net::TcpStream::connect_timeout(&addr, timeout)?;
                 }
-                client.server_host = addr.ip().to_string();
+                if client.listen_host.is_empty() {
+                    client.listen_host = if addr.is_ipv4() {
+                        Ipv4Addr::LOCALHOST.to_string()
+                    } else {
+                        Ipv6Addr::LOCALHOST.to_string()
+                    };
+                }
             }
         }
         Ok(())

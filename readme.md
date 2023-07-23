@@ -6,7 +6,7 @@ overtls is [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) type proxy softw
 
 The function is complete and the code is concise, and the core function is 1200 lines of code in total.
 
-> `OverTLS` is a Rust implementation of `SSRoT` without `SSR` and `SS`, only retaining `oT`, which is fast and stable.
+> `OverTLS` is a Rust implementation of [SSRoT](https://github.com/ShadowsocksR-Live/shadowsocksr-native) without `SSR` and `SS`, only retaining `oT`, which is fast and stable.
 > ```kotlin
 >     fun isOverTLS() : Boolean =
 >         over_tls_enable && method == "none" && obfs == "plain" && protocol == "origin"

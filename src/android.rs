@@ -218,8 +218,12 @@ pub mod native {
         EXITING_FLAG.store(true, Ordering::SeqCst);
 
         let l_addr = *LISTEN_ADDR.lock().unwrap();
-        let addr = if l_addr.is_ipv6() { "::1" } else { crate::LOCAL_HOST_V4 };
-        let _ = std::net::TcpStream::connect((addr, l_addr.port()));
+        let addr = if l_addr.is_ipv6() {
+            SocketAddr::from((Ipv6Addr::LOCALHOST, l_addr.port()))
+        } else {
+            SocketAddr::from((Ipv4Addr::LOCALHOST, l_addr.port()))
+        };
+        let _ = std::net::TcpStream::connect(addr);
         log::trace!("stopClient on listen address {l_addr}");
 
         SocketProtector::release();

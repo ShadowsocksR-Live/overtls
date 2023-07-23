@@ -11,7 +11,7 @@ use futures_util::{SinkExt, StreamExt};
 use socks5_impl::protocol::Address;
 use std::{
     collections::HashMap,
-    net::{SocketAddr, ToSocketAddrs},
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -361,8 +361,8 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
 ) -> Result<()> {
-    let udp_socket = UdpSocket::bind("0.0.0.0:0").await?;
-    let udp_socket_v6 = UdpSocket::bind("[::]:0").await?;
+    let udp_socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).await?;
+    let udp_socket_v6 = UdpSocket::bind((Ipv6Addr::UNSPECIFIED, 0)).await?;
 
     let mut buf = vec![0u8; crate::STREAM_BUFFER_SIZE];
     let mut buf_v6 = vec![0u8; crate::STREAM_BUFFER_SIZE];

@@ -1,5 +1,8 @@
-use overtls::{client, config, server, Error, Result, LOCAL_HOST_V4};
-use std::sync::{atomic::AtomicBool, Arc};
+use overtls::{client, config, server, Error, Result};
+use std::{
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
+    sync::{atomic::AtomicBool, Arc},
+};
 
 mod cmdopt;
 
@@ -85,8 +88,12 @@ async fn async_main(config: config::Config) -> Result<()> {
 
         exiting_flag.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        let addr = if local_addr.is_ipv6() { "::1" } else { LOCAL_HOST_V4 };
-        let _ = std::net::TcpStream::connect((addr, local_addr.port()));
+        let addr = if local_addr.is_ipv6() {
+            SocketAddr::from((Ipv6Addr::LOCALHOST, local_addr.port()))
+        } else {
+            SocketAddr::from((Ipv4Addr::LOCALHOST, local_addr.port()))
+        };
+        let _ = std::net::TcpStream::connect(addr);
 
         Ok::<(), Error>(())
     });
