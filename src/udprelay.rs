@@ -7,7 +7,7 @@ use crate::{
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
-    protocol::{Address, Reply, UdpHeader},
+    protocol::{Address, Reply, StreamOperation, UdpHeader},
     server::{
         connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},
         UdpAssociate,
@@ -215,9 +215,9 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     Some(Ok(Message::Binary(buf))) => {
                         let mut buf = BytesMut::from(&buf[..]);
                         let incoming_addr = Address::try_from(&buf[..])?;
-                        let _ = buf.split_to(incoming_addr.serialized_len());
+                        let _ = buf.split_to(incoming_addr.len());
                         let remote_addr = Address::try_from(&buf[..])?;
-                        let _ = buf.split_to(remote_addr.serialized_len());
+                        let _ = buf.split_to(remote_addr.len());
                         let pkt = buf.to_vec();
 
                         if remote_addr.port() == 53 {

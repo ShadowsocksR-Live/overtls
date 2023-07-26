@@ -17,7 +17,7 @@ pub(crate) mod weirduri;
 use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
 pub use error::{Error, Result};
-use socks5_impl::protocol::Address;
+use socks5_impl::protocol::{Address, StreamOperation};
 
 #[cfg(target_os = "windows")]
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32;

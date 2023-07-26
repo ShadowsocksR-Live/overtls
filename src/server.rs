@@ -8,7 +8,7 @@ use crate::{
 };
 use bytes::{BufMut, BytesMut};
 use futures_util::{SinkExt, StreamExt};
-use socks5_impl::protocol::Address;
+use socks5_impl::protocol::{Address, StreamOperation};
 use std::{
     collections::HashMap,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
@@ -384,9 +384,9 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     let data = msg.into_data();
                     let mut buf = BytesMut::from(&data[..]);
                     let dst_addr = Address::try_from(&buf[..])?;
-                    let _ = buf.split_to(dst_addr.serialized_len());
+                    let _ = buf.split_to(dst_addr.len());
                     let src_addr = Address::try_from(&buf[..])?;
-                    let _ = buf.split_to(src_addr.serialized_len());
+                    let _ = buf.split_to(src_addr.len());
                     let pkt = buf.to_vec();
                     log::trace!("[UDP] {src_addr} -> {dst_addr} length {}", pkt.len());
 
