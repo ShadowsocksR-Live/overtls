@@ -28,12 +28,12 @@ pub(crate) fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> R
                     OwnedTrustAnchor::from_subject_spki_name_constraints(vec![], vec![], Some(vec![]))
                 }
             });
-            root_cert_store.add_server_trust_anchors(trust_anchors);
+            root_cert_store.add_trust_anchors(trust_anchors);
             done = true;
         }
     }
     if !done {
-        root_cert_store.add_server_trust_anchors(
+        root_cert_store.add_trust_anchors(
             webpki_roots::TLS_SERVER_ROOTS
                 .iter()
                 .map(|ta| OwnedTrustAnchor::from_subject_spki_name_constraints(ta.subject, ta.spki, ta.name_constraints)),
