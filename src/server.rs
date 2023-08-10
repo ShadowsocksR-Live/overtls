@@ -392,7 +392,14 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
 
                     dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr);
 
-                    let dst_addr = dst_addr.to_socket_addrs()?.next().ok_or("invalid address")?;
+                    let mut dst_addr = dst_addr.to_socket_addrs()?.next().ok_or("invalid address")?;
+                    if dst_addr.port() == 53 && addr_is_private(&dst_addr) {
+                        match dst_addr {
+                            SocketAddr::V4(_) => dst_addr = "8.8.8.8:53".parse::<SocketAddr>()?,
+                            SocketAddr::V6(_) => dst_addr = "[2001:4860:4860::8888]:53".parse::<SocketAddr>()?,
+                        }
+                    }
+
                     if dst_addr.is_ipv4() {
                         udp_socket.send_to(&pkt, &dst_addr).await?;
                     } else {
@@ -414,6 +421,20 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
         }
     }
     Ok(())
+}
+
+// TODO: use IpAddr::is_global() instead when it's stable
+fn addr_is_private(addr: &SocketAddr) -> bool {
+    fn is_benchmarking(addr: &Ipv4Addr) -> bool {
+        addr.octets()[0] == 198 && (addr.octets()[1] & 0xfe) == 18
+    }
+    fn addr_v4_is_private(addr: &Ipv4Addr) -> bool {
+        is_benchmarking(addr) || addr.is_private() || addr.is_loopback() || addr.is_link_local()
+    }
+    match addr {
+        SocketAddr::V4(addr) => addr_v4_is_private(addr.ip()),
+        SocketAddr::V6(_) => false,
+    }
 }
 
 async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
