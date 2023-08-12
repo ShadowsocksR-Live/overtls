@@ -4,6 +4,7 @@ use crate::{
     dns,
     error::{Error, Result},
 };
+use async_shared_timeout::{runtime, Timeout};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
@@ -58,10 +59,15 @@ pub(crate) async fn handle_s5_upd_associate(
 
             let incoming_addr = Arc::new(Mutex::new(SocketAddr::from(([0, 0, 0, 0], 0))));
 
+            let timeout_secs = Duration::from_secs(10); // TODO: configurable
+            let runtime = runtime::Tokio::new();
+            let timeout = Timeout::new(runtime, timeout_secs);
+
             let res = tokio::select! {
-                _ = reply_listener.wait_until_closed() => Ok::<_, Error>(()),
-                res = socks5_to_relay(listen_udp.clone(), incoming_addr.clone(), incomings.clone(), udp_tx) => res,
-                res = relay_to_socks5(listen_udp, incoming_addr.clone(), udp_rx) => res,
+                _ = timeout.wait() => Ok::<_, Error>(()),
+                res = reply_listener.wait_until_closed() => res.map_err(|e| e.into()),
+                res = socks5_to_relay(listen_udp.clone(), incoming_addr.clone(), incomings.clone(), udp_tx, &timeout) => res,
+                res = relay_to_socks5(listen_udp, incoming_addr.clone(), udp_rx, &timeout) => res,
             };
 
             reply_listener.shutdown().await?;
@@ -95,6 +101,7 @@ async fn socks5_to_relay(
     incoming: Arc<Mutex<SocketAddr>>,
     incomings: SocketAddrHashSet,
     udp_tx: UdpRequestSender,
+    timeout: &Timeout<runtime::Tokio>,
 ) -> Result<()> {
     loop {
         log::trace!("[UDP] waiting for incoming packet");
@@ -114,6 +121,7 @@ async fn socks5_to_relay(
         log::trace!("[UDP] {src_addr} -> {dst_addr} incoming packet size {}", pkt.len());
         let src_addr = src_addr.into();
         let _ = udp_tx.send((pkt, dst_addr, src_addr));
+        timeout.reset();
     }
     log::trace!("[UDP] socks5_to_relay exiting.");
     Ok(())
@@ -123,12 +131,14 @@ async fn relay_to_socks5(
     listen_udp: Arc<AssociatedUdpSocket>,
     incoming_addr: Arc<Mutex<SocketAddr>>,
     mut udp_rx: UdpRequestReceiver,
+    timeout: &Timeout<runtime::Tokio>,
 ) -> Result<()> {
     while let Ok((pkt, addr, _from_addr)) = udp_rx.recv().await {
         let to_addr = SocketAddr::try_from(addr.clone())?;
         if *incoming_addr.lock().await == to_addr {
             log::trace!("[UDP] {to_addr} <- {_from_addr} feedback to incoming");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
+            timeout.reset();
         }
     }
     log::trace!("[UDP] relay_to_socks5 exiting.");
