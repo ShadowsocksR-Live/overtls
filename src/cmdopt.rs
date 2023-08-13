@@ -4,6 +4,16 @@ pub enum Role {
     Client,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+pub enum ArgVerbosity {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
 /// Proxy tunnel over tls
 #[derive(clap::Parser, Debug, Clone, PartialEq, Eq)]
 #[command(author, version, about = "Proxy tunnel over tls.", long_about = None)]
@@ -16,9 +26,9 @@ pub struct CmdOpt {
     #[arg(short, long, value_name = "file path")]
     pub config: std::path::PathBuf,
 
-    /// Verbose mode.
-    #[arg(short, long)]
-    pub verbose: bool,
+    /// Verbosity level
+    #[arg(short, long, value_name = "level", value_enum, default_value = "info")]
+    pub verbosity: ArgVerbosity,
 
     #[cfg(target_family = "unix")]
     #[arg(short, long)]
