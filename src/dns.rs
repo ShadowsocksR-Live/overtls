@@ -26,10 +26,10 @@ pub(crate) fn extract_ipaddr_from_dns_message(message: &Message) -> std::result:
     for answer in message.answers() {
         match answer.data().ok_or("DNS response not contains answer data")? {
             RData::A(addr) => {
-                return Ok(IpAddr::V4(*addr));
+                return Ok(IpAddr::V4((*addr).into()));
             }
             RData::AAAA(addr) => {
-                return Ok(IpAddr::V6(*addr));
+                return Ok(IpAddr::V6((*addr).into()));
             }
             RData::CNAME(name) => {
                 cname = Some(name.to_utf8());
