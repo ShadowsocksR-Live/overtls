@@ -52,6 +52,8 @@ pub struct Client {
     pub cafile: Option<PathBuf>,
     pub listen_host: String,
     pub listen_port: u16,
+    #[serde(skip)]
+    pub cache_dns: bool,
 }
 
 impl Default for Config {
@@ -145,6 +147,16 @@ impl Config {
             return c.disable_tls.unwrap_or(false);
         }
         false
+    }
+
+    pub fn cache_dns(&self) -> bool {
+        self.client.as_ref().map_or(false, |c| c.cache_dns)
+    }
+
+    pub fn set_cache_dns(&mut self, cache_dns: bool) {
+        if let Some(c) = &mut self.client {
+            c.cache_dns = cache_dns;
+        }
     }
 
     pub fn check_correctness(&mut self, is_server: bool) -> Result<()> {

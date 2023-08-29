@@ -106,7 +106,7 @@ async fn socks5_to_relay(
     timeout: &Timeout<runtime::Tokio>,
 ) -> Result<()> {
     loop {
-        log::trace!("[UDP] waiting for incoming packet");
+        // log::trace!("[UDP] waiting for incoming packet");
 
         let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();
         listen_udp.set_max_packet_size(buf_size);
@@ -120,7 +120,7 @@ async fn socks5_to_relay(
         incoming.lock().await.clone_from(&src_addr);
         incomings.lock().await.insert(src_addr);
 
-        log::trace!("[UDP] {src_addr} -> {dst_addr} incoming packet size {}", pkt.len());
+        // log::trace!("[UDP] {src_addr} -> {dst_addr} incoming packet size {}", pkt.len());
         let src_addr = src_addr.into();
         let _ = udp_tx.send((pkt, dst_addr, src_addr));
         timeout.reset();
@@ -138,7 +138,7 @@ async fn relay_to_socks5(
     while let Ok((pkt, addr, _from_addr)) = udp_rx.recv().await {
         let to_addr = SocketAddr::try_from(addr.clone())?;
         if *incoming_addr.lock().await == to_addr {
-            log::trace!("[UDP] {to_addr} <- {_from_addr} feedback to incoming");
+            // log::trace!("[UDP] {to_addr} <- {_from_addr} feedback to incoming");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
             timeout.reset();
         }
@@ -160,10 +160,10 @@ pub(crate) async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddr
 
     if !config.disable_tls() {
         let ws_stream = client::create_tls_ws_stream(svr_addr, None, &config, Some(true)).await?;
-        _run_udp_loop(udp_tx, incomings, ws_stream).await?;
+        _run_udp_loop(udp_tx, incomings, ws_stream, config.cache_dns()).await?;
     } else {
         let ws_stream = client::create_plaintext_ws_stream(svr_addr, None, &config, Some(true)).await?;
-        _run_udp_loop(udp_tx, incomings, ws_stream).await?;
+        _run_udp_loop(udp_tx, incomings, ws_stream, config.cache_dns()).await?;
     }
     Ok(())
 }
@@ -172,6 +172,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
     udp_tx: UdpRequestSender,
     incomings: SocketAddrHashSet,
     mut ws_stream: WebSocketStream<S>,
+    cache_dns: bool,
 ) -> Result<()> {
     let mut udp_rx = udp_tx.subscribe();
 
@@ -199,20 +200,20 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     if dst_addr.port() == 53 {
                         let msg = dns::parse_data_to_dns_message(&pkt, false)?;
                         let domain = dns::extract_domain_from_dns_message(&msg)?;
-                        if let Some(cached_message) = dns::dns_cache_get_message(&cache, &msg) {
-                            log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query package for \"{}\" hit cache", domain);
+                        if let (true, Some(cached_message)) = (cache_dns, dns::dns_cache_get_message(&cache, &msg)) {
+                            log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query hit cache \"{}\"", domain);
                             let data = cached_message.to_vec().map_err(|e| e.to_string())?;
                             udp_tx.send((Bytes::from(data), src_addr, dst_addr))?;
                             continue;
                         }
-                        log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query package for \"{}\" size {}", domain, buf.len());
+                        log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query \"{}\"", domain);
                     } else {
                         log::debug!("[UDP] {src_addr} -> {dst_addr} send to remote size {}", buf.len());
                     }
                     let msg = Message::Binary(buf.freeze().to_vec());
                     ws_stream.send(msg).await?;
                 } else {
-                    log::trace!("[UDP] {dst_addr} <- {src_addr} skip feedback packet");
+                    // log::trace!("[UDP] {dst_addr} <- {src_addr} skip feedback packet");
                 }
                  Ok::<_, Error>(())
             },
@@ -235,14 +236,12 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         if remote_addr.port() == 53 {
                             let msg = dns::parse_data_to_dns_message(&pkt, false)?;
                             let domain = dns::extract_domain_from_dns_message(&msg)?;
-                            let ipaddr = match dns::extract_ipaddr_from_dns_message(&msg) {
-                                Ok(ipaddr) => {
-                                    format!("{:?}", ipaddr)
-                                }
-                                Err(mut e) => {e.truncate(48); e},
-                            };
-                            dns::dns_cache_put_message(&cache, &msg).await;
-                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} DNS response package size {len} for \"{}\" <==> \"{}\"", domain, ipaddr);
+                            let mut ipaddr = format!("{:?}", dns::extract_ipaddr_from_dns_message(&msg));
+                            ipaddr.truncate(48);
+                            if cache_dns {
+                                dns::dns_cache_put_message(&cache, &msg).await;
+                            }
+                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} DNS response \"{}\" <==> \"{}\"", domain, ipaddr);
                         } else {
                             log::debug!("[UDP] {incoming_addr} <- {remote_addr} recv from remote size {}", len);
                         }

@@ -26,6 +26,10 @@ pub struct CmdOpt {
     #[arg(short, long, value_name = "file path")]
     pub config: std::path::PathBuf,
 
+    /// Cache DNS Query result
+    #[arg(long)]
+    pub cache_dns: bool,
+
     /// Verbosity level
     #[arg(short, long, value_name = "level", value_enum, default_value = "info")]
     pub verbosity: ArgVerbosity,

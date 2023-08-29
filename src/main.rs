@@ -17,6 +17,7 @@ fn main() -> Result<()> {
     let is_server = opt.is_server();
 
     let mut config = config::Config::from_config_file(&opt.config)?;
+    config.set_cache_dns(opt.cache_dns);
 
     if opt.qrcode {
         let qrcode = config.generate_ssr_qrcode()?;
