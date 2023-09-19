@@ -56,8 +56,8 @@ pub(crate) fn create_dns_cache() -> Cache<Vec<Query>, Message> {
         .build()
 }
 
-pub(crate) fn dns_cache_get_message(cache: &Cache<Vec<Query>, Message>, message: &Message) -> Option<Message> {
-    if let Some(mut cached_message) = cache.get(&message.queries().to_vec()) {
+pub(crate) async fn dns_cache_get_message(cache: &Cache<Vec<Query>, Message>, message: &Message) -> Option<Message> {
+    if let Some(mut cached_message) = cache.get(&message.queries().to_vec()).await {
         cached_message.set_id(message.id());
         return Some(cached_message);
     }

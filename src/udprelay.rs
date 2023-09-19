@@ -200,7 +200,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     if dst_addr.port() == 53 {
                         let msg = dns::parse_data_to_dns_message(&pkt, false)?;
                         let domain = dns::extract_domain_from_dns_message(&msg)?;
-                        if let (true, Some(cached_message)) = (cache_dns, dns::dns_cache_get_message(&cache, &msg)) {
+                        if let (true, Some(cached_message)) = (cache_dns, dns::dns_cache_get_message(&cache, &msg).await) {
                             log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query hit cache \"{}\"", domain);
                             let data = cached_message.to_vec().map_err(|e| e.to_string())?;
                             udp_tx.send((Bytes::from(data), src_addr, dst_addr))?;
