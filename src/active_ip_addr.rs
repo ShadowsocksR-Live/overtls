@@ -29,32 +29,30 @@ pub fn get_active_network_interface_address() -> Option<std::net::IpAddr> {
         let mut current_address = addresses;
         while !current_address.is_null() {
             let adapter_address = &*current_address;
-            let mut current_ip_address = adapter_address.FirstUnicastAddress;
-            while !current_ip_address.is_null() {
-                let ip_address = &*current_ip_address;
-                let sockaddr_ptr = ip_address.Address.lpSockaddr;
-                let sockaddr = &*(sockaddr_ptr as *const SOCKADDR);
-                match sockaddr.sa_family {
-                    AF_INET => {
-                        let sockaddr_in = &*(sockaddr_ptr as *const SOCKADDR_IN);
-                        let ip = sockaddr_in.sin_addr.S_un.S_addr;
-                        let ip_bytes = ip.to_ne_bytes();
-                        let ip_addr = std::net::Ipv4Addr::from(ip_bytes);
-                        if adapter_address.OperStatus == IfOperStatusUp && adapter_address.IfType == IF_TYPE_IEEE80211 {
+            if adapter_address.OperStatus == IfOperStatusUp && adapter_address.IfType == IF_TYPE_IEEE80211 {
+                let mut current_ip_address = adapter_address.FirstUnicastAddress;
+                while !current_ip_address.is_null() {
+                    let ip_address = &*current_ip_address;
+                    let sockaddr_ptr = ip_address.Address.lpSockaddr;
+                    let sockaddr = &*(sockaddr_ptr as *const SOCKADDR);
+                    match sockaddr.sa_family {
+                        AF_INET => {
+                            let sockaddr_in = &*(sockaddr_ptr as *const SOCKADDR_IN);
+                            let ip = sockaddr_in.sin_addr.S_un.S_addr;
+                            let ip_bytes = ip.to_ne_bytes();
+                            let ip_addr = std::net::Ipv4Addr::from(ip_bytes);
                             return Some(std::net::IpAddr::V4(ip_addr));
                         }
-                    }
-                    AF_INET6 => {
-                        let sockaddr_in6 = &*(sockaddr_ptr as *const SOCKADDR_IN6);
-                        let ip = sockaddr_in6.sin6_addr.u.Byte;
-                        let ip_addr = std::net::Ipv6Addr::from(ip);
-                        if adapter_address.OperStatus == IfOperStatusUp && adapter_address.IfType == IF_TYPE_IEEE80211 {
+                        AF_INET6 => {
+                            let sockaddr_in6 = &*(sockaddr_ptr as *const SOCKADDR_IN6);
+                            let ip = sockaddr_in6.sin6_addr.u.Byte;
+                            let ip_addr = std::net::Ipv6Addr::from(ip);
                             ipv6 = Some(std::net::IpAddr::V6(ip_addr));
                         }
+                        _ => {}
                     }
-                    _ => {}
+                    current_ip_address = ip_address.Next;
                 }
-                current_ip_address = ip_address.Next;
             }
             current_address = adapter_address.Next;
         }
