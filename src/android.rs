@@ -11,7 +11,7 @@ pub mod native {
         JNIEnv, JavaVM,
     };
     use std::{
-        net::{IpAddr, Ipv4Addr, SocketAddr},
+        net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
         sync::{
             atomic::{AtomicBool, Ordering},
             Arc, Mutex, RwLock,
