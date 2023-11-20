@@ -245,7 +245,7 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
     let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
 
-    if accept_key.as_str() != remote_key.to_str()? {
+    if accept_key.as_str() != remote_key.to_str().map_err(|e| e.to_string())? {
         return Err(Error::from("accept key error"));
     }
 
