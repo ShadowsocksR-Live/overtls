@@ -43,8 +43,6 @@ pub(crate) async fn handle_s5_upd_associate(
 ) -> Result<()> {
     let listen_ip = associate.local_addr()?.ip();
 
-    let listen_ip = crate::get_active_network_interface_address().unwrap_or(listen_ip);
-
     // listen on a random port
     let udp_listener = UdpSocket::bind(SocketAddr::from((listen_ip, 0))).await;
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {

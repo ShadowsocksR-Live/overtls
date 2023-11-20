@@ -1,4 +1,3 @@
-pub(crate) mod active_ip_addr;
 pub(crate) mod android;
 pub(crate) mod api;
 pub(crate) mod base64_wrapper;
@@ -15,7 +14,6 @@ pub(crate) mod udprelay;
 pub(crate) mod webapi;
 pub(crate) mod weirduri;
 
-pub use active_ip_addr::get_active_network_interface_address;
 use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
 pub use error::{Error, Result};

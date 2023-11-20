@@ -49,17 +49,8 @@ webpki-roots = "0.25"
 
 [target.'cfg(target_family="unix")'.dependencies]
 daemonize = "0.5"
-pnet = "0.34"
 
 [target.'cfg(target_os="android")'.dependencies]
 android_logger = "0.13"
 crossbeam = "0.8"
 jni = { version = "0.21", default-features = false }
-
-[target.'cfg(target_os="windows")'.dependencies]
-windows = { version = "0.52", features = [
-    "Win32_NetworkManagement_IpHelper",
-    "Win32_NetworkManagement_Ndis",
-    "Win32_Networking_WinSock",
-    "Win32_Foundation",
-] }
