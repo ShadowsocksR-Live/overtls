@@ -10,7 +10,11 @@ use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
     protocol::{Address, Reply},
-    server::{auth::NoAuth, connection::connect::NeedReply, ClientConnection, Connect, IncomingConnection, Server},
+    server::{
+        auth::{NoAuth, UserKeyAuth},
+        connection::connect::NeedReply,
+        AuthAdaptor, ClientConnection, Connect, IncomingConnection, Server,
+    },
 };
 use std::{
     net::SocketAddr,
@@ -43,8 +47,27 @@ where
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 
     let client = config.client.as_ref().ok_or("client")?;
+
+    let listen_user = client.listen_user.as_deref().filter(|s| !s.is_empty());
+    if let Some(user) = listen_user {
+        let listen_password = client.listen_password.as_deref().unwrap_or("");
+        let key = UserKeyAuth::new(user, listen_password);
+        _run_client(config, Arc::new(key), exiting_flag, callback).await?;
+    } else {
+        _run_client(config, Arc::new(NoAuth), exiting_flag, callback).await?;
+    }
+    Ok(())
+}
+
+async fn _run_client<F, O>(config: &Config, auth: AuthAdaptor<O>, exiting_flag: Option<Arc<AtomicBool>>, callback: Option<F>) -> Result<()>
+where
+    F: FnOnce(SocketAddr) + Send + Sync + 'static,
+    O: Send + Sync + 'static,
+{
+    let client = config.client.as_ref().ok_or("client")?;
     let addr = SocketAddr::new(client.listen_host.parse()?, client.listen_port);
-    let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
+
+    let server = Server::<O>::bind(addr, auth).await?;
 
     if let Some(callback) = callback {
         callback(server.local_addr()?);

@@ -52,6 +52,8 @@ pub struct Client {
     pub cafile: Option<PathBuf>,
     pub listen_host: String,
     pub listen_port: u16,
+    pub listen_user: Option<String>,
+    pub listen_password: Option<String>,
     #[serde(skip)]
     pub cache_dns: bool,
 }
