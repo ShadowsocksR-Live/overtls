@@ -1,7 +1,6 @@
 use crate::error::Result;
 use rustls::{
-    client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
-    pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime},
+    pki_types::{CertificateDer, PrivateKeyDer, ServerName},
     RootCertStore,
 };
 use std::{
@@ -9,7 +8,6 @@ use std::{
     io::BufReader,
     net::SocketAddr,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 use tokio::net::TcpStream;
 use tokio_rustls::{client::TlsStream, TlsConnector};
@@ -32,53 +30,14 @@ pub(crate) fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> R
     Ok(root_cert_store)
 }
 
-#[derive(Debug)]
-pub struct NoCertificateVerification {}
-
-impl ServerCertVerifier for NoCertificateVerification {
-    fn verify_server_cert(
-        &self,
-        _end_entity: &CertificateDer<'_>,
-        _intermediates: &[CertificateDer<'_>],
-        _server_name: &ServerName<'_>,
-        _ocsp_response: &[u8],
-        _now: UnixTime,
-    ) -> Result<ServerCertVerified, rustls::Error> {
-        Ok(ServerCertVerified::assertion())
-    }
-
-    fn verify_tls12_signature(
-        &self,
-        _message: &[u8],
-        _ert: &webpki::types::CertificateDer<'_>,
-        _dss: &rustls::DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        Ok(HandshakeSignatureValid::assertion())
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        _message: &[u8],
-        _ert: &webpki::types::CertificateDer<'_>,
-        _ss: &rustls::DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        Ok(HandshakeSignatureValid::assertion())
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        vec![]
-    }
-}
-
 pub(crate) async fn create_tls_client_stream(
     root_cert_store: RootCertStore,
     addr: SocketAddr,
     domain: &str,
 ) -> Result<TlsStream<TcpStream>> {
-    let mut config = rustls::ClientConfig::builder()
+    let config = rustls::ClientConfig::builder()
         .with_root_certificates(root_cert_store)
         .with_no_client_auth();
-    config.dangerous().set_certificate_verifier(Arc::new(NoCertificateVerification {}));
     let connector = TlsConnector::from(std::sync::Arc::new(config));
 
     let stream = crate::tcp_stream::create(addr).await?;
