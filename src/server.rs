@@ -312,8 +312,9 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
         tokio::select! {
             msg = ws_stream.next() => {
                 let msg = msg.ok_or(format!("{peer} -> {dst_addr} no Websocket message"))??;
+                let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
+                log::trace!("{peer} -> {dst_addr} length {}", len);
                 if let Some(client_id) = &client_id {
-                    let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
                     traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
                 }
                 match msg {
@@ -336,8 +337,9 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     }
                     Ok(n) => {
                         let msg = Message::Binary(buffer[..n].to_vec());
+                        let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
+                        log::trace!("{peer} <- {dst_addr} length {}", len);
                         if let Some(client_id) = &client_id {
-                            let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
                             traffic_audit.lock().await.add_downstream_traffic_of(client_id, len);
                         }
                         ws_stream.send(msg).await?;
