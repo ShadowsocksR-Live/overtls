@@ -64,12 +64,11 @@ pub async fn run_server(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) 
         }
     });
 
-    let svr_cfg = if let (Some(certs), Some(keys)) = (certs, keys) {
-        let key = keys.get(0).ok_or("no keys")?.clone();
+    let svr_cfg = if let (Some(certs), Some(mut keys)) = (certs, keys) {
+        let _key = keys.get(0).ok_or("no keys")?;
         rustls::ServerConfig::builder()
-            .with_safe_defaults()
             .with_no_client_auth()
-            .with_single_cert(certs, key)
+            .with_single_cert(certs, keys.remove(0))
             .ok()
     } else {
         None
