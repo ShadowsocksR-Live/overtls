@@ -48,7 +48,7 @@ pub(crate) fn extract_ipaddr_from_dns_message(message: &Message) -> std::io::Res
 
 pub(crate) fn extract_domain_from_dns_message(message: &Message) -> std::io::Result<String> {
     let err = std::io::Error::new(std::io::ErrorKind::Other, "DNS request not contains query body");
-    let query = message.queries().get(0).ok_or(err)?;
+    let query = message.queries().first().ok_or(err)?;
     let name = query.name().to_string();
     Ok(name)
 }
