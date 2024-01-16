@@ -23,7 +23,7 @@ futures-util = { version = "0.3", default-features = false, features = [
 http = "1.0"
 httparse = "1.8"
 lazy_static = "1.4"
-log = "0.4"
+log = { version = "0.4", features = ["std"] }
 moka = { version = "0.12", features = ["future"] }
 reqwest = { version = "0.11", default-features = false, features = [
     "rustls-tls",
