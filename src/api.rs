@@ -1,10 +1,9 @@
 #![cfg(not(target_os = "android"))]
 
 use crate::error::{Error, Result};
-use crate::LOCAL_HOST_V4;
-use std::os::raw::{c_char, c_int, c_void};
 use std::{
-    net::SocketAddr,
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
+    os::raw::{c_char, c_int, c_void},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -27,7 +26,7 @@ unsafe impl Sync for CCallback {}
 
 lazy_static::lazy_static! {
     static ref EXITING_FLAG: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    static ref LISTEN_ADDR: Arc<Mutex<SocketAddr>> = Arc::new(Mutex::new(format!("{}:0", LOCAL_HOST_V4).parse::<SocketAddr>().unwrap()));
+    static ref LISTEN_ADDR: Arc<Mutex<SocketAddr>> = Arc::new(Mutex::new(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))));
 }
 
 /// # Safety
@@ -40,19 +39,28 @@ pub unsafe extern "C" fn over_tls_client_run(
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
 ) -> c_int {
+    use log::LevelFilter;
+    let log_level = if verbose != 0 { LevelFilter::Trace } else { LevelFilter::Info };
+    log::set_max_level(log_level);
+    log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()).unwrap();
+
+    _over_tls_client_run(config_path, callback, ctx)
+}
+
+unsafe fn _over_tls_client_run(
+    config_path: *const c_char,
+    callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
+    ctx: *mut c_void,
+) -> c_int {
     let ccb = CCallback(callback, ctx);
 
     let block = || -> Result<()> {
         let config_path = std::ffi::CStr::from_ptr(config_path).to_str()?;
-        let log_level = if verbose != 0 { "trace" } else { "info" };
-        let root = module_path!().split("::").next().ok_or("module path error")?;
-        let default = format!("off,{}={}", root, log_level);
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
 
         let cb = |addr: SocketAddr| {
             log::trace!("Listening on {}", addr);
             let port = addr.port();
-            let addr = format!("{}:{}", LOCAL_HOST_V4, port).parse::<SocketAddr>().unwrap();
+            let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
             *LISTEN_ADDR.lock().unwrap() = addr;
             unsafe {
                 ccb.call(port as c_int);
@@ -83,8 +91,12 @@ pub unsafe extern "C" fn over_tls_client_stop() -> c_int {
     EXITING_FLAG.store(true, Ordering::SeqCst);
 
     let l_addr = *LISTEN_ADDR.lock().unwrap();
-    let addr = if l_addr.is_ipv6() { "::1" } else { LOCAL_HOST_V4 };
-    let _ = std::net::TcpStream::connect((addr, l_addr.port()));
+    let addr = if l_addr.is_ipv6() {
+        SocketAddr::from((Ipv6Addr::LOCALHOST, l_addr.port()))
+    } else {
+        SocketAddr::from((Ipv4Addr::LOCALHOST, l_addr.port()))
+    };
+    let _ = std::net::TcpStream::connect(addr);
     log::trace!("Client stop on listen address {}", l_addr);
     0
 }

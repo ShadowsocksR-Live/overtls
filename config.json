@@ -3,7 +3,6 @@
     "method": "none",
     "password": "password",
     "tunnel_path": "/secret-tunnel-path/",
-
     "server_settings": {
         "disable_tls": false,
         "manage_clients": {
@@ -19,7 +18,6 @@
         "listen_host": "0.0.0.0",
         "listen_port": 443
     },
-
     "client_settings": {
         "disable_tls": false,
         "client_id": "33959370-71e0-401d-9746-cda471fc5926",
@@ -27,6 +25,8 @@
         "server_port": 443,
         "server_domain": "example.com",
         "cafile": "",
+        "listen_user": "",
+        "listen_password": "",
         "listen_host": "127.0.0.1",
         "listen_port": 1080
     }

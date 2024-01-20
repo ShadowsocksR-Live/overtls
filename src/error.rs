@@ -36,8 +36,8 @@ pub enum Error {
     #[error("rustls::error::Error {0}")]
     Rustls(#[from] rustls::Error),
 
-    #[error("tokio_rustls::rustls::client::InvalidDnsNameError {0}")]
-    InvalidDnsName(#[from] tokio_rustls::rustls::client::InvalidDnsNameError),
+    #[error("rustls::pki_types::InvalidDnsNameError {0}")]
+    InvalidDnsName(#[from] rustls::pki_types::InvalidDnsNameError),
 
     #[error("httparse::Error {0}")]
     Httparse(#[from] httparse::Error),
@@ -56,19 +56,16 @@ pub enum Error {
     #[error("std::str::Utf8Error {0}")]
     Utf8(#[from] std::str::Utf8Error),
 
-    #[error("&str error: {0}")]
-    Str(String),
+    #[error("socks5_impl::Error {0}")]
+    Socks5(#[from] socks5_impl::Error),
 
     #[error("String error: {0}")]
     String(String),
-
-    #[error("&String error: {0}")]
-    RefString(String),
 }
 
 impl From<&str> for Error {
     fn from(s: &str) -> Self {
-        Error::Str(s.to_string())
+        Error::String(s.to_string())
     }
 }
 
@@ -80,8 +77,8 @@ impl From<String> for Error {
 
 impl From<&String> for Error {
     fn from(s: &String) -> Self {
-        Error::RefString(s.to_string())
+        Error::String(s.to_string())
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;

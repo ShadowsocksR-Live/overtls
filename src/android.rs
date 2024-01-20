@@ -11,7 +11,7 @@ pub mod native {
         JNIEnv, JavaVM,
     };
     use std::{
-        net::{IpAddr, Ipv4Addr, SocketAddr},
+        net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
         sync::{
             atomic::{AtomicBool, Ordering},
             Arc, Mutex, RwLock,
@@ -25,11 +25,7 @@ pub mod native {
 
     macro_rules! socket_protector {
         () => {
-            crate::android::native::SOCKET_PROTECTOR
-                .lock()
-                .unwrap()
-                .as_mut()
-                .unwrap()
+            crate::android::native::SOCKET_PROTECTOR.lock().unwrap().as_mut().unwrap()
         };
     }
 
@@ -222,8 +218,12 @@ pub mod native {
         EXITING_FLAG.store(true, Ordering::SeqCst);
 
         let l_addr = *LISTEN_ADDR.lock().unwrap();
-        let addr = if l_addr.is_ipv6() { "::1" } else { crate::LOCAL_HOST_V4 };
-        let _ = std::net::TcpStream::connect((addr, l_addr.port()));
+        let addr = if l_addr.is_ipv6() {
+            SocketAddr::from((Ipv6Addr::LOCALHOST, l_addr.port()))
+        } else {
+            SocketAddr::from((Ipv4Addr::LOCALHOST, l_addr.port()))
+        };
+        let _ = std::net::TcpStream::connect(addr);
         log::trace!("stopClient on listen address {l_addr}");
 
         SocketProtector::release();
@@ -273,12 +273,8 @@ pub mod native {
             let return_type = ReturnType::Primitive(Primitive::Boolean);
             let arguments = [JValue::Int(socket).as_jni()];
             let result = unsafe {
-                self.jni_env.call_method_unchecked(
-                    self.vpn_service,
-                    self.protect_method_id,
-                    return_type,
-                    &arguments[..],
-                )
+                self.jni_env
+                    .call_method_unchecked(self.vpn_service, self.protect_method_id, return_type, &arguments[..])
             };
             match result {
                 Ok(value) => {

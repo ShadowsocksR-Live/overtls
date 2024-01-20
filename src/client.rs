@@ -10,7 +10,11 @@ use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
     protocol::{Address, Reply},
-    server::{auth::NoAuth, connection::connect::NeedReply, Connect, Connection, IncomingConnection, Server},
+    server::{
+        auth::{NoAuth, UserKeyAuth},
+        connection::connect::NeedReply,
+        AuthAdaptor, ClientConnection, Connect, IncomingConnection, Server,
+    },
 };
 use std::{
     net::SocketAddr,
@@ -43,8 +47,27 @@ where
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 
     let client = config.client.as_ref().ok_or("client")?;
+
+    let listen_user = client.listen_user.as_deref().filter(|s| !s.is_empty());
+    if let Some(user) = listen_user {
+        let listen_password = client.listen_password.as_deref().unwrap_or("");
+        let key = UserKeyAuth::new(user, listen_password);
+        _run_client(config, Arc::new(key), exiting_flag, callback).await?;
+    } else {
+        _run_client(config, Arc::new(NoAuth), exiting_flag, callback).await?;
+    }
+    Ok(())
+}
+
+async fn _run_client<F, O>(config: &Config, auth: AuthAdaptor<O>, exiting_flag: Option<Arc<AtomicBool>>, callback: Option<F>) -> Result<()>
+where
+    F: FnOnce(SocketAddr) + Send + Sync + 'static,
+    O: Send + Sync + 'static,
+{
+    let client = config.client.as_ref().ok_or("client")?;
     let addr = SocketAddr::new(client.listen_host.parse()?, client.listen_port);
-    let server = Server::bind(addr, std::sync::Arc::new(NoAuth)).await?;
+
+    let server = Server::<O>::bind(addr, auth).await?;
 
     if let Some(callback) = callback {
         callback(server.local_addr()?);
@@ -73,15 +96,16 @@ where
     Ok(())
 }
 
-async fn handle_incoming(
-    conn: IncomingConnection,
+async fn handle_incoming<S: 'static>(
+    conn: IncomingConnection<S>,
     config: Config,
     udp_tx: Option<udprelay::UdpRequestSender>,
-    incomings: udprelay::SocketAddrSet,
+    incomings: udprelay::SocketAddrHashSet,
 ) -> Result<()> {
     let peer_addr = conn.peer_addr()?;
-    match conn.handshake().await? {
-        Connection::Associate(asso, _) => {
+    let (conn, _res) = conn.authenticate().await?;
+    match conn.wait_request().await? {
+        ClientConnection::UdpAssociate(asso, _) => {
             if let Some(udp_tx) = udp_tx {
                 if let Err(e) = udprelay::handle_s5_upd_associate(asso, udp_tx, incomings).await {
                     log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");
@@ -91,11 +115,11 @@ async fn handle_incoming(
                 conn.shutdown().await?;
             }
         }
-        Connection::Bind(bind, _) => {
+        ClientConnection::Bind(bind, _) => {
             let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
             conn.shutdown().await?;
         }
-        Connection::Connect(connect, addr) => {
+        ClientConnection::Connect(connect, addr) => {
             if let Err(e) = handle_socks5_cmd_connection(connect, addr.clone(), config).await {
                 log::debug!("{} <> {} {}", peer_addr, addr, e);
             }
@@ -116,7 +140,7 @@ async fn handle_socks5_cmd_connection(connect: Connect<NeedReply>, target_addr: 
 
     let client = config.client.as_ref().ok_or("client not exist")?;
     let (ip_addr, port) = (client.server_host.as_str(), client.server_port);
-    let addr = &SocketAddr::new(ip_addr.parse()?, port);
+    let addr = SocketAddr::new(ip_addr.parse()?, port);
 
     if !config.disable_tls() {
         let ws_stream = create_tls_ws_stream(addr, Some(target_addr.clone()), &config, None).await?;
@@ -134,6 +158,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
     peer_addr: SocketAddr,
     target_addr: Address,
 ) -> Result<()> {
+    let mut timer = tokio::time::interval(std::time::Duration::from_secs(30));
     loop {
         let mut buf = BytesMut::with_capacity(crate::STREAM_BUFFER_SIZE);
         tokio::select! {
@@ -171,8 +196,15 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
                         log::trace!("{} <- {} ws closed", peer_addr, target_addr);
                         break;
                     }
+                    Message::Pong(_) => {
+                        log::trace!("{} <- {} Websocket pong from remote", peer_addr, target_addr);
+                    },
                     _ => {}
                 }
+            }
+            _ = timer.tick() => {
+                ws_stream.send(Message::Ping(vec![])).await?;
+                log::trace!("{} -> {} Websocket ping from local", peer_addr, target_addr);
             }
         }
     }
@@ -182,7 +214,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
 type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 
 pub(crate) async fn create_tls_ws_stream(
-    svr_addr: &SocketAddr,
+    svr_addr: SocketAddr,
     dst_addr: Option<Address>,
     config: &Config,
     udp_tunnel: Option<bool>,
@@ -199,7 +231,7 @@ pub(crate) async fn create_tls_ws_stream(
 }
 
 pub(crate) async fn create_plaintext_ws_stream(
-    server_addr: &SocketAddr,
+    server_addr: SocketAddr,
     dst_addr: Option<Address>,
     config: &Config,
     udp_tunnel: Option<bool>,
@@ -232,14 +264,11 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     stream.read_buf(&mut buf).await?;
 
     let response = Response::try_parse(&buf)?.ok_or("response parse failed")?.1;
-    let remote_key = response
-        .headers()
-        .get("Sec-WebSocket-Accept")
-        .ok_or(format!("{:?}", response))?;
+    let remote_key = response.headers().get("Sec-WebSocket-Accept").ok_or(format!("{:?}", response))?;
 
     let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
 
-    if accept_key.as_str() != remote_key.to_str()? {
+    if accept_key.as_str() != remote_key.to_str().map_err(|e| e.to_string())? {
         return Err(Error::from("accept key error"));
     }
 

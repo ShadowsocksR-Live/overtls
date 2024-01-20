@@ -3,6 +3,8 @@ pub(crate) mod api;
 pub(crate) mod base64_wrapper;
 pub mod client;
 pub mod config;
+pub(crate) mod dns;
+pub mod dump_logger;
 pub mod error;
 pub mod server;
 pub(crate) mod tcp_stream;
@@ -15,14 +17,12 @@ pub(crate) mod weirduri;
 use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
 pub use error::{Error, Result};
-use socks5_impl::protocol::Address;
+use socks5_impl::protocol::{Address, StreamOperation};
 
 #[cfg(target_os = "windows")]
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32;
 #[cfg(not(target_os = "windows"))]
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32 * 3;
-
-pub const LOCAL_HOST_V4: &str = "127.0.0.1";
 
 pub(crate) fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     let mut buf = BytesMut::with_capacity(1024);
@@ -51,7 +51,7 @@ pub(crate) fn b64str_to_address(s: &str, url_safe: bool) -> Result<Address> {
             result?
         }
     };
-    Address::from_data(&buf).map_err(|e| e.into())
+    Address::try_from(&buf[..]).map_err(|e| e.into())
 }
 
 pub(crate) fn combine_addr_and_port(addr: &str, port: u16) -> String {

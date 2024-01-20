@@ -1,6 +1,6 @@
 [package]
 name = "overtls"
-version = "0.1.7"
+version = "0.2.8"
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -8,30 +8,44 @@ edition = "2021"
 crate-type = ["staticlib", "cdylib", "lib"]
 
 [dependencies]
+async-shared-timeout = "0.2"
 base64 = "0.21"
-bytes = "1.4"
-clap = { version = "4.2", features = ["derive"] }
+bytes = "1.5"
+chrono = "0.4"
+clap = { version = "4.4", features = ["derive"] }
+ctrlc2 = { version = "3.5", features = ["tokio", "termination"] }
 dotenvy = "0.15"
 env_logger = "0.10"
-futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
-http = "0.2"
+futures-util = { version = "0.3", default-features = false, features = [
+    "sink",
+    "std",
+] }
+http = "1.0"
 httparse = "1.8"
 lazy_static = "1.4"
-log = "0.4"
-reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "json"] }
-rustls = "0.21"
-rustls-pemfile = "1.0"
-serde = { version = "1.0", features = [ "derive" ] }
+log = { version = "0.4", features = ["std"] }
+moka = { version = "0.12", features = ["future"] }
+reqwest = { version = "0.11", default-features = false, features = [
+    "rustls-tls",
+    "json",
+] }
+rustls = { version = "0.22" }
+rustls-pemfile = "2.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-socks5-impl = "0.2"
+socks5-impl = "0.5"
 thiserror = "1.0"
-tokio = { version = "1.28", features = [ "full" ] }
-tokio-rustls = "0.24"
-tokio-tungstenite = { version = "0.19", features = [ "rustls-tls-webpki-roots" ] }
-tungstenite = { version = "0.19", features = [ "rustls-tls-webpki-roots" ] }
-url = "2.3"
-webpki = { package = "rustls-webpki", version = "0.100", features = ["alloc", "std"] }
-webpki-roots = "0.23"
+tokio = { version = "1.35", features = ["full"] }
+tokio-rustls = "0.25"
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
+trust-dns-proto = "0.23"
+tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
+url = "2.5"
+webpki = { package = "rustls-webpki", version = "0.102", features = [
+    "alloc",
+    "std",
+] }
+webpki-roots = "0.26"
 
 [target.'cfg(target_family="unix")'.dependencies]
 daemonize = "0.5"

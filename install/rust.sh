@@ -13,6 +13,7 @@ function linux_dependency_install() {
         if [[ "${ID}" == "ubuntu" && `echo "${VERSION_ID}" | cut -d '.' -f1` -ge 20 ]]; then
             sudo apt -y install inetutils-ping
         fi
+        sudo apt autoremove -y
     else
         echo -e "Current system is ${ID} ${VERSION_ID} is not in the list of supported systems, installation is interrupted "
         exit 1
