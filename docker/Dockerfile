@@ -8,7 +8,6 @@ ENV OVERTLS_LOG_LEVEL=debug
 ARG HTTP_PORT=80
 ARG HTTPS_PORT=443
 
-ARG VERION=v0.2.8
 ARG OVERTLS_HOST=127.0.0.1
 ARG OVERTLS_PORT=10000
 
@@ -23,7 +22,7 @@ RUN echo 'export HTTP_PORT='"$HTTP_PORT" > /etc/envinit.sh && \
     sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
     \cp /utils.sh /etc/utils.sh && \
     apt-get update && apt-get install -y wget nginx vim && chmod +x /run.sh && mkdir -p /default/ && cd /default && \
-    wget -O overtls.zip https://github.com/ShadowsocksR-Live/overtls/releases/download/$VERION/overtls-x86_64-unknown-linux-musl.zip && \
+    wget -O overtls.zip https://github.com/shadowsocksr-live/overtls/releases/latest/download/overtls-x86_64-unknown-linux-musl.zip && \
     unzip overtls.zip && rm -rf overtls.zip && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir /web && \
