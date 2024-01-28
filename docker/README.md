@@ -1,5 +1,5 @@
 # overtls
-docker run --restart always -p 80:80 -p 443:443  --name overtls -e TUNNEL_PATH=/secret-tunnel-path/ -v /cert:/cert -v /web:/web -itd registry.cn-hangzhou.aliyuncs.com/dubux/overtls:latest
+docker run --restart always -p 80:80 -p 443:443  --name overtls -e TUNNEL_PATH=/secret-tunnel-path/ -v /cert:/cert -v /web:/web -itd chengxudong2020/overtls
 
 # 参数说明
 -v 证书所在目录 一定要映射到/cert容器目录 证书要目录中必须存在私钥privkey.pem 公钥fullchain.pem 名字不对请该名
