@@ -2,6 +2,19 @@
 source /etc/envinit.sh
 source /etc/utils.sh
 
+checkssl(){
+      local file="/cert/$SSL_PUBLIC"
+      if [ ! -f "$file" ]; then     
+        echoerr "找不到证书公钥文件： $file，请检查配置"  
+        exit 1
+      fi
+      file="/cert/$SSL_KEY"
+      if [ ! -f "$file" ]; then     
+        echoerr "找不到证书私钥文件： $file，请检查配置"  
+        exit 1
+      fi    
+}
+
 checkindex(){
   isindex=0
   local dir="/web"  
@@ -37,20 +50,19 @@ initIndex(){
 }
 
 initConfig(){
-  rm -rf /etc/nginx/conf.d/overtls.conf
-  cat > /etc/nginx/conf.d/overtls.conf <<EOF
+  rm -rf /etc/nginx/http.d/overtls.conf
+  cat > /etc/nginx/http.d/overtls.conf <<EOF
   server {
         listen $HTTP_PORT default_server;
         listen [::]:$HTTP_PORT default_server;
         server_name localhost;
-        index index.php index.html index.htm index.nginx-debian.html;
-        root  /web;
+        rewrite ^(.*)$ https://\$host\$1 permanent;
     }
      server {
         listen $HTTPS_PORT ssl default_server;
         listen [::]:$HTTPS_PORT ssl default_server;
-        ssl_certificate       /cert/fullchain.pem;
-        ssl_certificate_key   /cert/privkey.pem;
+        ssl_certificate       /cert/$SSL_PUBLIC;
+        ssl_certificate_key   /cert/$SSL_KEY;
         ssl_protocols         TLSv1 TLSv1.1 TLSv1.2;
         ssl_ciphers           HIGH:!aNULL:!MD5;
         server_name           localhost;
@@ -90,7 +102,7 @@ EOF
     
 }
 
-echolog "-----------开始启动------------------"
-echolog "--使用的tunnel_path=$TUNNEL_PATH-----"
-initIndex && initConfig && nginx -g "daemon off;" & \
+echolog "开始启动-----------------------------"
+echolog "使用的tunnel_path=$TUNNEL_PATH-------"
+checkssl && initIndex && initConfig && nginx && \
 cd /default && chmod +x ./overtls && ./overtls -v $OVERTLS_LOG_LEVEL -r server -c config.json

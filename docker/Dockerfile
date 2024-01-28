@@ -1,4 +1,4 @@
-FROM visense/debain11_slim:v1
+FROM alpine:3.17
 
 
 ENV TUNNEL_PATH=/secret-tunnel-path/
@@ -8,30 +8,34 @@ ENV OVERTLS_LOG_LEVEL=debug
 ARG HTTP_PORT=80
 ARG HTTPS_PORT=443
 
+ARG VERION=v0.2.8
 ARG OVERTLS_HOST=127.0.0.1
 ARG OVERTLS_PORT=10000
+ARG SSL_KEY=privkey.pem
+ARG SSL_PUBLIC=fullchain.pem
 
-
-COPY run.sh utils.sh index.html security.conf 50x.html /
+COPY run.sh utils.sh index.html 50x.html /
 
 RUN echo 'export HTTP_PORT='"$HTTP_PORT" > /etc/envinit.sh && \
     echo 'export HTTPS_PORT='"$HTTPS_PORT" >> /etc/envinit.sh && \
     echo 'export HTTP_PORT='"$HTTP_PORT" >> /etc/envinit.sh && \
     echo 'export OVERTLS_HOST='"$OVERTLS_HOST" >> /etc/envinit.sh && \
     echo 'export OVERTLS_PORT='"$OVERTLS_PORT" >> /etc/envinit.sh && \
-    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    echo 'export SSL_KEY='"$SSL_KEY" >> /etc/envinit.sh && \
+    echo 'export SSL_PUBLIC='"$SSL_PUBLIC" >> /etc/envinit.sh && \
+    sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \ 
     \cp /utils.sh /etc/utils.sh && \
-    apt-get update && apt-get install -y wget nginx vim && chmod +x /run.sh && mkdir -p /default/ && cd /default && \
-    wget -O overtls.zip https://github.com/shadowsocksr-live/overtls/releases/latest/download/overtls-x86_64-unknown-linux-musl.zip && \
+    apk add --update --no-cache bash unzip wget fontconfig nginx nginx-mod-stream nginx-mod-http-headers-more nginx-mod-http-lua vim && \ 
+    chmod +x /run.sh && mkdir -p /default/ && cd /default && \
+    wget -O overtls.zip https://github.com/ShadowsocksR-Live/overtls/releases/download/$VERION/overtls-x86_64-unknown-linux-musl.zip && \
     unzip overtls.zip && rm -rf overtls.zip && \
-    rm -rf /var/lib/apt/lists/* && \
+    fc-cache -f -v && \
+    rm -rf /var/cache/apk/* /tmp/* && \
     mkdir /web && \
     mkdir /cert && \
-    cd /default && \
     rm -rf /etc/nginx/sites-enabled/* && \
-    \cp /security.conf /etc/nginx/conf.d/ && \
-    chown -R www-data:www-data /web && \
-    chmod -R 777 /web
+    rm -rf /etc/nginx/http.d/*
+
     
     
 

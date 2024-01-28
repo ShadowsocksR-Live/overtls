@@ -3,6 +3,10 @@ echolog() {
     echo -e "\033[32m[overtls log]\033[0m" $*
 }
 
+echoerr() {
+    echo -e "\033[31m[overtls err]\033[0m" $*
+}
+
 random_string_gen() {
     local PASS=""
     local MATRIX="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" # "~!@#$%^&*()_+="
