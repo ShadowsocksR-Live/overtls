@@ -1,6 +1,9 @@
 #![cfg(not(target_os = "android"))]
 
-use crate::error::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    ArgVerbosity,
+};
 use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     os::raw::{c_char, c_int, c_void},
@@ -35,13 +38,11 @@ lazy_static::lazy_static! {
 #[no_mangle]
 pub unsafe extern "C" fn over_tls_client_run(
     config_path: *const c_char,
-    verbose: c_char,
+    verbosity: ArgVerbosity,
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
 ) -> c_int {
-    use log::LevelFilter;
-    let log_level = if verbose != 0 { LevelFilter::Trace } else { LevelFilter::Info };
-    log::set_max_level(log_level);
+    log::set_max_level(verbosity.into());
     log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()).unwrap();
 
     _over_tls_client_run(config_path, callback, ctx)

@@ -111,24 +111,3 @@ overtls -r client -c config.json
 > 爲方便測試，提供了 `disable_tls` 選項以具備停用 `TLS` 的能力；就是說，若該項存在且爲 `true` 時，本軟件將 `明文(plain text)` 傳輸流量；出於安全考慮，正式場合請勿使用。
 
 本示例展示的是最少條目的配置文件，完整的配置文件可以參考 [config.json](config.json)。
-
-
-## 构建 iOS framework
-
-### 安装 **Rust** 构建工具
-- 安装 Xcode 命令行工具: `xcode-select --install`
-- 安装 Rust 编程语言: `curl https://sh.rustup.rs -sSf | sh`
-- 安装 iOS 编译目标支持: `rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios`
-- 安装 `cbindgen` 工具: `cargo install cbindgen`
-
-### 构建 iOS framework
-由于目前某种未知的原因, 从 Xcode 这个 IDE 环境里编译 Rust 代码会失败, 因此你得手工从命令行编译它.
-请在 zsh (或 bash) 终端运行如下这些命令完成编译:
-```
-cd overtls
-
-cargo build --release --target aarch64-apple-ios
-cargo build --release --target x86_64-apple-ios
-lipo -create target/aarch64-apple-ios/release/libovertls.a target/x86_64-apple-ios/release/libovertls.a -output target/libovertls.a
-cbindgen --config cbindgen.toml -l C -o target/overtls-ios.h
-```

@@ -1,13 +1,11 @@
-use overtls::{client, config, server, Error, Result};
+use overtls::{client, config, server, CmdOpt, Error, Result};
 use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::{atomic::AtomicBool, Arc},
 };
 
-mod cmdopt;
-
 fn main() -> Result<()> {
-    let opt = cmdopt::CmdOpt::parse_cmd();
+    let opt = CmdOpt::parse_cmd();
 
     dotenvy::dotenv().ok();
 

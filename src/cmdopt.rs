@@ -1,17 +1,46 @@
-#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(C)]
+#[derive(clap::ValueEnum, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Role {
-    Server,
+    Server = 0,
+    #[default]
     Client,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
 pub enum ArgVerbosity {
-    Off,
+    Off = 0,
     Error,
     Warn,
+    #[default]
     Info,
     Debug,
     Trace,
+}
+
+impl From<ArgVerbosity> for log::LevelFilter {
+    fn from(verbosity: ArgVerbosity) -> Self {
+        match verbosity {
+            ArgVerbosity::Off => log::LevelFilter::Off,
+            ArgVerbosity::Error => log::LevelFilter::Error,
+            ArgVerbosity::Warn => log::LevelFilter::Warn,
+            ArgVerbosity::Info => log::LevelFilter::Info,
+            ArgVerbosity::Debug => log::LevelFilter::Debug,
+            ArgVerbosity::Trace => log::LevelFilter::Trace,
+        }
+    }
+}
+
+impl From<log::Level> for ArgVerbosity {
+    fn from(level: log::Level) -> Self {
+        match level {
+            log::Level::Error => ArgVerbosity::Error,
+            log::Level::Warn => ArgVerbosity::Warn,
+            log::Level::Info => ArgVerbosity::Info,
+            log::Level::Debug => ArgVerbosity::Debug,
+            log::Level::Trace => ArgVerbosity::Trace,
+        }
+    }
 }
 
 /// Proxy tunnel over tls

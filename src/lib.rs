@@ -2,6 +2,7 @@ pub(crate) mod android;
 pub(crate) mod api;
 pub(crate) mod base64_wrapper;
 pub mod client;
+pub(crate) mod cmdopt;
 pub mod config;
 pub(crate) mod dns;
 pub mod dump_logger;
@@ -16,6 +17,7 @@ pub(crate) mod weirduri;
 
 use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
+pub use cmdopt::{ArgVerbosity, CmdOpt, Role};
 pub use error::{Error, Result};
 use socks5_impl::protocol::{Address, StreamOperation};
 
