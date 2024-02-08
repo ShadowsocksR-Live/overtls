@@ -1,10 +1,12 @@
 # overtls
 
-overtls 是 [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) 型代理軟件，在軟件內部通過 TLS 實現數據傳輸，同時支持 TCP 和 UDP 流量轉發。
+overtls 是 [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) 型代理軟件，
+在軟件內部通過 TLS 實現數據傳輸，同時支持 TCP 和 UDP 流量轉發。
 
 功能齊備且代碼精簡，核心功能總共也就大概 1200 行代碼。
 
-> `OverTLS` 相當於 [SSRoT](https://github.com/ShadowsocksR-Live/shadowsocksr-native) 去掉 `SSR` 和 `SS`, 唯獨保留 `oT` 的 Rust 實現，快如閃電，穩如老狗。
+> `OverTLS` 相當於 [SSRoT](https://github.com/ShadowsocksR-Live/shadowsocksr-native) 去掉 `SSR` 和 `SS`,
+> 唯獨保留 `oT` 的 Rust 實現，快如閃電，穩如老狗。
 > ```kotlin
 >     fun isOverTLS() : Boolean =
 >         over_tls_enable && method == "none" && obfs == "plain" && protocol == "origin"
@@ -14,7 +16,8 @@ overtls 是 [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) 型代理軟件
 ## 原理
 
 爲了能有效騙過 [GFW](https://en.wikipedia.org/wiki/Great_Firewall)，直接使用 [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) 作爲代理協議是最簡單的方法。
-TLS 協議是一種加密協議，它的加密方式是對稱加密，即客戶端和服務端使用相同的密鑰進行加密解密。
+TLS 協議是互聯網的數據傳輸事实上的標準，所以 GFW 不能封鎖 TLS 協議，而且 TLS 協議是一種加密協議，
+所以 GFW 不知道通過 TLS 協議傳輸的數據的內容。
 
 我們可以利用這個特性，將客戶端和服務端的加密解密過程封裝成一個代理服務，這樣就可以在 GFW 的監視下，進行加密的 TCP 和 UDP 代理。
 
@@ -22,9 +25,9 @@ overtls 客戶端首先與 overtls 服務端建立 TLS 連接，然後 overtls �
 
 我們只要約定 overtls 客戶端訪問某一特定資源 uri，就認爲是要進行代理，服務端會將含有這個 uri 的數據包轉發到指定的目標地址。
 
-我們的代理就這樣達成了。
+我們的代理目的就這樣達成了。
 
-因此，overtls 服務端和 overtls 客戶端之間的數據交換是加密的，而 overtls 服務端和目標服務器之間的數據交換是明文的。
+因此，overtls 服務端和 overtls 客戶端之間的數據交換是加密的，而 overtls 服務端和目標服務器之間的數據交換是"明文"的。
 
 綜上所述，我們需要準備的東西有：
 - 一個帶公網 IP 的 VPS 主機，必須自行購買，
@@ -46,7 +49,8 @@ cargo build --release
 
 ### 服務端一鍵安裝腳本
 
-安裝前請準備好帶公網 `IP` 的 `VPS` 主機和 `域名`，並將該域名解析到此 `主機` IP 上，然後執行以下命令，按提示操作，如果一切順利，結果就將 overtls 服務端 和 `nginx` 前置代理安裝到你的主機上，並申請好了證書。
+安裝前請準備好帶公網 `IP` 的 `VPS` 主機和 `域名`，並將該域名解析到此 `主機` IP 上，然後執行以下命令，
+按提示操作，如果一切順利，結果就將 overtls 服務端 和 `nginx` 前置代理安裝到你的主機上，並申請好了證書。
 
 目前只支持 3 種 `CPU` 架構的 `Linux` 機器： `x86_64`、`armv7` 和 `arm64`。
 ```bash

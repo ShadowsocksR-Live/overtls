@@ -2,7 +2,8 @@
 
 [中文版](readme-cn.md)
 
-overtls is [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) type proxy software, which realizes data transmission through TLS inside the software and supports TCP and UDP traffic forwarding at the same time.
+overtls is a [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) type proxy,
+which implements data transmission through TLS and supports TCP and UDP traffic forwarding at the same time.
 
 The function is complete and the code is concise, and the core function is 1200 lines of code in total.
 
@@ -14,29 +15,40 @@ The function is complete and the code is concise, and the core function is 1200 
 
 ## Principle
 
-In order to effectively deceive [GFW](https://en.wikipedia.org/wiki/Great_Firewall), directly using [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) as a proxy protocol is the simplest way. TLS protocol is an encryption protocol, which is symmetric encryption, i.e. the client and server use the same key for encryption and decryption.
+In order to effectively deceive [GFW](https://en.wikipedia.org/wiki/Great_Firewall),
+directly using [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) as proxy protocol is the simplest way,
+because `TLS` protocol is the data transmission standard of internet in fact,
+so the `GFW` cannot block the `TLS` protocol, and the `TLS` protocol is an encryption protocol,
+so `GFW` cannot know the content of the data transmitted through the `TLS` protocol.
 
-We can take advantage of this feature to encapsulate the encryption and decryption process on the client and server sides as a proxy service, so that encrypted TCP and UDP proxies can be performed under `GFW` surveillance.
+We can take advantage of this feature to encapsulate the encryption and decryption process on
+the client and server sides as a proxy service, so that encrypted TCP and UDP proxies can
+be performed under `GFW` surveillance.
 
-The overtls client first establishes a TLS connection with the overtls server, and then the data exchange between the overtls client and the overtls server is encrypted.
+The overtls client first establishes a TLS connection with the overtls server,
+and then the data exchange between the overtls client and the overtls server is encrypted.
 
-We simply agree that the overtls client accessing a unique resource `uri` is considered to be a proxy, and the server will forward the packets containing this `uri` to the specified destination address.
+We simply agree that the overtls client accessing a unique resource `uri` is considered to be a proxy,
+and the server will forward the packets containing this `uri` to the specified destination address.
 
 This is how our proxy is achieved.
 
-Thus, the data exchange between the overtls server and the overtls client is encrypted, while the data exchange between the overtls server and the target server is in plaintext.
+Thus, the data exchange between the overtls server and the overtls client is encrypted,
+while the data exchange between the overtls server and the target server is in "plaintext".
 
 In summary, we need to prepare the following things
--    A `VPS` host with a public `IP`, which must be purchased by yourself.
--    A `domain name`, which can be purchased or applied for free, and resolve the `domain name` to the `IP` of the `VPS` host.
--    A pair of `https` certificates/private keys, which can be purchased or applied for free at [Let's Encrypt](https://letsencrypt.org/) .
--    an http server software (such as [nginx](https://www.nginx.com/) ), and provide site resources for masquerading purposes or acting as a front `reverse proxy`.
+- A `VPS` host with a public `IP`, which must be purchased by yourself.
+- A `domain name`, which can be purchased or applied for free, and resolve the `domain name` to the `IP` of the `VPS` host.
+- A pair of `https` certificates/private keys, which can be purchased or applied for free at [Let's Encrypt](https://letsencrypt.org/) .
+- An http server software (such as [nginx](https://www.nginx.com/) ), and provide site resources for masquerading purposes or acting as a front `reverse proxy`.
 
 ## Installation
 
-Can be compiled directly from the source code, or you can download the pre-compiled binary file from the [Release page](https://github.com/shadowsocksr-live/overtls/releases).
+Can be compiled directly from the source code, or you can download the pre-compiled binary file
+from the [Release page](https://github.com/shadowsocksr-live/overtls/releases).
 
-To compile from source code, you need to install the [Rust](https://www.rust-lang.org/) programming language environment first, and then run the following command to compile the software.
+To compile from source code, you need to install the [Rust](https://www.rust-lang.org/)
+programming language environment first, and then run the following commands to compile overtls.
 
 ```bash
 git clone https://github.com/shadowsocksr-live/overtls.git
@@ -46,7 +58,10 @@ cargo build --release
 
 ## Server-side one-click installation script
 
-Before installation, please prepare a `VPS` host with a public `IP` and a `domain name`, and resolve the `domain name` to this host `IP`, then run the following command and follow the prompts, if everything goes smoothly, the result will be overtls server and nginx front proxy installed on your host, and apply for a certificate.
+Before installation, please prepare a `VPS` host with a public `IP` and a `domain name`,
+and resolve the `domain name` to this host `IP`, then run the following command and follow the prompts,
+if everything goes smoothly, the result will be overtls server and nginx front proxy installed on your host,
+and apply for a certificate.
 
 Currently only 3 `CPU` architectures of `Linux` machines are supported: `x86_64`, `armv7` and `arm64`.
 
@@ -71,7 +86,8 @@ overtls -r server -c config.json
 overtls -r client -c config.json
 ```
 
-If you want to see log info, you can create a `.env` file in current dir (`pwd`) with `RUST_LOG=overtls=trace` as content.
+If you want to see log info, you can create a `.env` file in current dir (`pwd`)
+with `RUST_LOG=overtls=trace` as content.
 
 ### Configuration file
 ```json
