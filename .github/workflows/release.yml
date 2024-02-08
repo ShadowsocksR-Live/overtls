@@ -59,13 +59,13 @@ jobs:
           else
             cargo build --all-features --release --target ${{ matrix.target }}
           fi
-          cbindgen -c cbindgen.toml -l C -o target/${{ matrix.target }}/release/overtls-api.h
+          cbindgen -c cbindgen.toml -l C -o target/overtls-ffi.h
           if [[ "${{ matrix.host_os }}" == "windows-latest" ]]; then
-            powershell Compress-Archive -Path target/${{ matrix.target }}/release/overtls.exe, ./config.json, target/${{ matrix.target }}/release/overtls-api.h, target/${{ matrix.target }}/release/overtls.dll -DestinationPath release/overtls-${{ matrix.target }}.zip
+            powershell Compress-Archive -Path target/${{ matrix.target }}/release/overtls.exe, ./config.json, target/overtls-ffi.h, target/${{ matrix.target }}/release/overtls.dll -DestinationPath release/overtls-${{ matrix.target }}.zip
           elif [[ "${{ matrix.host_os }}" == "macos-latest" ]]; then
-            zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json target/${{ matrix.target }}/release/overtls-api.h target/${{ matrix.target }}/release/libovertls.dylib
+            zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json target/overtls-ffi.h target/${{ matrix.target }}/release/libovertls.dylib
           elif [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
-            zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json target/${{ matrix.target }}/release/overtls-api.h target/${{ matrix.target }}/release/libovertls.so
+            zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json target/overtls-ffi.h target/${{ matrix.target }}/release/libovertls.so
           fi
 
       - name: Upload
