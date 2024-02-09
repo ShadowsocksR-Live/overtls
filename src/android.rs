@@ -2,12 +2,15 @@
 
 pub mod native {
 
-    use crate::error::{Error, Result};
+    use crate::{
+        error::{Error, Result},
+        ArgVerbosity,
+    };
     use crossbeam::channel::{unbounded, Receiver, Sender};
     use jni::{
         objects::{GlobalRef, JClass, JMethodID, JObject, JString, JValue},
         signature::{Primitive, ReturnType},
-        sys::{jboolean, jint},
+        sys::jint,
         JNIEnv, JavaVM,
     };
     use std::{
@@ -154,11 +157,11 @@ pub mod native {
         vpn_service: JObject,
         config_path: JString,
         stat_path: JString,
-        verbose: jboolean,
+        verbosity: jint,
     ) -> jint {
         let mut env = env;
 
-        let log_level = if verbose != 0 { "trace" } else { "info" };
+        let log_level = ArgVerbosity::try_from(verbosity).unwrap().to_string();
         let root = module_path!().split("::").next().unwrap();
         let filter_str = &format!("off,{root}={log_level}");
         let filter = android_logger::FilterBuilder::new().parse(filter_str).build();

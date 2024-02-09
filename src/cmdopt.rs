@@ -18,6 +18,22 @@ pub enum ArgVerbosity {
     Trace,
 }
 
+#[cfg(target_os = "android")]
+impl TryFrom<jni::sys::jint> for ArgVerbosity {
+    type Error = std::io::Error;
+    fn try_from(value: jni::sys::jint) -> Result<Self, <Self as TryFrom<jni::sys::jint>>::Error> {
+        match value {
+            0 => Ok(ArgVerbosity::Off),
+            1 => Ok(ArgVerbosity::Error),
+            2 => Ok(ArgVerbosity::Warn),
+            3 => Ok(ArgVerbosity::Info),
+            4 => Ok(ArgVerbosity::Debug),
+            5 => Ok(ArgVerbosity::Trace),
+            _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid verbosity level")),
+        }
+    }
+}
+
 impl From<ArgVerbosity> for log::LevelFilter {
     fn from(verbosity: ArgVerbosity) -> Self {
         match verbosity {
@@ -39,6 +55,19 @@ impl From<log::Level> for ArgVerbosity {
             log::Level::Info => ArgVerbosity::Info,
             log::Level::Debug => ArgVerbosity::Debug,
             log::Level::Trace => ArgVerbosity::Trace,
+        }
+    }
+}
+
+impl std::fmt::Display for ArgVerbosity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ArgVerbosity::Off => write!(f, "off"),
+            ArgVerbosity::Error => write!(f, "error"),
+            ArgVerbosity::Warn => write!(f, "warn"),
+            ArgVerbosity::Info => write!(f, "info"),
+            ArgVerbosity::Debug => write!(f, "debug"),
+            ArgVerbosity::Trace => write!(f, "trace"),
         }
     }
 }
