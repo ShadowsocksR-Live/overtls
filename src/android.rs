@@ -14,7 +14,6 @@ pub mod native {
         JNIEnv, JavaVM,
     };
     use std::{
-        net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
         sync::{
             atomic::{AtomicBool, Ordering},
             Arc, Mutex, RwLock,
@@ -142,10 +141,7 @@ pub mod native {
         }
     }
 
-    lazy_static::lazy_static! {
-        pub static ref EXITING_FLAG: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-        pub static ref LISTEN_ADDR: Arc<Mutex<SocketAddr>> = Arc::new(Mutex::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080)));
-    }
+    static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::sync::Mutex::new(None);
 
     /// # Safety
     ///
@@ -159,6 +155,16 @@ pub mod native {
         stat_path: JString,
         verbosity: jint,
     ) -> jint {
+        let shutdown_token = crate::CancellationToken::new();
+        {
+            let mut lock = EXITING_FLAG.lock().unwrap();
+            if lock.is_some() {
+                log::error!("tun2proxy already started");
+                return -1;
+            }
+            *lock = Some(shutdown_token.clone());
+        }
+
         let mut env = env;
 
         let log_level = ArgVerbosity::try_from(verbosity).unwrap().to_string();
@@ -186,7 +192,6 @@ pub mod native {
 
             let callback = |addr| {
                 log::trace!("Listening on {}", addr);
-                *LISTEN_ADDR.lock().unwrap() = addr;
             };
 
             let mut config = crate::config::Config::from_config_file(config_path)?;
@@ -194,8 +199,7 @@ pub mod native {
 
             let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
             rt.block_on(async {
-                EXITING_FLAG.store(false, Ordering::SeqCst);
-                crate::client::run_client(&config, Some(EXITING_FLAG.clone()), Some(callback)).await?;
+                crate::client::run_client(&config, shutdown_token, Some(callback)).await?;
                 Ok::<(), Error>(())
             })
         };
@@ -218,16 +222,11 @@ pub mod native {
     pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient(_: JNIEnv, _: JClass) -> jint {
         stop_protect_socket();
 
-        EXITING_FLAG.store(true, Ordering::SeqCst);
-
-        let l_addr = *LISTEN_ADDR.lock().unwrap();
-        let addr = if l_addr.is_ipv6() {
-            SocketAddr::from((Ipv6Addr::LOCALHOST, l_addr.port()))
-        } else {
-            SocketAddr::from((Ipv4Addr::LOCALHOST, l_addr.port()))
-        };
-        let _ = std::net::TcpStream::connect(addr);
-        log::trace!("stopClient on listen address {l_addr}");
+        if let Ok(mut token) = EXITING_FLAG.lock() {
+            if let Some(token) = token.take() {
+                token.cancel();
+            }
+        }
 
         SocketProtector::release();
         Jni::release();

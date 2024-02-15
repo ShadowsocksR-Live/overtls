@@ -73,7 +73,7 @@ impl std::fmt::Display for ArgVerbosity {
 }
 
 /// Proxy tunnel over tls
-#[derive(clap::Parser, Debug, Clone, PartialEq, Eq)]
+#[derive(clap::Parser, Debug, Clone, PartialEq, Eq, Default)]
 #[command(author, version, about = "Proxy tunnel over tls.", long_about = None)]
 pub struct CmdOpt {
     /// Role of server or client

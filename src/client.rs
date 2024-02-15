@@ -16,13 +16,7 @@ use socks5_impl::{
         AuthAdaptor, ClientConnection, Connect, IncomingConnection, Server,
     },
 };
-use std::{
-    net::SocketAddr,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-};
+use std::{net::SocketAddr, sync::Arc};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::TcpStream,
@@ -38,7 +32,7 @@ use tungstenite::{
     protocol::{Message, Role},
 };
 
-pub async fn run_client<F>(config: &Config, exiting_flag: Option<Arc<AtomicBool>>, callback: Option<F>) -> Result<()>
+pub async fn run_client<F>(config: &Config, quit: crate::CancellationToken, callback: Option<F>) -> Result<()>
 where
     F: FnOnce(SocketAddr) + Send + Sync + 'static,
 {
@@ -52,14 +46,14 @@ where
     if let Some(user) = listen_user {
         let listen_password = client.listen_password.as_deref().unwrap_or("");
         let key = UserKeyAuth::new(user, listen_password);
-        _run_client(config, Arc::new(key), exiting_flag, callback).await?;
+        _run_client(config, Arc::new(key), quit, callback).await?;
     } else {
-        _run_client(config, Arc::new(NoAuth), exiting_flag, callback).await?;
+        _run_client(config, Arc::new(NoAuth), quit, callback).await?;
     }
     Ok(())
 }
 
-async fn _run_client<F, O>(config: &Config, auth: AuthAdaptor<O>, exiting_flag: Option<Arc<AtomicBool>>, callback: Option<F>) -> Result<()>
+async fn _run_client<F, O>(config: &Config, auth: AuthAdaptor<O>, quit: crate::CancellationToken, callback: Option<F>) -> Result<()>
 where
     F: FnOnce(SocketAddr) + Send + Sync + 'static,
     O: Send + Sync + 'static,
@@ -74,23 +68,26 @@ where
     }
 
     let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
-    udprelay::udp_handler_watchdog(config, &incomings, &udp_tx, exiting_flag.clone()).await?;
+    udprelay::udp_handler_watchdog(config, &incomings, &udp_tx, quit.clone()).await?;
 
-    while let Ok((conn, _)) = server.accept().await {
-        if let Some(exiting_flag) = &exiting_flag {
-            if exiting_flag.load(Ordering::Relaxed) {
+    loop {
+        tokio::select! {
+            _ = quit.cancelled() => {
                 log::info!("exiting...");
                 break;
             }
-        }
-        let config = config.clone();
-        let udp_tx = udp_tx.clone();
-        let incomings = incomings.clone();
-        tokio::spawn(async move {
-            if let Err(e) = handle_incoming(conn, config, Some(udp_tx), incomings).await {
-                log::debug!("{}", e);
+            result = server.accept() => {
+                let (conn, _) = result?;
+                let config = config.clone();
+                let udp_tx = udp_tx.clone();
+                let incomings = incomings.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = handle_incoming(conn, config, Some(udp_tx), incomings).await {
+                        log::debug!("{}", e);
+                    }
+                });
             }
-        });
+        }
     }
 
     Ok(())

@@ -5,12 +5,8 @@ use crate::{
     ArgVerbosity,
 };
 use std::{
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
+    net::SocketAddr,
     os::raw::{c_char, c_int, c_void},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
 };
 
 #[derive(Clone)]
@@ -27,10 +23,7 @@ impl CCallback {
 unsafe impl Send for CCallback {}
 unsafe impl Sync for CCallback {}
 
-lazy_static::lazy_static! {
-    static ref EXITING_FLAG: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    static ref LISTEN_ADDR: Arc<Mutex<SocketAddr>> = Arc::new(Mutex::new(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))));
-}
+static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::sync::Mutex::new(None);
 
 /// # Safety
 ///
@@ -53,6 +46,16 @@ unsafe fn _over_tls_client_run(
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
 ) -> c_int {
+    let shutdown_token = crate::CancellationToken::new();
+    {
+        let mut lock = EXITING_FLAG.lock().unwrap();
+        if lock.is_some() {
+            log::error!("tun2proxy already started");
+            return -1;
+        }
+        *lock = Some(shutdown_token.clone());
+    }
+
     let ccb = CCallback(callback, ctx);
 
     let block = || -> Result<()> {
@@ -61,8 +64,6 @@ unsafe fn _over_tls_client_run(
         let cb = |addr: SocketAddr| {
             log::trace!("Listening on {}", addr);
             let port = addr.port();
-            let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-            *LISTEN_ADDR.lock().unwrap() = addr;
             unsafe {
                 ccb.call(port as c_int);
             }
@@ -72,8 +73,7 @@ unsafe fn _over_tls_client_run(
         config.check_correctness(false)?;
         let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
         rt.block_on(async {
-            EXITING_FLAG.store(false, Ordering::SeqCst);
-            crate::client::run_client(&config, Some(EXITING_FLAG.clone()), Some(cb)).await?;
+            crate::client::run_client(&config, shutdown_token, Some(cb)).await?;
             Ok::<(), Error>(())
         })
     };
@@ -89,15 +89,10 @@ unsafe fn _over_tls_client_run(
 /// Shutdown the client.
 #[no_mangle]
 pub unsafe extern "C" fn over_tls_client_stop() -> c_int {
-    EXITING_FLAG.store(true, Ordering::SeqCst);
-
-    let l_addr = *LISTEN_ADDR.lock().unwrap();
-    let addr = if l_addr.is_ipv6() {
-        SocketAddr::from((Ipv6Addr::LOCALHOST, l_addr.port()))
-    } else {
-        SocketAddr::from((Ipv4Addr::LOCALHOST, l_addr.port()))
-    };
-    let _ = std::net::TcpStream::connect(addr);
-    log::trace!("Client stop on listen address {}", l_addr);
+    if let Ok(mut token) = EXITING_FLAG.lock() {
+        if let Some(token) = token.take() {
+            token.cancel();
+        }
+    }
     0
 }

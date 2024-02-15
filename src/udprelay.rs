@@ -17,10 +17,7 @@ use socks5_impl::{
 use std::{
     collections::HashSet,
     net::{SocketAddr, ToSocketAddrs},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::Arc,
     time::Duration,
 };
 use tokio::{
@@ -284,7 +281,7 @@ pub(crate) async fn udp_handler_watchdog(
     config: &Config,
     incomings: &SocketAddrHashSet,
     udp_tx: &UdpRequestSender,
-    exiting_flag: Option<Arc<AtomicBool>>,
+    quit: crate::CancellationToken,
 ) -> Result<()> {
     let config = config.clone();
     let incomings = incomings.clone();
@@ -292,26 +289,33 @@ pub(crate) async fn udp_handler_watchdog(
 
     tokio::spawn(async move {
         loop {
-            if let Some(ref flag) = exiting_flag {
-                if flag.load(Ordering::Relaxed) {
-                    break;
-                }
-            }
-            let (tx, mut rx) = mpsc::channel::<()>(10);
-
             let udp_tx = udp_tx.clone();
             let incomings = incomings.clone();
             let config = config.clone();
-            log::trace!("[UDP] udp client guard thread started");
-            let _ = tokio::spawn(async move {
-                if let Err(e) = run_udp_loop(udp_tx, incomings, config).await {
-                    log::trace!("[UDP] {}", e);
+
+            let block = async move {
+                let (tx, mut rx) = mpsc::channel::<()>(10);
+
+                log::trace!("[UDP] udp client guard thread started");
+                let _ = tokio::spawn(async move {
+                    if let Err(e) = run_udp_loop(udp_tx, incomings, config).await {
+                        log::trace!("[UDP] {}", e);
+                    }
+                    let _ = tx.send(()).await;
+                })
+                .await;
+                let _ = rx.recv().await;
+                time::sleep(Duration::from_secs(1)).await;
+            };
+
+            tokio::select! {
+                _ = quit.cancelled() => {
+                    break;
+                },
+                _ = block => {
+                    log::trace!("[UDP] udp client guard thread exited");
                 }
-                let _ = tx.send(()).await;
-            })
-            .await;
-            let _ = rx.recv().await;
-            time::sleep(Duration::from_secs(1)).await;
+            };
         }
     });
     Ok(())

@@ -12,10 +12,7 @@ use socks5_impl::protocol::{Address, StreamOperation};
 use std::{
     collections::HashMap,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::Arc,
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
@@ -33,7 +30,7 @@ use tungstenite::{
 const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
 
-pub async fn run_server(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) -> Result<()> {
+pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken) -> Result<()> {
     log::info!("starting {} server...", env!("CARGO_PKG_NAME"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
@@ -86,33 +83,36 @@ pub async fn run_server(config: &Config, exiting_flag: Option<Arc<AtomicBool>>) 
     let listener = TcpListener::bind(&addr).await?;
 
     loop {
-        let (stream, peer_addr) = listener.accept().await?;
-        if let Some(exiting_flag) = &exiting_flag {
-            if exiting_flag.load(Ordering::Relaxed) {
+        tokio::select! {
+            _ = exiting_flag.cancelled() => {
                 log::info!("exiting...");
                 break;
             }
+            ret = listener.accept() => {
+                let (stream, peer_addr) = ret?;
+                let acceptor = acceptor.clone();
+                let config = config.clone();
+                let traffic_audit = traffic_audit.clone();
+
+                let incoming_task = async move {
+                    if let Some(acceptor) = acceptor {
+                        let stream = acceptor.accept(stream).await?;
+                        handle_incoming(stream, peer_addr, config, traffic_audit).await?;
+                    } else {
+                        handle_incoming(stream, peer_addr, config, traffic_audit).await?;
+                    }
+                    Ok::<_, Error>(())
+                };
+
+                tokio::spawn(async move {
+                    if let Err(e) = incoming_task.await {
+                        log::debug!("{peer_addr}: {e}");
+                    }
+                });
+            }
         }
-        let acceptor = acceptor.clone();
-        let config = config.clone();
-        let traffic_audit = traffic_audit.clone();
-
-        let incoming_task = async move {
-            if let Some(acceptor) = acceptor {
-                let stream = acceptor.accept(stream).await?;
-                handle_incoming(stream, peer_addr, config, traffic_audit).await?;
-            } else {
-                handle_incoming(stream, peer_addr, config, traffic_audit).await?;
-            }
-            Ok::<_, Error>(())
-        };
-
-        tokio::spawn(async move {
-            if let Err(e) = incoming_task.await {
-                log::debug!("{peer_addr}: {e}");
-            }
-        });
     }
+
     Ok(())
 }
 

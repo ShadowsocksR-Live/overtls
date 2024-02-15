@@ -1,8 +1,4 @@
 use overtls::{client, config, server, CmdOpt, Error, Result};
-use std::{
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
-    sync::{atomic::AtomicBool, Arc},
-};
 
 fn main() -> Result<()> {
     let opt = CmdOpt::parse_cmd();
@@ -43,13 +39,13 @@ fn main() -> Result<()> {
 }
 
 async fn async_main(config: config::Config) -> Result<()> {
-    let exiting_flag = Arc::new(AtomicBool::new(false));
-    let exiting_flag_clone = exiting_flag.clone();
+    let shutdown_token = overtls::CancellationToken::new();
+    let shutdown_token_clone = shutdown_token.clone();
 
     let main_body = async {
         if config.is_server {
             if config.exist_server() {
-                server::run_server(&config, Some(exiting_flag_clone)).await?;
+                server::run_server(&config, shutdown_token_clone).await?;
             } else {
                 return Err(Error::from("Config is not a server config"));
             }
@@ -57,7 +53,7 @@ async fn async_main(config: config::Config) -> Result<()> {
             let callback = |addr| {
                 log::trace!("Listening on {}", addr);
             };
-            client::run_client(&config, Some(exiting_flag_clone), Some(callback)).await?;
+            client::run_client(&config, shutdown_token_clone, Some(callback)).await?;
         } else {
             return Err("Config is not a client config".into());
         }
@@ -65,18 +61,9 @@ async fn async_main(config: config::Config) -> Result<()> {
         Ok(())
     };
 
-    let local_addr = config.listen_addr()?;
-
     ctrlc2::set_async_handler(async move {
-        exiting_flag.store(true, std::sync::atomic::Ordering::Relaxed);
-
-        let addr = if local_addr.is_ipv6() {
-            SocketAddr::from((Ipv6Addr::LOCALHOST, local_addr.port()))
-        } else {
-            SocketAddr::from((Ipv4Addr::LOCALHOST, local_addr.port()))
-        };
-        let _ = std::net::TcpStream::connect(addr);
-        log::info!("");
+        log::info!("Ctrl-C received, exiting...");
+        shutdown_token.cancel();
     })
     .await;
 

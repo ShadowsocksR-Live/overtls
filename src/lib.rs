@@ -20,6 +20,7 @@ use bytes::BytesMut;
 pub use cmdopt::{ArgVerbosity, CmdOpt, Role};
 pub use error::{Error, Result};
 use socks5_impl::protocol::{Address, StreamOperation};
+pub use tokio_util::sync::CancellationToken;
 
 #[cfg(target_os = "windows")]
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32;
