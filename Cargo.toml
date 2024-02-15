@@ -1,8 +1,9 @@
 [package]
 name = "overtls"
-version = "0.2.9"
+version = "0.2.10"
 edition = "2021"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT"
+description = "A simple proxy tunnel, minimalist tool for bypassing the GFW."
 
 [lib]
 crate-type = ["staticlib", "cdylib", "lib"]

@@ -1,5 +1,12 @@
 # overtls
 
+[![Crates.io](https://img.shields.io/crates/v/overtls.svg)](https://crates.io/crates/overtls)
+![overtls](https://docs.rs/overtls/badge.svg)
+[![Documentation](https://img.shields.io/badge/docs-release-brightgreen.svg?style=flat)](https://docs.rs/overtls)
+[![Download](https://img.shields.io/crates/d/overtls.svg)](https://crates.io/crates/overtls)
+[![License](https://img.shields.io/crates/l/overtls.svg?style=flat)](https://github.com/ShadowsocksR-Live/overtls/blob/master/LICENSE)
+
+
 [中文版](readme-cn.md)
 
 overtls is a [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) type proxy,
