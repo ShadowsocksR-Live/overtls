@@ -5,7 +5,7 @@ use std::{
 };
 
 lazy_static::lazy_static! {
-    pub static ref DUMP_CALLBACK: Mutex<Option<DumpCallback>> = Mutex::new(None);
+    static ref DUMP_CALLBACK: Mutex<Option<DumpCallback>> = Mutex::new(None);
 }
 
 /// # Safety
@@ -20,7 +20,7 @@ pub unsafe extern "C" fn overtls_set_log_callback(
 }
 
 #[derive(Clone)]
-pub struct DumpCallback(Option<unsafe extern "C" fn(ArgVerbosity, *const c_char, *mut c_void)>, *mut c_void);
+struct DumpCallback(Option<unsafe extern "C" fn(ArgVerbosity, *const c_char, *mut c_void)>, *mut c_void);
 
 impl DumpCallback {
     unsafe fn call(self, dump_level: ArgVerbosity, info: *const c_char) {
@@ -34,7 +34,7 @@ unsafe impl Send for DumpCallback {}
 unsafe impl Sync for DumpCallback {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct DumpLogger {}
+pub(crate) struct DumpLogger;
 
 impl log::Log for DumpLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {

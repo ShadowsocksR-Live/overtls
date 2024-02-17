@@ -100,6 +100,10 @@ pub struct CmdOpt {
     /// Generate QR code for client.
     #[arg(short, long)]
     pub qrcode: bool,
+
+    /// Use C API for client.
+    #[arg(long)]
+    pub c_api: bool,
 }
 
 impl CmdOpt {

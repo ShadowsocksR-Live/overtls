@@ -3,6 +3,37 @@ use overtls::{client, config, server, CmdOpt, Error, Result};
 fn main() -> Result<()> {
     let opt = CmdOpt::parse_cmd();
 
+    if opt.c_api {
+        if opt.is_server() {
+            return Err(Error::from("C API is not supported for server"));
+        }
+
+        // Test the C API usage
+        let config_path_str = opt.config.as_path().to_string_lossy().into_owned();
+        let c_string = std::ffi::CString::new(config_path_str).unwrap();
+        let config_path: *const std::os::raw::c_char = c_string.as_ptr();
+
+        let join = ctrlc2::set_handler(|| {
+            log::info!("Ctrl-C received, exiting...");
+            unsafe { overtls::over_tls_client_stop() };
+            true
+        })
+        .expect("Error setting Ctrl-C handler");
+
+        unsafe extern "C" fn log_cb(_: overtls::ArgVerbosity, msg: *const std::os::raw::c_char, _ctx: *mut std::os::raw::c_void) {
+            println!("{:?}", unsafe { std::ffi::CStr::from_ptr(msg).to_str() });
+        }
+        unsafe { overtls::overtls_set_log_callback(Some(log_cb), std::ptr::null_mut()) };
+
+        unsafe extern "C" fn port_cb(port: i32, _ctx: *mut std::os::raw::c_void) {
+            log::info!("Listening on {}", port);
+        }
+        unsafe { overtls::over_tls_client_run(config_path, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
+
+        join.join().unwrap();
+        return Ok(());
+    }
+
     dotenvy::dotenv().ok();
 
     let level = format!("{}={:?}", module_path!(), opt.verbosity);

@@ -36,8 +36,9 @@ pub unsafe extern "C" fn over_tls_client_run(
     ctx: *mut c_void,
 ) -> c_int {
     log::set_max_level(verbosity.into());
-    log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()).unwrap();
-
+    if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
+        log::info!("failed to set logger, error={:?}", err);
+    }
     _over_tls_client_run(config_path, callback, ctx)
 }
 
@@ -61,12 +62,8 @@ unsafe fn _over_tls_client_run(
     let block = || -> Result<()> {
         let config_path = std::ffi::CStr::from_ptr(config_path).to_str()?;
 
-        let cb = |addr: SocketAddr| {
-            log::trace!("Listening on {}", addr);
-            let port = addr.port();
-            unsafe {
-                ccb.call(port as c_int);
-            }
+        let cb = |addr: SocketAddr| unsafe {
+            ccb.call(addr.port() as _);
         };
 
         let mut config = crate::config::Config::from_config_file(config_path)?;
