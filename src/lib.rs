@@ -20,7 +20,7 @@ use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
 pub use cmdopt::{ArgVerbosity, CmdOpt, Role};
 pub use dump_logger::overtls_set_log_callback;
-pub use error::{Error, Result};
+pub use error::{BoxError, Error, Result};
 use socks5_impl::protocol::{Address, StreamOperation};
 pub use tokio_util::sync::CancellationToken;
 

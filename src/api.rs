@@ -48,8 +48,7 @@ unsafe fn _over_tls_client_run(
     ctx: *mut c_void,
 ) -> c_int {
     let shutdown_token = crate::CancellationToken::new();
-    {
-        let mut lock = EXITING_FLAG.lock().unwrap();
+    if let Ok(mut lock) = EXITING_FLAG.lock() {
         if lock.is_some() {
             log::error!("tun2proxy already started");
             return -1;

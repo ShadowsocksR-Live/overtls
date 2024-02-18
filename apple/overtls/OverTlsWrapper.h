@@ -12,6 +12,7 @@
 
 + (void) startWithConfig:(NSString*)filePath handler:(void (*)(int port, void *ctx))handler context:(void*)ctx;
 + (void) shutdown;
++ (void) setLogCallback:(void (*)(int verbosity, const char*, void*))cb context:(void*)ctx;
 
 @end
 

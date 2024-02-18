@@ -1,4 +1,4 @@
-use crate::ArgVerbosity;
+use crate::{ArgVerbosity, BoxError};
 use std::{
     os::raw::{c_char, c_void},
     sync::Mutex,
@@ -16,7 +16,11 @@ pub unsafe extern "C" fn overtls_set_log_callback(
     callback: Option<unsafe extern "C" fn(ArgVerbosity, *const c_char, *mut c_void)>,
     ctx: *mut c_void,
 ) {
-    *DUMP_CALLBACK.lock().unwrap() = Some(DumpCallback(callback, ctx));
+    if let Ok(mut cb) = DUMP_CALLBACK.lock() {
+        *cb = Some(DumpCallback(callback, ctx));
+    } else {
+        log::error!("set log callback failed");
+    }
 }
 
 #[derive(Clone)]
@@ -45,7 +49,9 @@ impl log::Log for DumpLogger {
         if self.enabled(record.metadata()) {
             let current_crate_name = env!("CARGO_CRATE_NAME");
             if record.module_path().unwrap_or("").starts_with(current_crate_name) {
-                self.do_dump_log(record);
+                if let Err(err) = self.do_dump_log(record) {
+                    log::error!("failed to dump log, error={:?}", err);
+                }
             }
         }
     }
@@ -54,7 +60,7 @@ impl log::Log for DumpLogger {
 }
 
 impl DumpLogger {
-    fn do_dump_log(&self, record: &log::Record) {
+    fn do_dump_log(&self, record: &log::Record) -> Result<(), BoxError> {
         let timestamp: chrono::DateTime<chrono::Local> = chrono::Local::now();
         let msg = format!(
             "[{} {:<5} {}] - {}",
@@ -63,12 +69,15 @@ impl DumpLogger {
             record.module_path().unwrap_or(""),
             record.args()
         );
-        let c_msg = std::ffi::CString::new(msg).unwrap();
+        let c_msg = std::ffi::CString::new(msg)?;
         let ptr = c_msg.as_ptr();
-        if let Some(cb) = DUMP_CALLBACK.lock().unwrap().clone() {
-            unsafe {
-                cb.call(record.level().into(), ptr);
+        if let Ok(cb) = DUMP_CALLBACK.lock() {
+            if let Some(cb) = cb.clone() {
+                unsafe {
+                    cb.call(record.level().into(), ptr);
+                }
             }
         }
+        Ok(())
     }
 }

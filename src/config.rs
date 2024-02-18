@@ -131,11 +131,12 @@ impl Config {
     }
 
     pub fn listen_addr(&self) -> Result<SocketAddr> {
+        let unspec = std::net::IpAddr::from(Ipv4Addr::UNSPECIFIED);
         if self.is_server {
-            let f = |s: &Server| SocketAddr::new(s.listen_host.parse().unwrap(), s.listen_port);
+            let f = |s: &Server| SocketAddr::new(s.listen_host.parse().unwrap_or(unspec), s.listen_port);
             self.server.as_ref().map(f).ok_or_else(|| "Server listen address is not set".into())
         } else {
-            let f = |c: &Client| SocketAddr::new(c.listen_host.parse().unwrap(), c.listen_port);
+            let f = |c: &Client| SocketAddr::new(c.listen_host.parse().unwrap_or(unspec), c.listen_port);
             self.client.as_ref().map(f).ok_or_else(|| "Client listen address is not set".into())
         }
     }
