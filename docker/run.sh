@@ -55,23 +55,21 @@ initConfig(){
   server {
         listen $HTTP_PORT default_server;
         listen [::]:$HTTP_PORT default_server;
-        server_name localhost;
-        rewrite ^(.*)$ https://\$host\$1 permanent;
+        index index.php index.html index.htm index.nginx-debian.html;
+        root  /web;
   }
   server {
         listen $HTTPS_PORT ssl default_server;
         listen [::]:$HTTPS_PORT ssl default_server;
         ssl_certificate       /cert/$SSL_PUBLIC;
         ssl_certificate_key   /cert/$SSL_KEY;
-        ssl_protocols         TLSv1 TLSv1.1 TLSv1.2;
+        ssl_protocols         TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
         ssl_ciphers           HIGH:!aNULL:!MD5;
         server_name           localhost;
         index index.php index.html index.htm index.nginx-debian.html;
         root  /web;
         error_page 400 = /400.html;
-        location ~ \\.php$ {
-            
-        }
+
         location $TUNNEL_PATH {
             proxy_redirect off;
             proxy_pass http://$OVERTLS_HOST:$OVERTLS_PORT;
