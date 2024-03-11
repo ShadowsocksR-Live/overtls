@@ -128,7 +128,7 @@ async fn handle_incoming<S: AsyncRead + AsyncWrite + Unpin>(
         return Err(Error::from("empty request"));
     }
 
-    if !check_uri_path(&buf, &config.tunnel_path)? {
+    if !check_uri_path(&buf, &config.tunnel_path.extract())? {
         return forward_traffic_wrapper(stream, &buf, &config).await;
     }
 
@@ -158,14 +158,16 @@ where
     Ok(())
 }
 
-fn check_uri_path(buf: &[u8], path: &str) -> Result<bool> {
+fn check_uri_path(buf: &[u8], path: &[String]) -> Result<bool> {
     let mut headers = [httparse::EMPTY_HEADER; 512];
     let mut req = httparse::Request::new(&mut headers);
     req.parse(buf)?;
 
     if let Some(p) = req.path {
-        if p == path {
-            return Ok(true);
+        for path in path {
+            if p == *path {
+                return Ok(true);
+            }
         }
     }
     Ok(false)
