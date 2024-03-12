@@ -61,14 +61,21 @@ impl TunnelPath {
     }
 
     pub fn standardize(&mut self) {
+        if self.is_empty() {
+            *self = TunnelPath::default();
+        }
         match self {
             TunnelPath::Single(s) => {
                 *s = format!("/{}/", s.trim().trim_matches('/'));
             }
             TunnelPath::Multiple(v) => {
-                for s in v.iter_mut() {
-                    *s = format!("/{}/", s.trim().trim_matches('/'));
-                }
+                v.iter_mut().for_each(|s| {
+                    *s = s.trim().trim_matches('/').to_string();
+                    if !s.is_empty() {
+                        *s = format!("/{}/", s);
+                    }
+                });
+                v.retain(|s| !s.is_empty());
             }
         }
     }
