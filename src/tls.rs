@@ -1,8 +1,5 @@
 use crate::error::Result;
-use rustls::{
-    pki_types::{CertificateDer, PrivateKeyDer, ServerName},
-    RootCertStore,
-};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
 use std::{
     fs::File,
     io::BufReader,
@@ -10,10 +7,18 @@ use std::{
     path::{Path, PathBuf},
 };
 use tokio::net::TcpStream;
-use tokio_rustls::{client::TlsStream, TlsConnector};
+use tokio_rustls::{
+    client::TlsStream,
+    rustls::{ClientConfig, RootCertStore},
+    TlsConnector,
+};
+
+//
+// https://github.com/rustls/tokio-rustls/blob/main/examples/client.rs
+//
 
 pub(crate) fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> Result<RootCertStore> {
-    let mut root_cert_store = rustls::RootCertStore::empty();
+    let mut root_cert_store = RootCertStore::empty();
     let mut done = false;
     if let Some(cafile) = cafile {
         if cafile.exists() {
@@ -35,7 +40,7 @@ pub(crate) async fn create_tls_client_stream(
     addr: SocketAddr,
     domain: &str,
 ) -> Result<TlsStream<TcpStream>> {
-    let config = rustls::ClientConfig::builder()
+    let config = ClientConfig::builder()
         .with_root_certificates(root_cert_store)
         .with_no_client_auth();
     let connector = TlsConnector::from(std::sync::Arc::new(config));
