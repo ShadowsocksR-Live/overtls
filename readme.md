@@ -129,6 +129,10 @@ The `certfile` and `keyfile` are optional, and the software will become `https` 
 
 Note the `tunnel_path` configuration, please make sure to change it to your own unique complex string, otherwise `GFW` will block you immediately.
 
+> The `tunnel_path` option now can be a string or an array of strings, like `["/secret-tunnel-path/", "/another-secret-tunnel-path/"]`.
+> Overtls client side will select the first one to use.
+> In the server side, it will check the incoming request with the entire array of strings. 
+
 >    For testing purposes, the `disable_tls` option is provided to have the ability to disable `TLS`; that is, if this option exists and is true, the software will transmit traffic in `plain text`; for security reasons, please do not use it on official occasions.
 
 This example shows the configuration file of the least entry, the complete configuration file can refer to [config.json](config.json).

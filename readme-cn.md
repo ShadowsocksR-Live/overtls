@@ -112,6 +112,9 @@ overtls -r client -c config.json
 
 注意 `tunnel_path` 配置項，請務必改成你自己獨有的複雜字符串，否則 `GFW` 立馬拿你祭旗。
 
+> `tuunel_path` 選項現在可以是字符串或字符串數組，如 `["/secret-tunnel-path/", "/another-secret-tunnel-path/"]`。
+> Overtls 客戶端將選擇第一個使用。在服務端，它將用整個字符串數組来检查傳入請求.
+
 > 爲方便測試，提供了 `disable_tls` 選項以具備停用 `TLS` 的能力；就是說，若該項存在且爲 `true` 時，本軟件將 `明文(plain text)` 傳輸流量；出於安全考慮，正式場合請勿使用。
 
 本示例展示的是最少條目的配置文件，完整的配置文件可以參考 [config.json](config.json)。
