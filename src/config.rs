@@ -14,11 +14,78 @@ pub struct Config {
     pub remarks: Option<String>,
     pub method: Option<String>,
     pub password: Option<String>,
-    pub tunnel_path: String,
+    pub tunnel_path: TunnelPath,
     #[serde(skip)]
     pub test_timeout_secs: u64,
     #[serde(skip)]
     pub is_server: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum TunnelPath {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+impl std::fmt::Display for TunnelPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TunnelPath::Single(s) => write!(f, "{}", s),
+            TunnelPath::Multiple(v) => {
+                let mut s = String::new();
+                for (i, item) in v.iter().enumerate() {
+                    if i > 0 {
+                        s.push(',');
+                    }
+                    s.push_str(item);
+                }
+                write!(f, "{}", s)
+            }
+        }
+    }
+}
+
+impl Default for TunnelPath {
+    fn default() -> Self {
+        TunnelPath::Single("/tunnel/".to_string())
+    }
+}
+
+impl TunnelPath {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            TunnelPath::Single(s) => s.is_empty(),
+            TunnelPath::Multiple(v) => v.is_empty(),
+        }
+    }
+
+    pub fn standardize(&mut self) {
+        if self.is_empty() {
+            *self = TunnelPath::default();
+        }
+        match self {
+            TunnelPath::Single(s) => {
+                *s = format!("/{}/", s.trim().trim_matches('/'));
+            }
+            TunnelPath::Multiple(v) => {
+                v.iter_mut().for_each(|s| {
+                    *s = s.trim().trim_matches('/').to_string();
+                    if !s.is_empty() {
+                        *s = format!("/{}/", s);
+                    }
+                });
+                v.retain(|s| !s.is_empty());
+            }
+        }
+    }
+
+    pub fn extract(&self) -> Vec<&str> {
+        match self {
+            TunnelPath::Single(s) => vec![s],
+            TunnelPath::Multiple(v) => v.iter().map(|s| s.as_str()).collect(),
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
@@ -70,7 +137,7 @@ impl Config {
             remarks: None,
             method: None,
             password: None,
-            tunnel_path: "/tunnel/".to_string(),
+            tunnel_path: TunnelPath::default(),
             server: None,
             client: None,
             test_timeout_secs: 5,
@@ -177,9 +244,9 @@ impl Config {
             self.test_timeout_secs = 5;
         }
         if self.tunnel_path.is_empty() {
-            self.tunnel_path = "/tunnel/".to_string();
+            self.tunnel_path = TunnelPath::default();
         } else {
-            self.tunnel_path = format!("/{}/", self.tunnel_path.trim().trim_matches('/'));
+            self.tunnel_path.standardize();
         }
 
         if let Some(server) = &mut self.server {
@@ -238,7 +305,8 @@ impl Config {
         let remarks = crate::base64_encode(remarks.as_bytes(), engine);
         let domain = client.server_domain.as_ref().map_or("".to_string(), |d| d.clone());
         let domain = crate::base64_encode(domain.as_bytes(), engine);
-        let tunnel_path = crate::base64_encode(self.tunnel_path.as_bytes(), engine);
+        let err = "tunnel_path is not set";
+        let tunnel_path = crate::base64_encode(self.tunnel_path.extract().first().ok_or(err)?.as_bytes(), engine);
         let host = &client.server_host;
         let port = client.server_port;
 

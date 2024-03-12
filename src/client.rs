@@ -245,7 +245,8 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     mut stream: S,
 ) -> Result<WebSocketStream<S>> {
     let client = config.client.as_ref().ok_or("client not exist")?;
-    let tunnel_path = config.tunnel_path.trim_matches('/');
+    let err = "tunnel path not exist";
+    let tunnel_path = config.tunnel_path.extract().first().ok_or(err)?.trim_matches('/');
 
     let b64_dst = dst_addr.as_ref().map(|dst_addr| addess_to_b64str(dst_addr, false));
 
