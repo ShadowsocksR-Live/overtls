@@ -73,10 +73,10 @@ impl TunnelPath {
         }
     }
 
-    pub fn extract(&self) -> Vec<String> {
+    pub fn extract(&self) -> Vec<&str> {
         match self {
-            TunnelPath::Single(s) => vec![s.clone()],
-            TunnelPath::Multiple(v) => v.clone(),
+            TunnelPath::Single(s) => vec![s],
+            TunnelPath::Multiple(v) => v.iter().map(|s| s.as_str()).collect(),
         }
     }
 }

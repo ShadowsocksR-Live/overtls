@@ -158,7 +158,7 @@ where
     Ok(())
 }
 
-fn check_uri_path(buf: &[u8], path: &[String]) -> Result<bool> {
+fn check_uri_path(buf: &[u8], path: &[&str]) -> Result<bool> {
     let mut headers = [httparse::EMPTY_HEADER; 512];
     let mut req = httparse::Request::new(&mut headers);
     req.parse(buf)?;
