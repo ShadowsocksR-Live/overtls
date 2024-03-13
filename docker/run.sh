@@ -3,16 +3,16 @@ source /etc/envinit.sh
 source /etc/utils.sh
 
 checkssl(){
-      local file="/cert/$SSL_PUBLIC"
-      if [ ! -f "$file" ]; then
-        echoerr "找不到证书公钥文件： $file, 请检查配置"
-        exit 1
-      fi
-      file="/cert/$SSL_KEY"
-      if [ ! -f "$file" ]; then
-        echoerr "找不到证书私钥文件： $file, 请检查配置"
-        exit 1
-      fi
+  local file="/cert/$SSL_PUBLIC"
+  if [ ! -f "$file" ]; then
+    echoerr "找不到证书公钥文件： $file, 请检查配置"
+    exit 1
+  fi
+  file="/cert/$SSL_KEY"
+  if [ ! -f "$file" ]; then
+    echoerr "找不到证书私钥文件： $file, 请检查配置"
+    exit 1
+  fi
 }
 
 checkindex(){
@@ -32,7 +32,7 @@ checkindex(){
   done
   local xfile="50x.html"
   is50x=0
-   if [ -f "$xfile" ]; then    
+   if [ -f "$xfile" ]; then
       echolog "存在默认50x错误页: $xfile"
       is50x=1
     fi
