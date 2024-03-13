@@ -4,47 +4,47 @@ source /etc/utils.sh
 
 checkssl(){
       local file="/cert/$SSL_PUBLIC"
-      if [ ! -f "$file" ]; then     
-        echoerr "找不到证书公钥文件： $file，请检查配置"  
+      if [ ! -f "$file" ]; then
+        echoerr "找不到证书公钥文件： $file, 请检查配置"
         exit 1
       fi
       file="/cert/$SSL_KEY"
-      if [ ! -f "$file" ]; then     
-        echoerr "找不到证书私钥文件： $file，请检查配置"  
+      if [ ! -f "$file" ]; then
+        echoerr "找不到证书私钥文件： $file, 请检查配置"
         exit 1
-      fi    
+      fi
 }
 
 checkindex(){
   isindex=0
-  local dir="/web"  
-    if [ ! -d "$dir" ]; then  
-      mkdir "$dir"  
-    fi  
+  local dir="/web"
+    if [ ! -d "$dir" ]; then
+      mkdir "$dir"
+    fi
   cd $dir
-   file_list=("index.php" "index.html" "index.htm" "index.nginx-debian.html")  
-   for file in "${file_list[@]}"; do    
-    if [ -f "$file" ]; then    
-      echolog "存在默认首页： $file"  
+   file_list=("index.php" "index.html" "index.htm" "index.nginx-debian.html")
+   for file in "${file_list[@]}"; do
+    if [ -f "$file" ]; then
+      echolog "存在默认首页： $file"
       isindex=1
       break
-    fi    
+    fi
   done
   local xfile="50x.html"
   is50x=0
    if [ -f "$xfile" ]; then    
-      echolog "存在默认50x错误页： $xfile"
+      echolog "存在默认50x错误页: $xfile"
       is50x=1
     fi
 }
 initIndex(){
     checkindex
     if [ $isindex -eq 0 ]; then
-     echolog "不存在首页，则使用默认首页"
+     echolog "不存在首页, 则使用默认首页"
      \cp /index.html /web/index.html
     fi
     if [ $is50x -eq 0 ]; then
-     echolog "不存在50x错误页，则使用默认50x错误页"
+     echolog "不存在50x错误页, 则使用默认50x错误页"
      \cp /50x.html /web/50x.html
     fi
 }
@@ -85,9 +85,9 @@ EOF
      TUNNEL_PATH_STRING="$TUNNEL_PATH"
      OLD_IFS="$IFS"
      IFS=','
-     for path in $TUNNEL_PATH; do  
-          path="${path#"${path%%[![:space:]]*}"}"  
-          path="${path%"${path##*[![:space:]]}"}"  
+     for path in $TUNNEL_PATH; do
+          path="${path#"${path%%[![:space:]]*}"}"
+          path="${path%"${path##*[![:space:]]}"}"
           cat >> /etc/nginx/conf.d/overtls.conf <<EOF
             location $path {
                 proxy_redirect off;
@@ -109,7 +109,7 @@ EOF
     cat > /default/config.json <<EOF
 {
     "remarks": "${identity}",
-    "tunnel_path": $(gettunnelpath),
+    "tunnel_path": $(get_tunnel_path),
 
     "server_settings": {
         "forward_addr": "http://127.0.0.1:$HTTP_PORT",
@@ -119,7 +119,7 @@ EOF
 
 }
 EOF
-    
+
 }
 
 echolog "开始启动-----------------------------"
