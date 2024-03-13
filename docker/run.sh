@@ -25,7 +25,7 @@ checkindex(){
    file_list=("index.php" "index.html" "index.htm" "index.nginx-debian.html")
    for file in "${file_list[@]}"; do
     if [ -f "$file" ]; then
-      echolog "存在默认首页： $file"
+      echolog "存在默认首页: $file"
       isindex=1
       break
     fi
@@ -37,15 +37,16 @@ checkindex(){
       is50x=1
     fi
 }
+
 initIndex(){
     checkindex
     if [ $isindex -eq 0 ]; then
-     echolog "不存在首页, 则使用默认首页"
-     \cp /index.html /web/index.html
+      echolog "不存在首页, 则使用默认首页"
+      \cp /index.html /web/index.html
     fi
     if [ $is50x -eq 0 ]; then
-     echolog "不存在50x错误页, 则使用默认50x错误页"
-     \cp /50x.html /web/50x.html
+      echolog "不存在50x错误页, 则使用默认50x错误页"
+      \cp /50x.html /web/50x.html
     fi
 }
 
@@ -58,8 +59,8 @@ initConfig(){
         server_name localhost;
         index index.php index.html index.htm index.nginx-debian.html;
         root  /web;
-    }
-     server {
+  }
+  server {
         listen $HTTPS_PORT ssl default_server;
         listen $HTTPS_PORT quic reuseport default_server;
         listen [::]:$HTTPS_PORT ssl default_server;
@@ -102,8 +103,9 @@ EOF
     IFS="$OLD_IFS"
 
           cat >> /etc/nginx/conf.d/overtls.conf <<EOF
-    }
+  }
 EOF
+
     local identity=$(random_string_gen 4)
     rm -rf /default/config.json
     cat > /default/config.json <<EOF
@@ -116,7 +118,6 @@ EOF
         "listen_host": "$OVERTLS_HOST",
         "listen_port": $OVERTLS_PORT
     }
-
 }
 EOF
 
