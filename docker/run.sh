@@ -106,9 +106,9 @@ EOF
   }
 EOF
 
-    local identity=$(random_string_gen 4)
-    rm -rf /default/config.json
-    cat > /default/config.json <<EOF
+  local identity=$(random_string_gen 4)
+  rm -rf /default/config.json
+  cat > /default/config.json <<EOF
 {
     "remarks": "${identity}",
     "tunnel_path": $(get_tunnel_path),
