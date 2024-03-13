@@ -20,3 +20,24 @@ random_string_gen() {
 
     echo ${PASS}
 }
+
+gettunnelpath(){
+    TUNNEL_PATH_STRING="$TUNNEL_PATH"   
+    TUNNEL_PATH_STRING="${TUNNEL_PATH_STRING#,}"  
+    TUNNEL_PATH_STRING="${TUNNEL_PATH_STRING%,}"  
+    NEW_TUNNEL_PATH=""  
+    OLD_IFS="$IFS"
+    IFS=','  
+    for item in $TUNNEL_PATH_STRING; do  
+        item="${item#"${item%%[![:space:]]*}"}"  
+        item="${item%"${item##*[![:space:]]}"}" 
+        if [ -n "$NEW_TUNNEL_PATH" ]; then  
+            NEW_TUNNEL_PATH="$NEW_TUNNEL_PATH,\"$item\""  
+        else  
+            NEW_TUNNEL_PATH="\"$item\""  
+        fi  
+    done  
+    IFS="$OLD_IFS"
+    NEW_TUNNEL_PATH="[${NEW_TUNNEL_PATH}]"  
+    echo $NEW_TUNNEL_PATH
+}
