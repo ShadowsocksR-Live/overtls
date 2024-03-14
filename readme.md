@@ -51,8 +51,19 @@ In summary, we need to prepare the following things
 
 ## Installation
 
+### Install from crates.io
+
+If you have installed the [Rust](https://rustup.rs/), you can install overtls directly.
+```bash
+cargo install overtls
+```
+
+### Pre-compiled binary file
+
 Can be compiled directly from the source code, or you can download the pre-compiled binary file
 from the [Release page](https://github.com/shadowsocksr-live/overtls/releases).
+
+### Compile from source code
 
 To compile from source code, you need to install the [Rust](https://www.rust-lang.org/)
 programming language environment first, and then run the following commands to compile overtls.
@@ -61,6 +72,7 @@ programming language environment first, and then run the following commands to c
 git clone https://github.com/shadowsocksr-live/overtls.git
 cd overtls
 cargo build --release
+sudo cp target/release/overtls /usr/local/bin/
 ```
 
 ## Server-side one-click installation script

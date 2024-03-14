@@ -37,7 +37,19 @@ overtls 客戶端首先與 overtls 服務端建立 TLS 連接，然後 overtls �
 
 ## 安裝
 
+### 從 crates.io 安裝
+
+如果你已經安裝了 [Rust](https://rustup.rs/)，你可以直接安裝 overtls。
+
+```bash
+cargo install overtls
+```
+
+### 預編譯二進制文件
+
 可直接從源代碼編譯，也可以從 [發布頁面](https://github.com/shadowsocksr-live/overtls/releases) 下載預編譯的二進制文件。
+
+### 從源碼編譯
 
 從源碼編譯，需要先安裝 [Rust](https://www.rust-lang.org/) 編程語言環境，然後執行以下命令編譯軟件。
 
@@ -45,6 +57,7 @@ overtls 客戶端首先與 overtls 服務端建立 TLS 連接，然後 overtls �
 git clone https://github.com/shadowsocksr-live/overtls.git
 cd overtls
 cargo build --release
+sudo cp target/release/overtls /usr/local/bin/
 ```
 
 ### 服務端一鍵安裝腳本
