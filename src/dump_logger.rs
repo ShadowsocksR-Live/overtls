@@ -4,9 +4,7 @@ use std::{
     sync::Mutex,
 };
 
-lazy_static::lazy_static! {
-    static ref DUMP_CALLBACK: Mutex<Option<DumpCallback>> = Mutex::new(None);
-}
+static DUMP_CALLBACK: Mutex<Option<DumpCallback>> = Mutex::new(None);
 
 /// # Safety
 ///
@@ -73,9 +71,7 @@ impl DumpLogger {
         let ptr = c_msg.as_ptr();
         if let Ok(cb) = DUMP_CALLBACK.lock() {
             if let Some(cb) = cb.clone() {
-                unsafe {
-                    cb.call(record.level().into(), ptr);
-                }
+                unsafe { cb.call(record.level().into(), ptr) };
             }
         }
         Ok(())

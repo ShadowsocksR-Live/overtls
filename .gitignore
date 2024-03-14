@@ -1,3 +1,4 @@
+overtls.xcframework/
 overtls-ffi.h
 examples/
 nginx_signing.key
