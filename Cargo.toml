@@ -25,7 +25,7 @@ futures-util = { version = "0.3", default-features = false, features = [
 http = "1.1"
 httparse = "1.8"
 log = { version = "0.4", features = ["std"] }
-moka = { version = "0.12", features = ["future"] }
+moka = { version = "0.12", default-features = false, features = ["future"] }
 reqwest = { version = "0.11", default-features = false, features = [
     "rustls-tls",
     "json",
