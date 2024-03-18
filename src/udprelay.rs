@@ -14,12 +14,7 @@ use socks5_impl::{
         UdpAssociate,
     },
 };
-use std::{
-    collections::HashSet,
-    net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
@@ -150,8 +145,7 @@ pub(crate) fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, Sock
 
 pub(crate) async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrHashSet, config: Config) -> Result<()> {
     let client = config.client.as_ref().ok_or("config client not exist")?;
-    let mut addr = (client.server_host.as_str(), client.server_port).to_socket_addrs()?;
-    let svr_addr = addr.next().ok_or("client address not exist")?;
+    let svr_addr = client.server_ip_addr.ok_or("server ip addr")?;
 
     if !config.disable_tls() {
         let ws_stream = client::create_tls_ws_stream(svr_addr, None, &config, Some(true)).await?;

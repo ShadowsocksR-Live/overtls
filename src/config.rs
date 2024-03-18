@@ -123,6 +123,8 @@ pub struct Client {
     pub listen_password: Option<String>,
     #[serde(skip)]
     pub cache_dns: bool,
+    #[serde(skip)]
+    pub(crate) server_ip_addr: Option<SocketAddr>,
 }
 
 impl Default for Config {
@@ -259,7 +261,7 @@ impl Config {
         }
         if let Some(client) = &mut self.client {
             if client.server_host.is_empty() {
-                return Err(Error::from("We need server_host in client settings"));
+                return Err(Error::from("We need server host in client settings"));
             }
             if client.server_port == 0 {
                 client.server_port = 443;
@@ -283,6 +285,7 @@ impl Config {
                         Ipv6Addr::LOCALHOST.to_string()
                     };
                 }
+                client.server_ip_addr = Some(addr);
             }
         }
         Ok(())
