@@ -298,6 +298,88 @@ impl Config {
         Ok(config)
     }
 
+    /// load from `ssr://...` style url
+    pub fn from_ssr_url(url: &str) -> Result<Self> {
+        let engine = crate::Base64Engine::UrlSafeNoPad;
+        let url = url.trim_start_matches("ssr://");
+        let url = crate::base64_decode(url, engine)?;
+        let url = String::from_utf8(url)?;
+        // split string by `/?`
+        let mut parts = url.split("/?");
+
+        // split first part by `:` and collect to vector
+        let mut parts0 = parts.next().ok_or("url is invalid")?.split(':').collect::<Vec<&str>>();
+        // check if parts length is less than 6
+        if parts0.len() < 6 {
+            return Err("url is invalid".into());
+        }
+        let host = parts0.remove(0);
+        let port = parts0.remove(0);
+        let protocol = parts0.remove(0);
+        let method = parts0.remove(0); // none is default
+        let obfs = parts0.remove(0);
+        let password = String::from_utf8(crate::base64_decode(parts0.remove(0), engine)?)?;
+
+        if method != "none" {
+            return Err("method is not none".into());
+        }
+        if obfs != "plain" {
+            return Err("obfs is not plain".into());
+        }
+        if protocol != "origin" {
+            return Err("protocol is not origin".into());
+        }
+        let port = port.parse::<u16>()?;
+
+        // split second part by `&` and collect to vector
+        let parts1 = parts.next().ok_or("url is invalid")?.split('&').collect::<Vec<&str>>();
+        // for each element in parts1, split by `=` and collect to a hashmap
+        let mut map = std::collections::HashMap::new();
+        for part in parts1 {
+            let mut kv = part.split('=');
+            let k = kv.next().ok_or("url is invalid")?;
+            let v = kv.next().ok_or("url is invalid")?;
+            map.insert(k, v);
+        }
+
+        let ot_enable = map.get("ot_enable").map_or("0".to_string(), |r| r.to_string());
+        if ot_enable != "1" {
+            return Err("ot_enable is not 1".into());
+        }
+        let remarks = map.get("remarks").and_then(|r| match crate::base64_decode(r, engine) {
+            Ok(decoded) => match String::from_utf8(decoded) {
+                Ok(string) => Some(string),
+                Err(_) => None,
+            },
+            Err(_) => None,
+        });
+        let ot_domain = map.get("ot_domain").and_then(|r| match crate::base64_decode(r, engine) {
+            Ok(decoded) => match String::from_utf8(decoded) {
+                Ok(string) => Some(string),
+                Err(_) => None,
+            },
+            Err(_) => None,
+        });
+        let ot_path = map.get("ot_path").ok_or("ot_path is not set")?;
+        let ot_path = String::from_utf8(crate::base64_decode(ot_path, engine)?)?;
+
+        let client = Client {
+            server_host: host.to_string(),
+            server_port: port,
+            server_domain: ot_domain,
+            ..Client::default()
+        };
+
+        let mut config = Config::new();
+        config.password = Some(password);
+        config.method = Some(method.to_string());
+        config.remarks = remarks;
+        config.tunnel_path = TunnelPath::Single(ot_path);
+        config.client = Some(client);
+
+        Ok(config)
+    }
+
     pub fn generate_ssr_qrcode(&self) -> Result<String> {
         let client = self.client.as_ref().ok_or(Error::from("client is not set"))?;
         let engine = crate::Base64Engine::UrlSafeNoPad;
@@ -318,4 +400,29 @@ impl Config {
         );
         Ok(format!("ssr://{}", crate::base64_encode(url.as_bytes(), engine)))
     }
+}
+
+#[test]
+fn test_config() {
+    let mut config = Config::new();
+    config.tunnel_path = TunnelPath::Single("/tunnel/".to_string());
+    config.remarks = Some("remarks".to_string());
+    config.method = Some("none".to_string());
+    config.password = Some("password".to_string());
+
+    let mut client = Client::default();
+    client.server_host = "baidu.com".to_string();
+    client.server_port = 443;
+    client.listen_host = "127.0.0.1".to_string();
+    client.listen_port = 0;
+    // client.server_domain = Some("baidu.com".to_string());
+    config.client = Some(client);
+
+    config.check_correctness(false).unwrap();
+
+    let qrcode = config.generate_ssr_qrcode().unwrap();
+    println!("{:?}", qrcode);
+
+    let config = Config::from_ssr_url(&qrcode).unwrap();
+    println!("{:?}", config);
 }

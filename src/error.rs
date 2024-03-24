@@ -33,9 +33,6 @@ pub enum Error {
     #[error("reqwest::Error {0}")]
     Reqwest(#[from] reqwest::Error),
 
-    #[error("rustls::error::Error {0}")]
-    Rustls(#[from] rustls::Error),
-
     #[error("rustls::pki_types::InvalidDnsNameError {0}")]
     InvalidDnsName(#[from] rustls::pki_types::InvalidDnsNameError),
 
@@ -52,12 +49,18 @@ pub enum Error {
     #[error("jni::errors::Error {0}")]
     Jni(#[from] jni::errors::Error),
 
-    #[cfg(target_family = "unix")]
+    #[cfg(unix)]
     #[error("daemonize::Error {0}")]
     Daemonize(#[from] daemonize::Error),
 
     #[error("std::str::Utf8Error {0}")]
     Utf8(#[from] std::str::Utf8Error),
+
+    #[error("FromUtf8Error {0}")]
+    FromUtf8(#[from] std::string::FromUtf8Error),
+
+    #[error("ParseIntError {0}")]
+    FromParseIntError(#[from] std::num::ParseIntError),
 
     #[error("socks5_impl::Error {0}")]
     Socks5(#[from] socks5_impl::Error),
