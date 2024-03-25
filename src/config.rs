@@ -7,12 +7,21 @@ use std::{
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
-    #[serde(rename(deserialize = "server_settings", serialize = "server_settings"))]
+    #[serde(
+        rename(deserialize = "server_settings", serialize = "server_settings"),
+        skip_serializing_if = "Option::is_none"
+    )]
     pub server: Option<Server>,
-    #[serde(rename(deserialize = "client_settings", serialize = "client_settings"))]
+    #[serde(
+        rename(deserialize = "client_settings", serialize = "client_settings"),
+        skip_serializing_if = "Option::is_none"
+    )]
     pub client: Option<Client>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub remarks: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
     pub tunnel_path: TunnelPath,
     #[serde(skip)]
@@ -90,10 +99,15 @@ impl TunnelPath {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct Server {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_tls: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub manage_clients: Option<ManageClients>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub certfile: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub keyfile: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub forward_addr: Option<String>,
     pub listen_host: String,
     pub listen_port: u16,
@@ -111,15 +125,21 @@ pub struct ManageClients {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct Client {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_tls: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub client_id: Option<String>,
     pub server_host: String,
     pub server_port: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub server_domain: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cafile: Option<PathBuf>,
     pub listen_host: String,
     pub listen_port: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub listen_user: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub listen_password: Option<String>,
     #[serde(skip)]
     pub cache_dns: bool,
