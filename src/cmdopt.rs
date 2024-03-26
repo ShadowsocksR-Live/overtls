@@ -92,7 +92,7 @@ pub struct CmdOpt {
     #[arg(short, long, value_name = "level", value_enum, default_value = "info")]
     pub verbosity: ArgVerbosity,
 
-    #[cfg(target_family = "unix")]
+    #[cfg(unix)]
     #[arg(short, long)]
     /// Daemonize for unix family.
     pub daemonize: bool,
