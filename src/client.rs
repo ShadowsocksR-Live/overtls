@@ -36,7 +36,7 @@ pub async fn run_client<F>(config: &Config, quit: crate::CancellationToken, call
 where
     F: FnOnce(SocketAddr) + Send + Sync + 'static,
 {
-    log::info!("starting {} client...", env!("CARGO_PKG_NAME"));
+    log::info!("starting {} {} client...", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 
