@@ -1,4 +1,4 @@
-use overtls::{client, config, server, CmdOpt, Error, Result};
+use overtls::{run_client, run_server, CmdOpt, Config, Error, Result};
 
 fn main() -> Result<()> {
     let opt = CmdOpt::parse_cmd();
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
 
     let is_server = opt.is_server();
 
-    let mut config = config::Config::from_config_file(&opt.config)?;
+    let mut config = Config::from_config_file(&opt.config)?;
     config.set_cache_dns(opt.cache_dns);
 
     if opt.qrcode {
@@ -69,14 +69,14 @@ fn main() -> Result<()> {
     rt.block_on(async_main(config))
 }
 
-async fn async_main(config: config::Config) -> Result<()> {
+async fn async_main(config: Config) -> Result<()> {
     let shutdown_token = overtls::CancellationToken::new();
     let shutdown_token_clone = shutdown_token.clone();
 
     let main_body = async {
         if config.is_server {
             if config.exist_server() {
-                server::run_server(&config, shutdown_token_clone).await?;
+                run_server(&config, shutdown_token_clone).await?;
             } else {
                 return Err(Error::from("Config is not a server config"));
             }
@@ -84,7 +84,7 @@ async fn async_main(config: config::Config) -> Result<()> {
             let callback = |addr| {
                 log::trace!("Listening on {}", addr);
             };
-            client::run_client(&config, shutdown_token_clone, Some(callback)).await?;
+            run_client(&config, shutdown_token_clone, Some(callback)).await?;
         } else {
             return Err("Config is not a client config".into());
         }
