@@ -280,19 +280,29 @@ impl Config {
             }
         }
         if let Some(client) = &mut self.client {
+            let server_host = client.server_host.clone();
+            let server_host = match (server_host.is_empty(), client.server_domain.clone()) {
+                (true, Some(domain)) => match domain.is_empty() {
+                    true => return Err(Error::from("We need server host in client settings")),
+                    false => domain,
+                },
+                (true, None) => return Err(Error::from("We need server host in client settings")),
+                (false, _) => server_host,
+            };
             if client.server_host.is_empty() {
-                return Err(Error::from("We need server host in client settings"));
+                client.server_host = server_host.clone();
             }
+            if client.server_domain.is_none() || client.server_domain.as_ref().unwrap_or(&"".to_string()).is_empty() {
+                client.server_domain = Some(server_host.clone());
+            }
+
             if client.server_port == 0 {
                 client.server_port = 443;
             }
-            if client.server_domain.is_none() || client.server_domain.as_ref().unwrap_or(&"".to_string()).is_empty() {
-                client.server_domain = Some(client.server_host.clone());
-            }
 
             if !self.is_server {
-                let mut addr = (client.server_host.clone(), client.server_port).to_socket_addrs()?;
-                let addr = addr.next().ok_or("address not exist")?;
+                let mut addr = (server_host, client.server_port).to_socket_addrs()?;
+                let addr = addr.next().ok_or("address not available")?;
                 #[cfg(not(target_os = "android"))]
                 {
                     let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
