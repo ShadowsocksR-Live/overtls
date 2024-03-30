@@ -1,6 +1,6 @@
 [package]
 name = "overtls"
-version = "0.2.18"
+version = "0.2.19"
 edition = "2021"
 license = "MIT"
 description = "A simple proxy tunnel, minimalist tool for bypassing the GFW."
@@ -41,7 +41,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 socks5-impl = "0.5"
 thiserror = "1.0"
-tokio = { version = "1.36", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.26", default-features = false, features = [
     "logging",
     "tls12",

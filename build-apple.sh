@@ -7,16 +7,27 @@ cargo install cbindgen
 cargo update
 
 echo "Building..."
+
+echo "cargo build --release --target x86_64-apple-darwin"
 cargo build --release --target x86_64-apple-darwin
+
+echo "cargo build --release --target aarch64-apple-darwin"
 cargo build --release --target aarch64-apple-darwin
+
+echo "cargo build --release --target aarch64-apple-ios"
 cargo build --release --target aarch64-apple-ios
+
+echo "cargo build --release --target x86_64-apple-ios"
 cargo build --release --target x86_64-apple-ios
+
+echo "cargo build --release --target aarch64-apple-ios-sim"
 cargo build --release --target aarch64-apple-ios-sim
 
 echo "Generating includes..."
 mkdir -p target/include/
+rm -rf target/include/*
 cbindgen --config cbindgen.toml -l C -o target/include/overtls.h
-cat > target/include/module.modulemap <<EOF
+cat > target/include/overtls.modulemap <<EOF
 framework module overtls {
     umbrella header "overtls.h"
 

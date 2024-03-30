@@ -9,3 +9,9 @@ exclude = [
     "Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient",
     "Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient",
 ]
+
+[export.rename]
+"ArgVerbosity" = "OverTlsVerbosity"
+
+[enum]
+prefix_with_name = true

@@ -65,6 +65,8 @@ jobs:
           elif [[ "${{ matrix.host_os }}" == "macos-latest" ]]; then
             zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json target/overtls-ffi.h target/${{ matrix.target }}/release/libovertls.dylib
             if [[ "${{ matrix.target }}" == "x86_64-apple-darwin" ]]; then
+              ./build-aarch64-apple-ios.sh
+              zip -r release/overtls-aarch64-apple-ios-xcframework.zip ./overtls.xcframework/
               ./build-apple.sh
               zip -r release/overtls-apple-xcframework.zip ./overtls.xcframework/
             fi
