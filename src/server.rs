@@ -38,7 +38,7 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     let server = config.server.as_ref().ok_or("No server settings")?;
     let h = server.listen_host.clone();
     let p = server.listen_port;
-    let addr: SocketAddr = (h, p).to_socket_addrs()?.next().ok_or("Invalid server address")?;
+    let addr: SocketAddr = (h, p).to_socket_addrs()?.next().ok_or("Invalid server listen address")?;
 
     let certs = server.certfile.as_ref().and_then(|cert| {
         if !config.disable_tls() {
@@ -288,14 +288,25 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         }
     } else {
         let addr_str = b64str_to_address(&target_address, false)?.to_string();
-        let dst_addr = addr_str.to_socket_addrs()?.next().ok_or("addr string parse failed")?;
-        log::trace!("{} -> {} {client_id:?} uri path: \"{}\"", peer, dst_addr, uri_path);
-        result = normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, dst_addr).await;
-        if let Err(ref e) = result {
-            log::debug!("{} <> {} connection closed error: {}", peer, dst_addr, e);
-        } else {
-            log::trace!("{} <> {} connection closed.", peer, dst_addr);
+
+        // try to connect to the first available address
+        let mut successful_addr = None;
+        for dst_addr in addr_str.to_socket_addrs()? {
+            match std::net::TcpStream::connect(dst_addr) {
+                Ok(_) => {
+                    successful_addr = Some(dst_addr);
+                    break;
+                }
+                Err(ref e) => {
+                    log::debug!("{} <> {} destination address is unreachable: {}", peer, dst_addr, e);
+                }
+            }
         }
+        let info = format!("{} <> {} All addresses failed to connect", peer, addr_str);
+        let successful_addr = successful_addr.ok_or(Error::from(info))?;
+        log::trace!("{} -> {} {:?} uri path: \"{}\"", peer, successful_addr, client_id, uri_path);
+        result = normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, successful_addr).await;
+        log::trace!("{} <> {} connection closed with {:?}.", peer, successful_addr, result);
     }
     result
 }
@@ -393,9 +404,25 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     let pkt = buf.to_vec();
                     log::trace!("[UDP] {src_addr} -> {dst_addr} length {}", pkt.len());
 
-                    dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr);
+                    dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr.clone());
 
-                    let mut dst_addr = dst_addr.to_socket_addrs()?.next().ok_or("invalid address")?;
+                    // select the IPv4 destination address first if available, otherwise use the IPv6 address
+                    let mut ipv4_addr = None;
+                    let mut ipv6_addr = None;
+                    for addr in dst_addr.to_socket_addrs()? {
+                        match addr {
+                            SocketAddr::V4(_) if ipv4_addr.is_none() => {
+                                ipv4_addr = Some(addr);
+                            }
+                            SocketAddr::V6(_) if ipv6_addr.is_none() => {
+                                ipv6_addr = Some(addr);
+                            }
+                            _ => {}
+                        }
+                    }
+                    let info = format!("{} <> {} All addresses failed to select", src_addr, dst_addr);
+                    let mut dst_addr = ipv4_addr.or(ipv6_addr).ok_or(Error::from(info))?;
+
                     if dst_addr.port() == 53 && addr_is_private(&dst_addr) {
                         match dst_addr {
                             SocketAddr::V4(_) => dst_addr = "8.8.8.8:53".parse::<SocketAddr>()?,
