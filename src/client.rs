@@ -37,8 +37,11 @@ where
     F: FnOnce(SocketAddr) + Send + Sync + 'static,
 {
     log::info!("starting {} {} client...", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-    log::trace!("with following settings:");
-    log::trace!("{}", serde_json::to_string_pretty(config)?);
+    #[cfg(not(target_os = "ios"))]
+    {
+        log::trace!("with following settings:");
+        log::trace!("{}", serde_json::to_string_pretty(config)?);
+    }
 
     let client = config.client.as_ref().ok_or("client")?;
 
@@ -232,7 +235,7 @@ pub(crate) async fn create_plaintext_ws_stream(
     config: &Config,
     udp_tunnel: Option<bool>,
 ) -> Result<WebSocketStream<TcpStream>> {
-    let stream = crate::tcp_stream::create(server_addr).await?;
+    let stream = crate::tcp_stream::tokio_create(server_addr).await?;
     let ws_stream = create_ws_stream(dst_addr, config, udp_tunnel, stream).await?;
     Ok(ws_stream)
 }

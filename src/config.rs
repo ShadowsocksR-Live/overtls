@@ -303,10 +303,9 @@ impl Config {
             if !self.is_server {
                 let mut addr = (server_host, client.server_port).to_socket_addrs()?;
                 let addr = addr.next().ok_or("address not available")?;
-                #[cfg(not(target_os = "android"))]
                 {
                     let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
-                    std::net::TcpStream::connect_timeout(&addr, timeout)?;
+                    crate::tcp_stream::std_create(addr, Some(timeout))?;
                 }
                 if client.listen_host.is_empty() {
                     client.listen_host = if addr.is_ipv4() {

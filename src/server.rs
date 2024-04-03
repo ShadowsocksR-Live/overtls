@@ -195,7 +195,7 @@ where
         let to_stream = create_tls_client_stream(cert_store, forward_addr, host).await?;
         forward_traffic(stream, to_stream, data).await
     } else {
-        let to_stream = crate::tcp_stream::create(forward_addr).await?;
+        let to_stream = crate::tcp_stream::tokio_create(forward_addr).await?;
         forward_traffic(stream, to_stream, data).await
     }
 }
@@ -319,7 +319,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     client_id: &Option<String>,
     dst_addr: SocketAddr,
 ) -> Result<()> {
-    let mut outgoing = crate::tcp_stream::create(dst_addr).await?;
+    let mut outgoing = crate::tcp_stream::tokio_create(dst_addr).await?;
     let mut buffer = [0; crate::STREAM_BUFFER_SIZE];
     loop {
         tokio::select! {

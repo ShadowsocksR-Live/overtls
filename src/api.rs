@@ -40,8 +40,10 @@ pub unsafe extern "C" fn over_tls_client_run(
     ctx: *mut c_void,
 ) -> c_int {
     log::set_max_level(verbosity.into());
-    if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
-        log::info!("failed to set logger, error={:?}", err);
+    if !crate::dump_logger::check_logger() {
+        if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
+            log::warn!("failed to set logger, error={:?}", err);
+        }
     }
     let config_path = std::ffi::CStr::from_ptr(config_path).to_str();
     if let Err(err) = config_path {
@@ -82,8 +84,10 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
     ctx: *mut c_void,
 ) -> c_int {
     log::set_max_level(verbosity.into());
-    if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
-        log::info!("failed to set logger, error={:?}", err);
+    if !crate::dump_logger::check_logger() {
+        if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
+            log::warn!("failed to set logger, error={:?}", err);
+        }
     }
     let url = std::ffi::CStr::from_ptr(url).to_str();
     if let Err(err) = url {

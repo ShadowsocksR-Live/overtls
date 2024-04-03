@@ -5,15 +5,29 @@ use std::{
 };
 
 static DUMP_CALLBACK: Mutex<Option<DumpCallback>> = Mutex::new(None);
+static LOGGER_SETTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn check_logger() -> bool {
+    LOGGER_SETTED.load(std::sync::atomic::Ordering::SeqCst)
+}
 
 /// # Safety
 ///
 /// set dump log info callback.
 #[no_mangle]
 pub unsafe extern "C" fn overtls_set_log_callback(
+    set_logger: bool,
     callback: Option<unsafe extern "C" fn(ArgVerbosity, *const c_char, *mut c_void)>,
     ctx: *mut c_void,
 ) {
+    if set_logger {
+        LOGGER_SETTED.store(true, std::sync::atomic::Ordering::Relaxed);
+        log::set_max_level(log::LevelFilter::Trace);
+        if let Err(err) = log::set_boxed_logger(Box::<DumpLogger>::default()) {
+            log::warn!("failed to set logger, error={:?}", err);
+        }
+    }
+
     if let Ok(mut cb) = DUMP_CALLBACK.lock() {
         *cb = Some(DumpCallback(callback, ctx));
     } else {
@@ -44,12 +58,23 @@ impl log::Log for DumpLogger {
     }
 
     fn log(&self, record: &log::Record) {
+        #[cfg(not(target_os = "ios"))]
         if self.enabled(record.metadata()) {
             let current_crate_name = env!("CARGO_CRATE_NAME");
             if record.module_path().unwrap_or("").starts_with(current_crate_name) {
                 if let Err(err) = self.do_dump_log(record) {
-                    log::error!("failed to dump log, error={:?}", err);
+                    eprint!("failed to dump log, error={:?}", err);
                 }
+            }
+        }
+        #[cfg(target_os = "ios")]
+        if self.enabled(record.metadata()) {
+            let module = record.module_path().unwrap_or("");
+            if module.starts_with("rustls") || module.starts_with("tungstenite") || module.starts_with("tokio_tungstenite") {
+                return;
+            }
+            if let Err(err) = self.do_dump_log(record) {
+                eprint!("failed to dump log, error={:?}", err);
             }
         }
     }
@@ -59,14 +84,17 @@ impl log::Log for DumpLogger {
 
 impl DumpLogger {
     fn do_dump_log(&self, record: &log::Record) -> Result<(), BoxError> {
-        let timestamp: chrono::DateTime<chrono::Local> = chrono::Local::now();
+        let _timestamp: chrono::DateTime<chrono::Local> = chrono::Local::now();
+        #[cfg(not(target_os = "ios"))]
         let msg = format!(
             "[{} {:<5} {}] - {}",
-            timestamp.format("%Y-%m-%d %H:%M:%S"),
+            _timestamp.format("%Y-%m-%d %H:%M:%S"),
             record.level(),
             record.module_path().unwrap_or(""),
             record.args()
         );
+        #[cfg(target_os = "ios")]
+        let msg = format!("[{:<5} {}] - {}", record.level(), record.module_path().unwrap_or(""), record.args());
         let c_msg = std::ffi::CString::new(msg)?;
         let ptr = c_msg.as_ptr();
         if let Ok(cb) = DUMP_CALLBACK.lock() {

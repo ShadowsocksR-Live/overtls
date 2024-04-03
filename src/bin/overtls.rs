@@ -23,7 +23,7 @@ fn main() -> Result<()> {
         unsafe extern "C" fn log_cb(_: overtls::ArgVerbosity, msg: *const std::os::raw::c_char, _ctx: *mut std::os::raw::c_void) {
             println!("{:?}", unsafe { std::ffi::CStr::from_ptr(msg).to_str() });
         }
-        unsafe { overtls::overtls_set_log_callback(Some(log_cb), std::ptr::null_mut()) };
+        unsafe { overtls::overtls_set_log_callback(true, Some(log_cb), std::ptr::null_mut()) };
 
         unsafe extern "C" fn port_cb(port: i32, _ctx: *mut std::os::raw::c_void) {
             log::info!("Listening on {}", port);
