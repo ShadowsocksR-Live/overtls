@@ -220,7 +220,8 @@ pub(crate) async fn create_tls_ws_stream(
 ) -> Result<WsTlsStream> {
     let client = config.client.as_ref().ok_or("client not exist")?;
 
-    let cert_store = retrieve_root_cert_store_for_client(&client.cafile)?;
+    let cert_content = client.cafile.as_ref().and_then(|cafile| crate::config::certificate_content(cafile));
+    let cert_store = retrieve_root_cert_store_for_client(&cert_content)?;
     let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
 
     let stream = create_tls_client_stream(cert_store, svr_addr, domain).await?;

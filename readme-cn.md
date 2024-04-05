@@ -131,3 +131,15 @@ overtls -r client -c config.json
 > 爲方便測試，提供了 `disable_tls` 選項以具備停用 `TLS` 的能力；就是說，若該項存在且爲 `true` 時，本軟件將 `明文(plain text)` 傳輸流量；出於安全考慮，正式場合請勿使用。
 
 本示例展示的是最少條目的配置文件，完整的配置文件可以參考 [config.json](config.json)。
+
+### 自簽證書使用
+
+如果你確實沒有 `域名`， 可以使用 `openssl` 生成自簽證書 來臨時連接服務端，以便你能處理你的緊急事務。
+
+```bash
+wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/selfsign.sh
+cat selfsign.sh
+chmod +x selfsign.sh
+./selfsign.sh CN JiangSu ChangZhou MyGreatOrg Root_CA Server1 email@example.com example.com 123.45.67.89
+```
+> 注意：`GFW` 可能會因爲你使用了自簽證書而封鎖你的服務器。所以請不要長期用於正式場合。

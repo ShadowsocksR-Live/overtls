@@ -1,11 +1,6 @@
 use crate::error::Result;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
-use std::{
-    fs::File,
-    io::BufReader,
-    net::SocketAddr,
-    path::{Path, PathBuf},
-};
+use std::{fs::File, io::BufReader, net::SocketAddr, path::Path};
 use tokio::net::TcpStream;
 use tokio_rustls::{
     client::TlsStream,
@@ -17,19 +12,15 @@ use tokio_rustls::{
 // https://github.com/rustls/tokio-rustls/blob/main/examples/client.rs
 //
 
-pub(crate) fn retrieve_root_cert_store_for_client(cafile: &Option<PathBuf>) -> Result<RootCertStore> {
+pub(crate) fn retrieve_root_cert_store_for_client(ca_content: &Option<String>) -> Result<RootCertStore> {
     let mut root_cert_store = RootCertStore::empty();
-    let mut done = false;
-    if let Some(cafile) = cafile {
-        if cafile.exists() {
-            let mut pem = BufReader::new(File::open(cafile)?);
-            for cert in rustls_pemfile::certs(&mut pem) {
-                root_cert_store.add(cert?)?;
-            }
-            done = true;
+    if let Some(ca_content) = ca_content {
+        let mut pem = std::io::Cursor::new(ca_content.as_bytes());
+        for cert in rustls_pemfile::certs(&mut pem) {
+            root_cert_store.add(cert?)?;
         }
     }
-    if !done {
+    if root_cert_store.is_empty() {
         root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     }
     Ok(root_cert_store)

@@ -123,6 +123,17 @@ pub struct ManageClients {
     pub api_update_interval_secs: Option<u64>,
 }
 
+pub(crate) fn certificate_content(cert: &str) -> Option<String> {
+    if PathBuf::from(cert).exists() {
+        match std::fs::read_to_string(cert) {
+            Ok(content) => Some(content),
+            Err(_) => None,
+        }
+    } else {
+        Some(cert.to_string())
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct Client {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -134,7 +145,7 @@ pub struct Client {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub server_domain: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cafile: Option<PathBuf>,
+    pub cafile: Option<String>,
     pub listen_host: String,
     pub listen_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]

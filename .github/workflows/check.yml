@@ -89,6 +89,7 @@ jobs:
     - name: Prepare
       shell: bash
       run: |
+        rustc --version
         rustup target add ${{ matrix.target }}
       
     - name: Build

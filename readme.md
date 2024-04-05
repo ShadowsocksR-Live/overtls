@@ -148,3 +148,17 @@ Note the `tunnel_path` configuration, please make sure to change it to your own 
 >    For testing purposes, the `disable_tls` option is provided to have the ability to disable `TLS`; that is, if this option exists and is true, the software will transmit traffic in `plain text`; for security reasons, please do not use it on official occasions.
 
 This example shows the configuration file of the least entry, the complete configuration file can refer to [config.json](config.json).
+
+### Self-signed certificate usage
+
+If you have not owned a `domain name`, you can use the `openssl` command to generate a self-signed certificate
+for testing purposes.
+
+```bash
+wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/selfsign.sh
+cat selfsign.sh
+chmod +x selfsign.sh
+./selfsign.sh CN JiangSu ChangZhou MyGreatOrg Root_CA Server1 email@example.com example.com 123.45.67.89
+```
+> Note: The `GFW` maybe block your server since you are using a self-signed certificate.
+>       So please do not use it for long-term production purposes.
