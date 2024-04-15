@@ -5,6 +5,7 @@ edition = "2021"
 license = "MIT"
 description = "A simple proxy tunnel, minimalist tool for bypassing the GFW."
 repository = "https://github.com/ShadowsocksR-Live/overtls"
+readme = "readme.md"
 
 [lib]
 crate-type = ["staticlib", "cdylib", "lib"]
