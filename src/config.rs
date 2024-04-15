@@ -123,17 +123,6 @@ pub struct ManageClients {
     pub api_update_interval_secs: Option<u64>,
 }
 
-pub(crate) fn certificate_content(cert: &str) -> Option<String> {
-    if PathBuf::from(cert).exists() {
-        match std::fs::read_to_string(cert) {
-            Ok(content) => Some(content),
-            Err(_) => None,
-        }
-    } else {
-        Some(cert.to_string())
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]
 pub struct Client {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -158,6 +147,22 @@ pub struct Client {
     pub(crate) server_ip_addr: Option<SocketAddr>,
 }
 
+impl Client {
+    pub fn certificate_content(&self) -> Option<String> {
+        self.cafile.as_ref().and_then(|cert| Self::_certificate_content(cert))
+    }
+
+    fn _certificate_content(cert: &str) -> Option<String> {
+        if PathBuf::from(cert).exists() {
+            std::fs::read_to_string(cert).ok().filter(|s| !s.is_empty())
+        } else if !cert.is_empty() {
+            Some(cert.to_string())
+        } else {
+            None
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self::new()
@@ -176,6 +181,10 @@ impl Config {
             test_timeout_secs: 5,
             is_server: false,
         }
+    }
+
+    pub fn certificate_content(&self) -> Option<String> {
+        self.client.as_ref().and_then(|c| c.certificate_content())
     }
 
     pub fn manage_clients(&self) -> bool {
@@ -403,10 +412,17 @@ impl Config {
         let ot_path = map.get("ot_path").ok_or("ot_path is not set")?;
         let ot_path = String::from_utf8(crate::base64_decode(ot_path, engine)?)?;
 
+        let ot_cert = map
+            .get("ot_cert")
+            .and_then(|r| crate::base64_decode(r, engine).ok())
+            .and_then(|decoded| String::from_utf8(decoded).ok())
+            .filter(|s| !s.is_empty());
+
         let client = Client {
             server_host: host.to_string(),
             server_port: port,
             server_domain: ot_domain,
+            cafile: ot_cert,
             ..Client::default()
         };
 
@@ -435,9 +451,14 @@ impl Config {
         let host = &client.server_host;
         let port = client.server_port;
 
-        let url = format!(
-            "{host}:{port}:origin:{method}:plain:{password}/?remarks={remarks}&ot_enable=1&ot_domain={domain}&ot_path={tunnel_path}"
-        );
+        let mut url = format!("{host}:{port}:origin:{method}:plain:{password}/?remarks={remarks}&ot_enable=1");
+        url.push_str(&format!("&ot_domain={domain}&ot_path={tunnel_path}"));
+
+        if let Some(ref ca) = client.certificate_content() {
+            let ca = crate::base64_encode(ca.as_bytes(), engine);
+            url.push_str(&format!("&ot_cert={}", ca));
+        }
+
         Ok(format!("ssr://{}", crate::base64_encode(url.as_bytes(), engine)))
     }
 }
