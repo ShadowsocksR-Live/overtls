@@ -80,7 +80,13 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
 
     let traffic_audit = Arc::new(Mutex::new(TrafficAudit::new()));
 
-    let listener = TcpListener::bind(&addr).await?;
+    let listener = match TcpListener::bind(&addr).await {
+        Ok(listener) => listener,
+        Err(e) => {
+            log::error!("failed to bind to {} in file {} at line {}: \"{}\"", addr, file!(), line!(), e);
+            return Err(e.into());
+        }
+    };
 
     loop {
         tokio::select! {

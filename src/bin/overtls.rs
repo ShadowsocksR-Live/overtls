@@ -99,7 +99,7 @@ async fn async_main(config: Config) -> Result<()> {
     .await;
 
     if let Err(e) = main_body.await {
-        log::error!("{}", e);
+        log::error!("main_body error: \"{}\"", e);
     }
 
     Ok(())
