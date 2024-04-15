@@ -45,19 +45,21 @@ pub unsafe extern "C" fn over_tls_client_run(
             log::warn!("failed to set logger, error={:?}", err);
         }
     }
-    let config_path = std::ffi::CStr::from_ptr(config_path).to_str();
-    if let Err(err) = config_path {
-        log::error!("invalid config path, error={:?}", err);
-        return -1;
-    }
-    let config_path = config_path.unwrap();
+    let config_path = match std::ffi::CStr::from_ptr(config_path).to_str() {
+        Err(err) => {
+            log::error!("invalid config path, error={:?}", err);
+            return -1;
+        }
+        Ok(config_path) => config_path,
+    };
 
-    let config = Config::from_config_file(config_path);
-    if let Err(err) = config {
-        log::error!("failed to load config, error={:?}", err);
-        return -2;
-    }
-    let mut config = config.unwrap();
+    let mut config = match Config::from_config_file(config_path) {
+        Err(err) => {
+            log::error!("failed to load config, error={:?}", err);
+            return -2;
+        }
+        Ok(config) => config,
+    };
 
     if let Err(err) = config.check_correctness(false) {
         log::error!("invalid config, error={:?}", err);
@@ -89,19 +91,21 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
             log::warn!("failed to set logger, error={:?}", err);
         }
     }
-    let url = std::ffi::CStr::from_ptr(url).to_str();
-    if let Err(err) = url {
-        log::error!("invalid config path, error={:?}", err);
-        return -1;
-    }
-    let url = url.unwrap();
+    let url = match std::ffi::CStr::from_ptr(url).to_str() {
+        Err(err) => {
+            log::error!("invalid config path, error={:?}", err);
+            return -1;
+        }
+        Ok(url) => url,
+    };
 
-    let config = Config::from_ssr_url(url);
-    if let Err(err) = config {
-        log::error!("failed to load config, error={:?}", err);
-        return -2;
-    }
-    let mut config = config.unwrap();
+    let mut config = match Config::from_ssr_url(url) {
+        Err(err) => {
+            log::error!("failed to load config, error={:?}", err);
+            return -2;
+        }
+        Ok(config) => config,
+    };
 
     if let Err(err) = config.check_correctness(false) {
         log::error!("invalid config, error={:?}", err);

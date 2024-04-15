@@ -1,24 +1,23 @@
-use overtls::{run_client, run_server, CmdOpt, Config, Error, Result};
+use overtls::{run_client, run_server, BoxError, CmdOpt, Config, Error, Result};
 
-fn main() -> Result<()> {
+fn main() -> Result<(), BoxError> {
     let opt = CmdOpt::parse_cmd();
 
     if opt.c_api {
         if opt.is_server() {
-            return Err(Error::from("C API is not supported for server"));
+            return Err("C API is not supported for server".into());
         }
 
         // Test the C API usage
         let config_path_str = opt.config.as_path().to_string_lossy().into_owned();
-        let c_string = std::ffi::CString::new(config_path_str).unwrap();
+        let c_string = std::ffi::CString::new(config_path_str)?;
         let config_path: *const std::os::raw::c_char = c_string.as_ptr();
 
         let join = ctrlc2::set_handler(|| {
             log::info!("Ctrl-C received, exiting...");
             unsafe { overtls::over_tls_client_stop() };
             true
-        })
-        .expect("Error setting Ctrl-C handler");
+        })?;
 
         unsafe extern "C" fn log_cb(_: overtls::ArgVerbosity, msg: *const std::os::raw::c_char, _ctx: *mut std::os::raw::c_void) {
             println!("{:?}", unsafe { std::ffi::CStr::from_ptr(msg).to_str() });
@@ -30,7 +29,7 @@ fn main() -> Result<()> {
         }
         unsafe { overtls::over_tls_client_run(config_path, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
 
-        join.join().unwrap();
+        join.join().expect("Couldn't join on the associated thread");
         return Ok(());
     }
 
@@ -66,7 +65,8 @@ fn main() -> Result<()> {
     }
 
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
-    rt.block_on(async_main(config))
+    rt.block_on(async_main(config))?;
+    Ok(())
 }
 
 async fn async_main(config: Config) -> Result<()> {

@@ -65,6 +65,12 @@ pub enum Error {
     #[error("socks5_impl::Error {0}")]
     Socks5(#[from] socks5_impl::Error),
 
+    #[error("std::ffi::NulError {0}")]
+    Nul(#[from] std::ffi::NulError),
+
+    #[error("BoxError {0}")]
+    BoxError(#[from] BoxError),
+
     #[error("String error: {0}")]
     String(String),
 }
