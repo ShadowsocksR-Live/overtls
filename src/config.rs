@@ -153,12 +153,22 @@ impl Client {
     }
 
     fn _certificate_content(cert: &str) -> Option<String> {
+        const BEGIN_CERT: &str = "-----BEGIN CERTIFICATE-----";
         if PathBuf::from(cert).exists() {
-            std::fs::read_to_string(cert).ok().filter(|s| !s.is_empty())
-        } else if !cert.is_empty() {
+            std::fs::read_to_string(cert)
+                .ok()
+                .filter(|s| !s.is_empty() && s.starts_with(BEGIN_CERT) && s.len() > 100)
+        } else if !cert.is_empty() && cert.starts_with(BEGIN_CERT) && cert.len() > 100 {
             Some(cert.to_string())
         } else {
             None
+        }
+    }
+
+    pub fn export_certificate(&self, path: &str) -> Result<()> {
+        match self.certificate_content() {
+            Some(cert) => std::fs::write(path, cert).map_err(|e| e.into()),
+            None => Err(Error::from("certificate not exists")),
         }
     }
 }
@@ -185,6 +195,10 @@ impl Config {
 
     pub fn certificate_content(&self) -> Option<String> {
         self.client.as_ref().and_then(|c| c.certificate_content())
+    }
+
+    pub fn export_certificate(&self, path: &str) -> Result<()> {
+        self.client.as_ref().ok_or(Error::from("no client"))?.export_certificate(path)
     }
 
     pub fn manage_clients(&self) -> bool {
