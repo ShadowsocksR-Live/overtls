@@ -17,12 +17,13 @@ pub(crate) fn retrieve_root_cert_store_for_client(ca_content: &Option<String>) -
     if let Some(ca_content) = ca_content {
         let mut pem = std::io::Cursor::new(ca_content.as_bytes());
         for cert in rustls_pemfile::certs(&mut pem) {
-            root_cert_store.add(cert?)?;
+            match cert {
+                Ok(cert) => root_cert_store.add(cert)?,
+                Err(e) => log::error!("Error parsing certificate: {:?}", e),
+            }
         }
     }
-    if root_cert_store.is_empty() {
-        root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    }
+    root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     Ok(root_cert_store)
 }
 
