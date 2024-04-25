@@ -1,5 +1,3 @@
-#![cfg(not(target_os = "android"))]
-
 use crate::{
     config::Config,
     error::{Error, Result},
