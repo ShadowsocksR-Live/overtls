@@ -40,25 +40,20 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     let p = server.listen_port;
     let addr: SocketAddr = (h, p).to_socket_addrs()?.next().ok_or("Invalid server listen address")?;
 
-    let certs = server.certfile.as_ref().and_then(|cert| {
-        if !config.disable_tls() {
-            server_load_certs(cert).ok()
-        } else {
-            None
+    let certs = server.certfile.as_ref().filter(|_| !config.disable_tls()).and_then(|cert| {
+        let certs = server_load_certs(cert);
+        if let Err(err) = &certs {
+            log::warn!("failed to load certificate file: {}", err);
         }
+        certs.ok()
     });
 
-    let keys = server.keyfile.as_ref().and_then(|key| {
-        if !config.disable_tls() {
-            let keys = server_load_keys(key).ok();
-            if keys.as_ref().map(|keys| keys.len()).unwrap_or(0) > 0 {
-                keys
-            } else {
-                None
-            }
-        } else {
-            None
+    let keys = server.keyfile.as_ref().filter(|_| !config.disable_tls()).and_then(|key| {
+        let keys = server_load_keys(key);
+        if let Err(err) = &keys {
+            log::warn!("failed to load key file: {}", err);
         }
+        keys.ok().filter(|keys| !keys.is_empty())
     });
 
     let svr_cfg = if let (Some(certs), Some(mut keys)) = (certs, keys) {

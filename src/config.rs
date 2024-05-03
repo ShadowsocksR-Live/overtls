@@ -324,7 +324,7 @@ impl Config {
                 (false, _) => server_host,
             };
             if client.server_host.is_empty() {
-                client.server_host = server_host.clone();
+                client.server_host.clone_from(&server_host);
             }
             if client.server_domain.is_none() || client.server_domain.as_ref().unwrap_or(&"".to_string()).is_empty() {
                 client.server_domain = Some(server_host.clone());

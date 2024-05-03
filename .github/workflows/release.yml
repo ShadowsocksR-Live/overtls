@@ -45,6 +45,7 @@ jobs:
       - name: Prepare
         shell: bash
         run: |
+          cargo install cbindgen
           mkdir release
           rustup target add ${{ matrix.target }}
           if [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
