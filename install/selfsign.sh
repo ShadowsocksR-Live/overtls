@@ -36,11 +36,14 @@ EMAIL_ADDRESS=$7
 DNS_1=$8
 IP_1=${9}
 
+# 有效期 10 年, self-signed certificate will expire in 10 years
+DAYS=3650
+
 # 生成根證書的私鑰
 openssl genrsa -out ca.key 4096
 
 # 生成根證書
-openssl req -outform PEM -new -x509 -sha256 -key ca.key -extensions v3_ca -out ca.crt -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGANIZATIONAL_UNIT/CN=$COMMON_NAME_CA/emailAddress=$EMAIL_ADDRESS"
+openssl req -outform PEM -new -x509 -sha256 -key ca.key -extensions v3_ca -out ca.crt -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGANIZATIONAL_UNIT/CN=$COMMON_NAME_CA/emailAddress=$EMAIL_ADDRESS" -days ${DAYS}
 
 # 生成自簽名證書的私鑰
 openssl genrsa -out server.key 4096
@@ -59,7 +62,7 @@ IP.1 = $IP_1
 EOF
 
 # 生成自簽名證書
-openssl x509 -req -CA ca.crt -CAkey ca.key -in server.csr -out server.crt -extfile serverca.txt -sha256 -set_serial 0x1111
+openssl x509 -req -CA ca.crt -CAkey ca.key -in server.csr -out server.crt -extfile serverca.txt -sha256 -set_serial 0x1111 -days ${DAYS}
 
 # 查看文件
 ls

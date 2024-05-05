@@ -156,7 +156,7 @@ for testing purposes.
 
 ```bash
 wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/selfsign.sh
-cat selfsign.sh
+head selfsign.sh -n 25
 chmod +x selfsign.sh
 ./selfsign.sh CN JiangSu ChangZhou MyGreatOrg Root_CA Server1 email@example.com example.com 123.45.67.89
 ```

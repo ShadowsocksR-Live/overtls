@@ -55,6 +55,7 @@ jobs:
 
   build:
     strategy:
+      fail-fast: false
       matrix:
         target:
           - x86_64-unknown-linux-gnu      # arch: x86_64, os: linux
@@ -93,6 +94,7 @@ jobs:
         rustup target add ${{ matrix.target }}
       
     - name: Build
+      if: ${{ !cancelled() }}
       shell: bash
       run: |
         if [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
@@ -103,5 +105,9 @@ jobs:
         fi
 
     - name: Run tests
+      if: ${{ !cancelled() }}
       run: cargo test --verbose --all-features
 
+    - name: Abort on error
+      if: ${{ failure() }}
+      run: echo "Some of jobs failed" && false
