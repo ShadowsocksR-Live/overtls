@@ -51,6 +51,9 @@ pub(crate) fn server_load_certs(path: &Path) -> Result<Vec<CertificateDer<'stati
     for cert in rustls_pemfile::certs(&mut BufReader::new(File::open(path)?)) {
         res.push(cert?);
     }
+    if res.is_empty() {
+        return Err("No certificates found".into());
+    }
     Ok(res)
 }
 
@@ -58,6 +61,15 @@ pub(crate) fn server_load_keys(path: &Path) -> Result<Vec<PrivateKeyDer<'static>
     let mut res = vec![];
     for key in rustls_pemfile::rsa_private_keys(&mut BufReader::new(File::open(path)?)) {
         res.push(PrivateKeyDer::from(key?));
+    }
+    for key in rustls_pemfile::pkcs8_private_keys(&mut BufReader::new(File::open(path)?)) {
+        res.push(PrivateKeyDer::from(key?));
+    }
+    for key in rustls_pemfile::ec_private_keys(&mut BufReader::new(File::open(path)?)) {
+        res.push(PrivateKeyDer::from(key?));
+    }
+    if res.is_empty() {
+        return Err("No keys found".into());
     }
     Ok(res)
 }
