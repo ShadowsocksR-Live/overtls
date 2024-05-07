@@ -6,22 +6,23 @@
 # 2. 添加可執行權限
 #    chmod +x selfsign.sh
 # 3. 執行腳本, 這裡的 9 個參數依次是: 國家, 省份, 城市, 組織, CA的通用名, 服務器的通用名, 你電郵地址, 胡謅的網址, 你VPS的IP
+#    这 9 个参数请根据自己的实际情况修改，否则你复制粘贴命令行生成的证书有可能被 GFW 针对性封杀。
 #    ./selfsign.sh CN JiangSu ChangZhou MyGreatOrg Root_CA Server1 email@example.com example.com 123.45.67.89
 # 4. 現在你將得到以下文件:
 #    ca.crt  ca.key  server.crt  server.csr  server.key  serverca.txt
-# 5. 將 server.crt 和 server.key 用於 overtls 服務器, 並在配置文件中使用它們。
+# 5. 將 server.crt 和 server.key 用於 overtls 服務端, 並在配置文件中使用它們。
 #    server.crt: 服務器證書
 #    server.key: 服務器私鑰
-# 6. 將 ca.crt 文件用於客戶端, 用它的全路徑 填寫配置文件中的 cafile 參數的值。
+# 6. 將根證書 ca.crt 文件用於客戶端, 用它的 全路徑 填寫配置文件中的 cafile 參數的值。
 #    ca.crt: 根證書
-# 7. 注意：
+# 7. 注意事项：
 #    - 這時候 overtls 不用 nginx 幫忙了，客戶端直接連接 overtls 服務端的監聽端口。
 #      當然你最好還是裝一個 nginx 監聽在 80 端口，當 GFW 的探測流量到達時，overtls 能作出體面的回應。
-#    - 由於自簽名證書不被公認，所以 GFW 可能會在一段時間後封了你的服務器，請謹慎使用。
-#    - 客戶端的配置文件中的 cafile 參數的值，應該是 ca.crt 的全路徑， 例如 /etc/over-tls/ca.crt。
-#    - 客戶端的配置文件中的 cafile 參數的值，也可以是證書的內容，當然它非常的長，因此不推薦這麼用，
+#    - 客戶端的配置文件中的 cafile 參數的值，應該是 ca.crt 的全路徑， 如 /etc/overtls/ca.crt。
+#    - 客戶端的配置文件中的 cafile 參數的值，也可以是根證書的內容，當然它非常的長，因此不推薦這麼用，
 #      它形如這樣 “-----BEGIN CERTIFICATE-----\nMIIFfTCC...\n-----END CERTIFICATE-----”。
-#    - 這種自簽名證書翻牆的方式，只是讓你在沒有 `域名` 時的臨時解決方案，不要長期使用，否則說不定哪天就被 GFW 封了。
+#    - 由於自簽名證書不被公認，這種自簽名證書翻牆的方式，只是讓你在沒有 `域名` 時的臨時解決方案，不要長期使用；
+#      否則 GFW 可能會在一段時間後封了你的服務器。
 #
 
 # 關鍵信息
