@@ -5,6 +5,8 @@ use std::{
     path::PathBuf,
 };
 
+pub(crate) const TEST_TIMEOUT_SECS: u64 = 10;
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Config {
     #[serde(
@@ -24,8 +26,8 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
     pub tunnel_path: TunnelPath,
-    #[serde(skip)]
-    pub test_timeout_secs: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub test_timeout_secs: Option<u64>,
     #[serde(skip)]
     pub is_server: bool,
 }
@@ -188,7 +190,7 @@ impl Config {
             tunnel_path: TunnelPath::default(),
             server: None,
             client: None,
-            test_timeout_secs: 5,
+            test_timeout_secs: Some(TEST_TIMEOUT_SECS),
             is_server: false,
         }
     }
@@ -296,9 +298,6 @@ impl Config {
             return Err("Need server or client settings".into());
         }
 
-        if self.test_timeout_secs == 0 {
-            self.test_timeout_secs = 5;
-        }
         if self.tunnel_path.is_empty() {
             self.tunnel_path = TunnelPath::default();
         } else {
@@ -338,7 +337,7 @@ impl Config {
                 let mut addr = (server_host, client.server_port).to_socket_addrs()?;
                 let addr = addr.next().ok_or("address not available")?;
                 {
-                    let timeout = std::time::Duration::from_secs(self.test_timeout_secs);
+                    let timeout = std::time::Duration::from_secs(self.test_timeout_secs.unwrap_or(TEST_TIMEOUT_SECS));
                     crate::tcp_stream::std_create(addr, Some(timeout))?;
                 }
                 if client.listen_host.is_empty() {

@@ -1,5 +1,6 @@
 {
     "remarks": "nickname of this config",
+    "test_timeout_secs": 10,
     "method": "none",
     "password": "password",
     "tunnel_path": "/secret-tunnel-path/",

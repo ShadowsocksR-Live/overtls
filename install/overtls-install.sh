@@ -566,6 +566,7 @@ function write_overtls_config_file() {
 {
     "remarks": "${hostname}-${identity}",
     "tunnel_path": "/${reverse_proxy_location}/",
+    "test_timeout_secs": 5,
 
     "server_settings": {
         "forward_addr": "http://127.0.0.1:80",

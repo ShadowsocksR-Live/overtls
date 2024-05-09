@@ -1,6 +1,6 @@
 use crate::{
     b64str_to_address,
-    config::Config,
+    config::{Config, TEST_TIMEOUT_SECS},
     error::{Error, Result},
     tls::*,
     traffic_audit::{TrafficAudit, TrafficAuditPtr},
@@ -290,10 +290,11 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     } else {
         let addr_str = b64str_to_address(&target_address, false)?.to_string();
 
+        let time_out = std::time::Duration::from_secs(config.test_timeout_secs.unwrap_or(TEST_TIMEOUT_SECS));
         // try to connect to the first available address
         let mut successful_addr = None;
         for dst_addr in addr_str.to_socket_addrs()? {
-            match std::net::TcpStream::connect(dst_addr) {
+            match crate::tcp_stream::std_create(dst_addr, Some(time_out)) {
                 Ok(_) => {
                     successful_addr = Some(dst_addr);
                     break;
