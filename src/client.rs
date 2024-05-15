@@ -73,6 +73,9 @@ where
     let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
     udprelay::udp_handler_watchdog(config, &incomings, &udp_tx, quit.clone()).await?;
 
+    let session_id = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let session_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
     loop {
         tokio::select! {
             _ = quit.cancelled() => {
@@ -84,10 +87,17 @@ where
                 let config = config.clone();
                 let udp_tx = udp_tx.clone();
                 let incomings = incomings.clone();
+                let session_id = session_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let session_count = session_count.clone();
+                let peer_addr = conn.peer_addr()?;
                 tokio::spawn(async move {
+                    let count = session_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                    log::debug!("session #{} from {} started, session count {}", session_id, peer_addr, count);
                     if let Err(e) = handle_incoming(conn, config, Some(udp_tx), incomings).await {
                         log::debug!("{}", e);
                     }
+                    let count = session_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) - 1;
+                    log::debug!("session #{} from {} ended, session count {}", session_id, peer_addr, count);
                 });
             }
         }

@@ -5,6 +5,7 @@ nginx_signing.key
 overtls-daemon.sh
 project.xcworkspace/
 xcuserdata/
+.vs/
 .vscode/
 .VSCodeCounter/
 .env
