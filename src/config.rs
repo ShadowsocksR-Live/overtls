@@ -449,7 +449,7 @@ impl Config {
         Ok(config)
     }
 
-    pub fn generate_ssr_qrcode(&self) -> Result<String> {
+    pub fn generate_ssr_url(&self, include_ca_file: bool) -> Result<String> {
         let client = self.client.as_ref().ok_or(Error::from("client is not set"))?;
         let engine = crate::Base64Engine::UrlSafeNoPad;
         let method = self.method.as_ref().map_or("none".to_string(), |m| m.clone());
@@ -467,9 +467,11 @@ impl Config {
         let mut url = format!("{host}:{port}:origin:{method}:plain:{password}/?remarks={remarks}&ot_enable=1");
         url.push_str(&format!("&ot_domain={domain}&ot_path={tunnel_path}"));
 
-        if let Some(ref ca) = client.certificate_content() {
-            let ca = crate::base64_encode(ca.as_bytes(), engine);
-            url.push_str(&format!("&ot_cert={}", ca));
+        if include_ca_file {
+            if let Some(ref ca) = client.certificate_content() {
+                let ca = crate::base64_encode(ca.as_bytes(), engine);
+                url.push_str(&format!("&ot_cert={}", ca));
+            }
         }
 
         Ok(format!("ssr://{}", crate::base64_encode(url.as_bytes(), engine)))
@@ -494,7 +496,7 @@ fn test_config() {
 
     config.check_correctness(false).unwrap();
 
-    let qrcode = config.generate_ssr_qrcode().unwrap();
+    let qrcode = config.generate_ssr_url(true).unwrap();
     println!("{:?}", qrcode);
 
     let config = Config::from_ssr_url(&qrcode).unwrap();

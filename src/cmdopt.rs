@@ -101,6 +101,10 @@ pub struct CmdOpt {
     #[arg(short, long)]
     pub qrcode: bool,
 
+    /// QR code contains certificate content.
+    #[arg(long)]
+    pub qrcode_cert: bool,
+
     /// Use C API for client.
     #[arg(long)]
     pub c_api: bool,

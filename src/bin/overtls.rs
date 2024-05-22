@@ -44,7 +44,13 @@ fn main() -> Result<(), BoxError> {
     config.set_cache_dns(opt.cache_dns);
 
     if opt.qrcode {
-        let qrcode = config.generate_ssr_qrcode()?;
+        if let Some(ref ca) = config.certificate_content() {
+            if !opt.qrcode_cert {
+                eprintln!("Certificate content:");
+                eprint!("{}", ca);
+            }
+        }
+        let qrcode = config.generate_ssr_url(opt.qrcode_cert)?;
         println!("{}", qrcode);
         return Ok(());
     }
