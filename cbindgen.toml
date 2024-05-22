@@ -4,6 +4,8 @@ include = [
     "over_tls_client_run_with_ssr_url",
     "over_tls_client_stop",
     "overtls_set_log_callback",
+    "overtls_generate_url",
+    "overtls_free_string",
 ]
 exclude = [
     "Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient",

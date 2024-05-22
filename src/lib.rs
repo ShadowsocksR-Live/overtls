@@ -15,7 +15,7 @@ pub(crate) mod udprelay;
 pub(crate) mod webapi;
 pub(crate) mod weirduri;
 
-pub use api::{over_tls_client_run, over_tls_client_run_with_ssr_url, over_tls_client_stop};
+pub use api::{over_tls_client_run, over_tls_client_run_with_ssr_url, over_tls_client_stop, overtls_free_string, overtls_generate_url};
 use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
 pub use client::run_client;

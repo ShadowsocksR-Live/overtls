@@ -478,6 +478,17 @@ impl Config {
     }
 }
 
+pub(crate) fn generate_ssr_url<P>(path: P, include_ca_file: bool) -> Result<String>
+where
+    P: AsRef<std::path::Path>,
+{
+    let config = Config::from_config_file(path)?;
+    if config.certificate_content().is_some() && !include_ca_file {
+        log::warn!("Certificate content discarded");
+    }
+    config.generate_ssr_url(include_ca_file)
+}
+
 #[test]
 fn test_config() {
     let mut config = Config::new();
