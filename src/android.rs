@@ -209,10 +209,8 @@ pub mod native {
         0
     }
 
-    unsafe fn get_java_string<'a>(env: &'a mut JNIEnv, string: &'a JString) -> Result<&'a str> {
-        let str_ptr = env.get_string(string)?.as_ptr();
-        let s: &str = std::ffi::CStr::from_ptr(str_ptr).to_str()?;
-        Ok(s)
+    fn get_java_string(env: &mut JNIEnv, string: &JString) -> Result<String> {
+        Ok(env.get_string(string)?.into())
     }
 
     /// # Safety
