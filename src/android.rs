@@ -148,25 +148,13 @@ pub mod native {
     /// Run the overtls client with config file.
     #[no_mangle]
     pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient(
-        env: JNIEnv,
+        mut env: JNIEnv,
         class: JClass,
         vpn_service: JObject,
         config_path: JString,
         stat_path: JString,
         verbosity: jint,
     ) -> jint {
-        let shutdown_token = crate::CancellationToken::new();
-        {
-            let mut lock = EXITING_FLAG.lock().unwrap();
-            if lock.is_some() {
-                log::error!("tun2proxy already started");
-                return -1;
-            }
-            *lock = Some(shutdown_token.clone());
-        }
-
-        let mut env = env;
-
         let log_level = ArgVerbosity::try_from(verbosity).unwrap().to_string();
         let root = module_path!().split("::").next().unwrap();
         let filter_str = &format!("off,{root}={log_level}");
@@ -178,10 +166,22 @@ pub mod native {
                 .with_filter(filter),
         );
 
+        log::info!("Starting overtls client on Android");
+
+        let shutdown_token = crate::CancellationToken::new();
+        {
+            let mut lock = EXITING_FLAG.lock().unwrap();
+            if lock.is_some() {
+                log::error!("overtls already started");
+                return -1;
+            }
+            *lock = Some(shutdown_token.clone());
+        }
+
         let block = || -> Result<()> {
             if let Ok(stat_path) = get_java_string(&mut env, &stat_path) {
-                let mut stat = STAT_PATH.write().unwrap();
-                *stat = stat_path.to_owned();
+                let mut stat = STAT_PATH.write().map_err(|e| Error::from(e.to_string()))?;
+                *stat = stat_path;
             }
             let config_path = get_java_string(&mut env, &config_path)?.to_owned();
             set_panic_handler();
