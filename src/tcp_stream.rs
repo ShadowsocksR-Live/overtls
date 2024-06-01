@@ -10,7 +10,7 @@ pub(crate) async fn tokio_create(addr: std::net::SocketAddr) -> std::io::Result<
         // for android vpn service, we need to call VPNService.protect(int) to protect the socket
         // https://developer.android.com/reference/android/net/VpnService.html#protect(int)
         use std::os::unix::io::AsRawFd;
-        crate::android::tun_callbacks::on_socket_created(socket.as_raw_fd());
+        crate::android::protect_socket(socket.as_raw_fd())?;
 
         Ok(socket.connect(addr).await?)
     }
@@ -27,7 +27,7 @@ pub(crate) fn std_create(addr: std::net::SocketAddr, timeout: Option<std::time::
     #[cfg(target_os = "android")]
     {
         use std::os::unix::io::AsRawFd;
-        crate::android::tun_callbacks::on_socket_created(socket.as_raw_fd());
+        crate::android::protect_socket(socket.as_raw_fd())?;
     }
 
     if let Some(timeout) = timeout {

@@ -182,7 +182,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     buf.put_slice(&pkt);
 
                     #[cfg(target_os = "android")]
-                    if let Err(e) = crate::android::native::traffic_status_update(buf.len(), 0) {
+                    if let Err(e) = crate::android::traffic_status_update(buf.len(), 0) {
                         log::error!("{}", e);
                     }
 
@@ -209,7 +209,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
             msg = ws_stream.next() => {
                 let len = msg.as_ref().map(|m| m.as_ref().map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
                 #[cfg(target_os = "android")]
-                if let Err(e) = crate::android::native::traffic_status_update(0, len) {
+                if let Err(e) = crate::android::traffic_status_update(0, len) {
                     log::error!("{}", e);
                 }
 

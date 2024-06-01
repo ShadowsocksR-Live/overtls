@@ -1,162 +1,31 @@
 #![cfg(target_os = "android")]
 
-pub mod native {
+use crate::{ArgVerbosity, Error, Result};
+use jni::{
+    objects::{GlobalRef, JClass, JObject, JString, JValue},
+    signature::{Primitive, ReturnType},
+    sys::jint,
+    JNIEnv, JavaVM,
+};
+use std::sync::RwLock;
 
-    use crate::{
-        error::{Error, Result},
-        ArgVerbosity,
-    };
-    use crossbeam::channel::{unbounded, Receiver, Sender};
-    use jni::{
-        objects::{GlobalRef, JClass, JMethodID, JObject, JString, JValue},
-        signature::{Primitive, ReturnType},
-        sys::jint,
-        JNIEnv, JavaVM,
-    };
-    use std::{
-        sync::{
-            atomic::{AtomicBool, Ordering},
-            Arc, Mutex, RwLock,
-        },
-        thread::JoinHandle,
-    };
+static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::sync::Mutex::new(None);
 
-    lazy_static::lazy_static! {
-        pub static ref SOCKET_PROTECTOR: Mutex<Option<SocketProtector>> = Mutex::new(None);
-    }
-
-    macro_rules! socket_protector {
-        () => {
-            crate::android::native::SOCKET_PROTECTOR.lock().unwrap().as_mut().unwrap()
-        };
-    }
-
-    lazy_static::lazy_static! {
-        pub static ref JNI: Mutex<Option<Jni>> = Mutex::new(None);
-    }
-
-    macro_rules! jni_object {
-        () => {
-            crate::android::native::JNI.lock().unwrap().as_mut().unwrap()
-        };
-    }
-
-    type SenderChannel = Sender<(i32, Sender<bool>)>;
-    type ReceiverChannel = Receiver<(i32, Sender<bool>)>;
-    type ChannelPair = (SenderChannel, ReceiverChannel);
-
-    pub struct SocketProtector {
-        is_thread_running: Arc<AtomicBool>,
-        thread_join_handle: Option<JoinHandle<()>>,
-        channel: ChannelPair,
-    }
-
-    impl SocketProtector {
-        pub fn init() {
-            let mut socket_protector = SOCKET_PROTECTOR.lock().unwrap();
-            *socket_protector = Some(SocketProtector {
-                is_thread_running: Arc::new(AtomicBool::new(false)),
-                thread_join_handle: None,
-                channel: unbounded(),
-            });
-        }
-
-        pub fn release() {
-            let mut socket_protector = SOCKET_PROTECTOR.lock().unwrap();
-            *socket_protector = None;
-        }
-
-        pub fn start(&mut self) {
-            log::trace!("starting socket protecting thread");
-            self.is_thread_running.store(true, Ordering::SeqCst);
-            let is_thread_running = self.is_thread_running.clone();
-            let receiver_channel = self.channel.1.clone();
-            self.thread_join_handle = Some(std::thread::spawn(move || {
-                log::trace!("socket protecting thread is started");
-                if let Some(mut jni_context) = jni_object!().new_context() {
-                    while is_thread_running.load(Ordering::SeqCst) {
-                        SocketProtector::handle_protect_socket_request(&receiver_channel, &mut jni_context);
-                    }
-                }
-                log::trace!("socket protecting thread is stopping");
-            }));
-            log::trace!("successfully started socket protecting thread");
-        }
-
-        pub fn stop(&mut self) {
-            self.is_thread_running.store(false, Ordering::SeqCst);
-            //
-            // solely used for unblocking thread responsible for protecting sockets.
-            //
-            self.protect_socket(-1);
-            self.thread_join_handle.take().unwrap().join().unwrap();
-        }
-
-        fn handle_protect_socket_request(receiver: &ReceiverChannel, jni_context: &mut JniContext<'_>) {
-            let (socket, reply_sender) = receiver.recv().unwrap();
-            let is_socket_protected = if socket <= 0 {
-                log::trace!("found invalid socket, socket={:?}", socket);
-                false
-            } else if jni_context.protect_socket(socket) {
-                log::trace!("finished protecting socket, socket={:?}", socket);
-                true
-            } else {
-                log::error!("failed to protect socket, socket={:?}", socket);
-                false
-            };
-            match reply_sender.send(is_socket_protected) {
-                Ok(_) => {
-                    log::trace!("finished sending result, socket={:?}", socket)
-                }
-                Err(error) => {
-                    log::error!("failed to send result, socket={:?} error={:?}", socket, error);
-                }
-            }
-        }
-
-        pub fn protect_socket(&self, socket: i32) -> bool {
-            let (sender, receiver) = unbounded::<bool>();
-            match self.channel.0.send((socket, sender)) {
-                Ok(_) => {
-                    let result = receiver.recv();
-                    match result {
-                        Ok(is_socket_protected) => {
-                            if is_socket_protected {
-                                log::trace!("successfully protected socket, socket={:?}", socket);
-                            } else {
-                                log::error!("failed to protect socket, socket={:?}", socket);
-                            }
-                            return is_socket_protected;
-                        }
-                        Err(error) => {
-                            log::error!("failed to protect socket, error={:?}", error);
-                        }
-                    }
-                }
-                Err(error) => {
-                    log::error!("failed to protect socket, socket={:?} error={:?}", socket, error);
-                }
-            }
-            false
-        }
-    }
-
-    static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::sync::Mutex::new(None);
-
-    /// # Safety
-    ///
-    /// Run the overtls client with config file.
-    #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient(
-        mut env: JNIEnv,
-        class: JClass,
-        vpn_service: JObject,
-        config_path: JString,
-        stat_path: JString,
-        verbosity: jint,
-    ) -> jint {
-        let log_level = ArgVerbosity::try_from(verbosity).unwrap().to_string();
-        let root = module_path!().split("::").next().unwrap();
+/// # Safety
+///
+/// Run the overtls client with config file.
+#[no_mangle]
+pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient(
+    mut env: JNIEnv,
+    _: JClass,
+    vpn_service: JObject,
+    config_path: JString,
+    stat_path: JString,
+    verbosity: jint,
+) -> jint {
+    let block = || -> Result<()> {
+        let log_level = ArgVerbosity::try_from(verbosity).unwrap_or_default().to_string();
+        let root = module_path!().split("::").next().unwrap_or("overtls");
         let filter_str = &format!("off,{root}={log_level}");
         let filter = android_logger::FilterBuilder::new().parse(filter_str).build();
         android_logger::init_once(
@@ -170,252 +39,147 @@ pub mod native {
 
         let shutdown_token = crate::CancellationToken::new();
         {
-            let mut lock = EXITING_FLAG.lock().unwrap();
+            let mut lock = EXITING_FLAG.lock().map_err(|e| Error::from(e.to_string()))?;
             if lock.is_some() {
-                log::error!("overtls already started");
-                return -1;
+                return Err(Error::from("overtls already started"));
             }
             *lock = Some(shutdown_token.clone());
         }
 
-        let block = || -> Result<()> {
-            if let Ok(stat_path) = get_java_string(&mut env, &stat_path) {
-                let mut stat = STAT_PATH.write().map_err(|e| Error::from(e.to_string()))?;
-                *stat = stat_path;
-            }
-            let config_path = get_java_string(&mut env, &config_path)?.to_owned();
-            set_panic_handler();
-            Jni::init(env, class, vpn_service);
-            SocketProtector::init();
+        JAVA_VM.lock().map_err(|e| Error::from(e.to_string()))?.replace(env.get_java_vm()?);
+        VPN_SERVICE
+            .lock()
+            .map_err(|e| Error::from(e.to_string()))?
+            .replace(env.new_global_ref(vpn_service)?);
 
-            start_protect_socket();
+        if let Ok(stat_path) = get_java_string(&mut env, &stat_path) {
+            let mut stat = STAT_PATH.write().map_err(|e| Error::from(e.to_string()))?;
+            *stat = stat_path;
+        }
+        let config_path = get_java_string(&mut env, &config_path)?.to_owned();
+        set_panic_handler();
 
-            let callback = |addr| {
-                log::trace!("Listening on {}", addr);
-            };
-
-            let mut config = crate::config::Config::from_config_file(config_path)?;
-            config.check_correctness(false)?;
-
-            let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
-            rt.block_on(async {
-                crate::client::run_client(&config, shutdown_token, Some(callback)).await?;
-                Ok::<(), Error>(())
-            })
+        let callback = |addr| {
+            log::trace!("Listening on {}", addr);
         };
-        if let Err(error) = block() {
-            log::error!("failed to run client, error={:?}", error);
-        }
-        0
+
+        let mut config = crate::config::Config::from_config_file(config_path)?;
+        config.check_correctness(false)?;
+
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+        rt.block_on(async {
+            crate::client::run_client(&config, shutdown_token, Some(callback)).await?;
+            Ok::<(), Error>(())
+        })
+    };
+    if let Err(error) = block() {
+        log::error!("failed to run client, error={:?}", error);
     }
-
-    fn get_java_string(env: &mut JNIEnv, string: &JString) -> Result<String> {
-        Ok(env.get_string(string)?.into())
-    }
-
-    /// # Safety
-    ///
-    /// Shutdown the client.
-    #[no_mangle]
-    pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient(_: JNIEnv, _: JClass) -> jint {
-        stop_protect_socket();
-
-        if let Ok(mut token) = EXITING_FLAG.lock() {
-            if let Some(token) = token.take() {
-                token.cancel();
-            }
-        }
-
-        SocketProtector::release();
-        Jni::release();
-        remove_panic_handler();
-        log::trace!("remove_panic_handler");
-        0
-    }
-
-    fn start_protect_socket() {
-        crate::android::tun_callbacks::set_socket_created_callback(Some(on_socket_created));
-        socket_protector!().start();
-    }
-
-    fn stop_protect_socket() {
-        socket_protector!().stop();
-        crate::android::tun_callbacks::set_socket_created_callback(None);
-    }
-
-    fn set_panic_handler() {
-        std::panic::set_hook(Box::new(|panic_info| {
-            log::error!("*** PANIC [{:?}]", panic_info);
-        }));
-    }
-
-    fn remove_panic_handler() {
-        let _ = std::panic::take_hook();
-    }
-
-    fn on_socket_created(socket: i32) {
-        socket_protector!().protect_socket(socket);
-    }
-
-    pub struct JniContext<'a> {
-        pub(super) jni_env: JNIEnv<'a>,
-        pub(super) vpn_service: &'a JObject<'a>,
-        pub(super) protect_method_id: JMethodID,
-    }
-
-    impl<'a> JniContext<'a> {
-        // execute android.net.VpnService.protect(int socket) method.
-        pub fn protect_socket(&mut self, socket: i32) -> bool {
-            if socket <= 0 {
-                log::error!("invalid socket, socket={:?}", socket);
-                return false;
-            }
-            let return_type = ReturnType::Primitive(Primitive::Boolean);
-            let arguments = [JValue::Int(socket).as_jni()];
-            let result = unsafe {
-                self.jni_env
-                    .call_method_unchecked(self.vpn_service, self.protect_method_id, return_type, &arguments[..])
-            };
-            match result {
-                Ok(value) => {
-                    log::trace!("protected socket, result={:?}", value);
-                    value.z().unwrap()
-                }
-                Err(error_code) => {
-                    log::error!("failed to protect socket, error={:?}", error_code);
-                    false
-                }
-            }
-        }
-    }
-
-    pub struct Jni {
-        java_vm: Arc<JavaVM>,
-        vpn_service: GlobalRef,
-    }
-
-    impl Jni {
-        pub fn init(env: JNIEnv, _: JClass, vpn_service: JObject) {
-            let mut jni = JNI.lock().unwrap();
-            let java_vm = Arc::new(env.get_java_vm().unwrap());
-            let vpn_service = env.new_global_ref(vpn_service).unwrap();
-            *jni = Some(Jni { java_vm, vpn_service });
-        }
-
-        pub fn release() {
-            let mut jni = JNI.lock().unwrap();
-            *jni = None;
-        }
-
-        pub fn new_context(&self) -> Option<JniContext> {
-            match self.java_vm.attach_current_thread_permanently() {
-                Ok(jni_env) => match Jni::get_protect_method_id(unsafe { jni_env.unsafe_clone() }) {
-                    Some(protect_method_id) => {
-                        let vpn_service = self.vpn_service.as_obj();
-                        return Some(JniContext {
-                            jni_env,
-                            vpn_service,
-                            protect_method_id,
-                        });
-                    }
-                    None => {
-                        log::error!("failed to get protect method id");
-                    }
-                },
-                Err(error) => {
-                    log::error!("failed to attach to current thread, error={:?}", error);
-                }
-            }
-            None
-        }
-
-        fn get_protect_method_id(mut jni_env: JNIEnv) -> Option<JMethodID> {
-            match jni_env.find_class("android/net/VpnService") {
-                Ok(class) => match jni_env.get_method_id(class, "protect", "(I)Z") {
-                    Ok(method_id) => {
-                        return Some(method_id);
-                    }
-                    Err(error) => {
-                        log::error!("failed to get protect method id, error={:?}", error);
-                    }
-                },
-                Err(error) => {
-                    log::error!("failed to find vpn service class, error={:?}", error);
-                }
-            }
-            None
-        }
-    }
-
-    #[repr(C)]
-    #[derive(Debug, Default, Copy, Clone)]
-    struct TrafficStatus {
-        tx: u64,
-        rx: u64,
-    }
-
-    lazy_static::lazy_static! {
-        static ref TRAFFIC_STATUS: RwLock<TrafficStatus> = RwLock::new(TrafficStatus::default());
-        static ref STAT_PATH: RwLock<String> = RwLock::new(String::new());
-        static ref TIME_STAMP: RwLock<std::time::Instant> = RwLock::new(std::time::Instant::now());
-    }
-
-    pub(crate) fn traffic_status_update(delta_tx: usize, delta_rx: usize) -> Result<()> {
-        {
-            let mut traffic_status = TRAFFIC_STATUS.write().unwrap();
-            traffic_status.tx += delta_tx as u64;
-            traffic_status.rx += delta_rx as u64;
-        }
-        let old_time = { *TIME_STAMP.read().unwrap() };
-        if std::time::Instant::now().duration_since(old_time).as_secs() >= 1 {
-            send_traffic_stat()?;
-            let mut time_stamp = TIME_STAMP.write().unwrap();
-            *time_stamp = std::time::Instant::now();
-        }
-        Ok(())
-    }
-
-    fn send_traffic_stat() -> Result<()> {
-        use std::io::{Read, Write};
-        let stat_path = { (*STAT_PATH.read().unwrap()).clone() };
-        if stat_path.is_empty() {
-            return Ok(());
-        }
-        let mut stream = std::os::unix::net::UnixStream::connect(&stat_path)?;
-        stream.set_write_timeout(Some(std::time::Duration::new(1, 0)))?;
-        stream.set_read_timeout(Some(std::time::Duration::new(1, 0)))?;
-        let buf = {
-            let traffic_status = TRAFFIC_STATUS.read().unwrap();
-            unsafe { std::mem::transmute::<TrafficStatus, [u8; std::mem::size_of::<TrafficStatus>()]>(*traffic_status) }
-        };
-        stream.write_all(&buf)?;
-
-        let mut response = String::new();
-        stream.read_to_string(&mut response)?;
-
-        Ok(())
-    }
+    0
 }
 
-pub mod tun_callbacks {
+fn get_java_string(env: &mut JNIEnv, string: &JString) -> Result<String> {
+    Ok(env.get_string(string)?.into())
+}
 
-    use std::sync::RwLock;
+static JAVA_VM: std::sync::Mutex<Option<JavaVM>> = std::sync::Mutex::new(None);
+static VPN_SERVICE: std::sync::Mutex<Option<GlobalRef>> = std::sync::Mutex::new(None);
 
-    lazy_static::lazy_static! {
-        static ref CALLBACK: RwLock<Option<fn(i32)>> = RwLock::new(None);
+pub fn protect_socket(socket: i32) -> Result<bool> {
+    let vm = JAVA_VM.lock().map_err(|e| Error::from(e.to_string()))?;
+    let vm = vm.as_ref().ok_or_else(|| Error::from("java vm is not initialized"))?;
+    let mut env = vm.attach_current_thread_permanently()?;
+    let vpn_service = VPN_SERVICE.lock().map_err(|e| Error::from(e.to_string()))?;
+    let vpn_service = vpn_service.as_ref().ok_or_else(|| Error::from("vpn service is not initialized"))?;
+    let vpn_service = vpn_service.as_obj();
+    _protect_socket(&mut env, vpn_service, socket)
+}
+
+// android::net::VPNService.protect(int)
+fn _protect_socket(env: &mut JNIEnv, vpn_service: &JObject, socket: i32) -> Result<bool> {
+    if socket <= 0 {
+        return Err(Error::from(format!("invalid socket {:?}", socket)));
     }
+    let class = env.find_class("android/net/VpnService")?;
+    let method_id = env.get_method_id(class, "protect", "(I)Z")?;
 
-    pub fn set_socket_created_callback(callback: Option<fn(i32)>) {
-        if let Ok(mut current_callback) = CALLBACK.write() {
-            *current_callback = callback;
+    let return_type = ReturnType::Primitive(Primitive::Boolean);
+    let arguments = [JValue::Int(socket).as_jni()];
+    let value = unsafe { env.call_method_unchecked(vpn_service, method_id, return_type, &arguments[..])? };
+    log::trace!("protected socket, result={:?}", value);
+    Ok(value.z()?)
+}
+
+/// # Safety
+///
+/// Shutdown the client.
+#[no_mangle]
+pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient(_: JNIEnv, _: JClass) -> jint {
+    if let Ok(mut token) = EXITING_FLAG.lock() {
+        if let Some(token) = token.take() {
+            token.cancel();
         }
     }
+    remove_panic_handler();
+    log::trace!("remove_panic_handler");
+    0
+}
 
-    pub fn on_socket_created(socket: i32) {
-        if let Ok(callback) = CALLBACK.read() {
-            if let Some(callback) = &*callback {
-                callback(socket);
-            }
-        }
+fn set_panic_handler() {
+    std::panic::set_hook(Box::new(|panic_info| {
+        log::error!("*** PANIC [{:?}]", panic_info);
+    }));
+}
+
+fn remove_panic_handler() {
+    let _ = std::panic::take_hook();
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+struct TrafficStatus {
+    tx: u64,
+    rx: u64,
+}
+
+lazy_static::lazy_static! {
+    static ref TRAFFIC_STATUS: RwLock<TrafficStatus> = RwLock::new(TrafficStatus::default());
+    static ref STAT_PATH: RwLock<String> = RwLock::new(String::new());
+    static ref TIME_STAMP: RwLock<std::time::Instant> = RwLock::new(std::time::Instant::now());
+}
+
+pub(crate) fn traffic_status_update(delta_tx: usize, delta_rx: usize) -> Result<()> {
+    {
+        let mut traffic_status = TRAFFIC_STATUS.write().map_err(|e| Error::from(e.to_string()))?;
+        traffic_status.tx += delta_tx as u64;
+        traffic_status.rx += delta_rx as u64;
     }
+    let old_time = { *TIME_STAMP.read().map_err(|e| Error::from(e.to_string()))? };
+    if std::time::Instant::now().duration_since(old_time).as_secs() >= 1 {
+        send_traffic_stat()?;
+        let mut time_stamp = TIME_STAMP.write().map_err(|e| Error::from(e.to_string()))?;
+        *time_stamp = std::time::Instant::now();
+    }
+    Ok(())
+}
+
+fn send_traffic_stat() -> Result<()> {
+    use std::io::{Read, Write};
+    let stat_path = { (*STAT_PATH.read().map_err(|e| Error::from(e.to_string()))?).clone() };
+    if stat_path.is_empty() {
+        return Ok(());
+    }
+    let mut stream = std::os::unix::net::UnixStream::connect(&stat_path)?;
+    stream.set_write_timeout(Some(std::time::Duration::new(1, 0)))?;
+    stream.set_read_timeout(Some(std::time::Duration::new(1, 0)))?;
+    let buf = {
+        let traffic_status = TRAFFIC_STATUS.read().map_err(|e| Error::from(e.to_string()))?;
+        unsafe { std::mem::transmute::<TrafficStatus, [u8; std::mem::size_of::<TrafficStatus>()]>(*traffic_status) }
+    };
+    stream.write_all(&buf)?;
+
+    let mut response = String::new();
+    stream.read_to_string(&mut response)?;
+
+    Ok(())
 }

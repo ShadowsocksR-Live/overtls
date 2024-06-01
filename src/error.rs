@@ -75,6 +75,15 @@ pub enum Error {
     String(String),
 }
 
+impl From<Error> for std::io::Error {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::Io(e) => e,
+            _ => std::io::Error::new(std::io::ErrorKind::Other, e.to_string()),
+        }
+    }
+}
+
 impl From<&str> for Error {
     fn from(s: &str) -> Self {
         Error::String(s.to_string())
