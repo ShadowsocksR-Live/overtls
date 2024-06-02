@@ -13,18 +13,18 @@ crate-type = ["staticlib", "cdylib", "lib"]
 [dependencies]
 async-shared-timeout = "0.2"
 base64 = "0.22"
-bytes = "1.6"
+bytes = "1"
 chrono = "0.4"
-clap = { version = "4.5", features = ["derive"] }
-ctrlc2 = { version = "3.5", features = ["tokio", "termination"] }
+clap = { version = "4", features = ["derive"] }
+ctrlc2 = { version = "3", features = ["tokio", "termination"] }
 dotenvy = "0.15"
 env_logger = "0.11"
 futures-util = { version = "0.3", default-features = false, features = [
     "sink",
     "std",
 ] }
-http = "1.1"
-httparse = "1.8"
+http = "1"
+httparse = "1"
 log = { version = "0.4", features = ["std"] }
 moka = { version = "0.12", default-features = false, features = ["future"] }
 reqwest = { version = "0.12", default-features = false, features = [
@@ -37,23 +37,23 @@ rustls = { version = "0.23", default-features = false, features = [
     "logging",
     "ring",
 ] }
-rustls-pemfile = "2.1"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+rustls-pemfile = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 socks5-impl = "0.5"
 socket2 = "0.5"
-thiserror = "1.0"
+thiserror = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.26", default-features = false, features = [
     "logging",
     "tls12",
     "ring",
 ] }
-tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
 tokio-util = "0.7"
 trust-dns-proto = "0.23"
-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
-url = "2.5"
+tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
+url = "2"
 webpki = { package = "rustls-webpki", version = "0.102", features = [
     "alloc",
     "std",
@@ -66,4 +66,4 @@ daemonize = "0.5"
 [target.'cfg(target_os="android")'.dependencies]
 android_logger = "0.13"
 jni = { version = "0.21", default-features = false }
-lazy_static = "1.4"
+lazy_static = "1"
