@@ -97,13 +97,9 @@ pub struct CmdOpt {
     /// Daemonize for unix family.
     pub daemonize: bool,
 
-    /// Generate QR code for client.
+    /// Generate URL of the server node for client.
     #[arg(short, long)]
-    pub qrcode: bool,
-
-    /// QR code contains certificate content.
-    #[arg(long)]
-    pub qrcode_cert: bool,
+    pub generate_url: bool,
 
     /// Use C API for client.
     #[arg(long)]

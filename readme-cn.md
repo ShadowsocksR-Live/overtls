@@ -137,9 +137,9 @@ overtls -r client -c config.json
 如果你確實沒有 `域名`， 可以使用 `openssl` 生成自簽證書 來臨時連接服務端，以便你能處理你的緊急事務。
 
 ```bash
-wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/selfsign.sh
-head selfsign.sh -n 25
-chmod +x selfsign.sh
-./selfsign.sh CN JiangSu ChangZhou MyGreatOrg Root_CA Server1 email@example.com example.com 123.45.67.89
+sudo apt install -y wget # Debian/Ubuntu
+sudo yum install -y wget # CentOS
+wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install-selfsign.sh
+bash ./overtls-install-selfsign.sh
 ```
 > 注意：`GFW` 可能會因爲你使用了自簽證書而封鎖你的服務器。所以請不要長期用於正式場合。

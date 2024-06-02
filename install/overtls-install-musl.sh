@@ -701,7 +701,7 @@ function print_qrcode() {
     check_file_exists "${ot_exe_path}"
     check_file_exists "${ot_cfg_path}"
 
-    local qrcode="$( ${ot_exe_path} -q -c ${ot_cfg_path} )"
+    local qrcode="$( ${ot_exe_path} -g -c ${ot_cfg_path} )"
     echo "${qrcode}"
     qrencode -t UTF8 "${qrcode}" | cat
 }

@@ -156,13 +156,13 @@ pub unsafe extern "C" fn over_tls_client_stop() -> c_int {
 ///
 /// Create a SSR URL from the config file.
 #[no_mangle]
-pub unsafe extern "C" fn overtls_generate_url(cfg_path: *const c_char, include_ca_file: bool) -> *mut c_char {
+pub unsafe extern "C" fn overtls_generate_url(cfg_path: *const c_char) -> *mut c_char {
     let cfg_path = std::ffi::CStr::from_ptr(cfg_path);
     let cfg_path = match cfg_path.to_str() {
         Ok(s) => s,
         Err(_) => return std::ptr::null_mut(),
     };
-    let url = match crate::config::generate_ssr_url(cfg_path, include_ca_file) {
+    let url = match crate::config::generate_ssr_url(cfg_path) {
         Ok(s) => s,
         Err(_) => return std::ptr::null_mut(),
     };

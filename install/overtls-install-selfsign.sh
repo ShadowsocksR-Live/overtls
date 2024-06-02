@@ -495,7 +495,7 @@ function print_url() {
     check_file_exists "${ot_exe_path}"
     check_file_exists "${ot_cfg_path}"
 
-    local qrcode="$( ${ot_exe_path} -q --qrcode-cert -c ${ot_cfg_path} )"
+    local qrcode="$( ${ot_exe_path} -g -c ${ot_cfg_path} )"
     echo "${qrcode}"
 }
 

@@ -43,15 +43,9 @@ fn main() -> Result<(), BoxError> {
     let mut config = Config::from_config_file(&opt.config)?;
     config.set_cache_dns(opt.cache_dns);
 
-    if opt.qrcode {
-        if let Some(ref ca) = config.certificate_content() {
-            if !opt.qrcode_cert {
-                eprintln!("Certificate content:");
-                eprint!("{}", ca);
-            }
-        }
-        let qrcode = config.generate_ssr_url(opt.qrcode_cert)?;
-        println!("{}", qrcode);
+    if opt.generate_url {
+        let url = config.generate_ssr_url()?;
+        println!("{}", url);
         return Ok(());
     }
 

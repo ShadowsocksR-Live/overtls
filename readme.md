@@ -84,7 +84,7 @@ and apply for a certificate.
 
 Currently only 3 `CPU` architectures of `Linux` machines are supported: `x86_64`, `armv7` and `arm64`.
 
-```
+```bash
 sudo apt install -y wget # Debian/Ubuntu
 sudo yum install -y wget # CentOS
 wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install-musl.sh
@@ -155,10 +155,10 @@ If you have not owned a `domain name`, you can use the `openssl` command to gene
 for testing purposes.
 
 ```bash
-wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/selfsign.sh
-head selfsign.sh -n 25
-chmod +x selfsign.sh
-./selfsign.sh CN JiangSu ChangZhou MyGreatOrg Root_CA Server1 email@example.com example.com 123.45.67.89
+sudo apt install -y wget # Debian/Ubuntu
+sudo yum install -y wget # CentOS
+wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install-selfsign.sh
+bash ./overtls-install-selfsign.sh
 ```
 > Note: The `GFW` maybe block your server since you are using a self-signed certificate.
 >       So please do not use it for long-term production purposes.
