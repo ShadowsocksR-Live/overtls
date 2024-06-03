@@ -73,7 +73,7 @@ INSTALL_CMD="apt"
 
 export web_svr_domain=""
 export web_svr_local_ip_addr=""
-export web_svr_reverse_proxy_host="127.0.0.1"
+export web_svr_reverse_proxy_host="0.0.0.0"
 export web_svr_reverse_proxy_port=10000
 
 function random_string_gen() {
