@@ -266,6 +266,18 @@ impl Config {
         }
     }
 
+    pub fn set_listen_addr(&mut self, addr: std::net::SocketAddr) {
+        if self.is_server {
+            if let Some(s) = &mut self.server {
+                s.listen_host = addr.ip().to_string();
+                s.listen_port = addr.port();
+            }
+        } else if let Some(c) = &mut self.client {
+            c.listen_host = addr.ip().to_string();
+            c.listen_port = addr.port();
+        }
+    }
+
     pub fn disable_tls(&self) -> bool {
         if self.is_server {
             if let Some(s) = &self.server {
@@ -290,12 +302,15 @@ impl Config {
     pub fn check_correctness(&mut self, is_server: bool) -> Result<()> {
         self.is_server = is_server;
         if self.is_server {
+            if self.server.is_none() {
+                return Err("Configuration needs server settings".into());
+            }
             self.client = None;
         } else {
+            if self.client.is_none() {
+                return Err("Configuration needs client settings".into());
+            }
             self.server = None;
-        }
-        if let (None, None) = (&self.server, &self.client) {
-            return Err("Need server or client settings".into());
         }
 
         if self.tunnel_path.is_empty() {
@@ -495,12 +510,14 @@ fn test_config() {
     config.method = Some("none".to_string());
     config.password = Some("password".to_string());
 
-    let mut client = Client::default();
-    client.server_host = "baidu.com".to_string();
-    client.server_port = 443;
-    client.listen_host = "127.0.0.1".to_string();
-    client.listen_port = 0;
-    // client.server_domain = Some("baidu.com".to_string());
+    let client = Client {
+        server_host: "baidu.com".to_string(),
+        server_port: 443,
+        listen_host: "127.0.0.1".to_string(),
+        listen_port: 0,
+        // server_domain: Some("baidu.com".to_string()),
+        ..Client::default()
+    };
     config.client = Some(client);
 
     config.check_correctness(false).unwrap();

@@ -8,8 +8,11 @@ fn main() -> Result<(), BoxError> {
             return Err("C API is not supported for server".into());
         }
 
+        // TODO: Using opt.node_url to generate a config file for client is not supported yet.
+        let cfg = opt.config.as_ref().ok_or("Config file is required for client")?;
+
         // Test the C API usage
-        let config_path_str = opt.config.as_path().to_string_lossy().into_owned();
+        let config_path_str = cfg.as_path().to_string_lossy().into_owned();
         let c_string = std::ffi::CString::new(config_path_str)?;
         let config_path: *const std::os::raw::c_char = c_string.as_ptr();
 
@@ -40,7 +43,15 @@ fn main() -> Result<(), BoxError> {
 
     let is_server = opt.is_server();
 
-    let mut config = Config::from_config_file(&opt.config)?;
+    let mut config = if let Some(file) = opt.config {
+        Config::from_config_file(file)?
+    } else if let Some(ref node_url) = opt.node_url {
+        let mut cfg = Config::from_ssr_url(node_url)?;
+        cfg.set_listen_addr(opt.listen_addr.unwrap_or(std::net::SocketAddr::from(([127, 0, 0, 1], 1080))));
+        cfg
+    } else {
+        return Err("Config file or node URL is required".into());
+    };
     config.set_cache_dns(opt.cache_dns);
 
     if opt.generate_url {
