@@ -81,6 +81,11 @@ jobs:
             zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json target/overtls-ffi.h target/${{ matrix.target }}/release/libovertls.so
           fi
 
+          if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]]; then
+            ./build-android.sh
+            cp ./overtls-android-libs.zip ./release/
+          fi
+
       - name: Upload
         uses: softprops/action-gh-release@v1
         env:
