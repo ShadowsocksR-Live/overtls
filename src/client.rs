@@ -181,8 +181,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
                 ws_stream.send(Message::Binary(buf.to_vec())).await?;
                 log::trace!("{} -> {} length {}", peer_addr, target_addr, buf.len());
 
-                #[cfg(target_os = "android")]
-                if let Err(e) = crate::android::traffic_status_update(len, 0) {
+                if let Err(e) = crate::traffic_status::traffic_status_update(len, 0) {
                     log::error!("{}", e);
                 }
 
@@ -191,8 +190,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
             result = ws_stream.next() => {
                 let msg = result.ok_or("message not exist")??;
 
-                #[cfg(target_os = "android")]
-                if let Err(e) = crate::android::traffic_status_update(0, msg.len()) {
+                if let Err(e) = crate::traffic_status::traffic_status_update(0, msg.len()) {
                     log::error!("{}", e);
                 }
 

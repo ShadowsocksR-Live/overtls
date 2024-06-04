@@ -1,5 +1,6 @@
 #![cfg(target_os = "android")]
 
+use crate::traffic_status::{overtls_set_traffic_status_callback, TrafficStatus};
 use crate::{ArgVerbosity, Error, Result};
 use jni::{
     objects::{GlobalRef, JClass, JObject, JString, JValue},
@@ -7,7 +8,7 @@ use jni::{
     sys::jint,
     JNIEnv, JavaVM,
 };
-use std::sync::RwLock;
+use std::os::raw::c_void;
 
 static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::sync::Mutex::new(None);
 
@@ -53,8 +54,10 @@ pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient
             .replace(env.new_global_ref(vpn_service)?);
 
         if let Ok(stat_path) = get_java_string(&mut env, &stat_path) {
-            let mut stat = STAT_PATH.write().map_err(|e| Error::from(e.to_string()))?;
-            *stat = stat_path;
+            let mut stat = STAT_PATH.lock().map_err(|e| Error::from(e.to_string()))?;
+            *stat = Some(stat_path);
+
+            overtls_set_traffic_status_callback(1, Some(send_traffic_stat), std::ptr::null_mut());
         }
         let config_path = get_java_string(&mut env, &config_path)?.to_owned();
         set_panic_handler();
@@ -135,47 +138,25 @@ fn remove_panic_handler() {
     let _ = std::panic::take_hook();
 }
 
-#[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-struct TrafficStatus {
-    tx: u64,
-    rx: u64,
-}
+static STAT_PATH: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
-lazy_static::lazy_static! {
-    static ref TRAFFIC_STATUS: RwLock<TrafficStatus> = RwLock::new(TrafficStatus::default());
-    static ref STAT_PATH: RwLock<String> = RwLock::new(String::new());
-    static ref TIME_STAMP: RwLock<std::time::Instant> = RwLock::new(std::time::Instant::now());
-}
-
-pub(crate) fn traffic_status_update(delta_tx: usize, delta_rx: usize) -> Result<()> {
-    {
-        let mut traffic_status = TRAFFIC_STATUS.write().map_err(|e| Error::from(e.to_string()))?;
-        traffic_status.tx += delta_tx as u64;
-        traffic_status.rx += delta_rx as u64;
+unsafe extern "C" fn send_traffic_stat(traffic_status: *const TrafficStatus, _ctx: *mut c_void) {
+    let traffic_status = *traffic_status;
+    if let Err(e) = _send_traffic_stat(&traffic_status) {
+        log::error!("failed to send traffic stat, error={:?}", e);
     }
-    let old_time = { *TIME_STAMP.read().map_err(|e| Error::from(e.to_string()))? };
-    if std::time::Instant::now().duration_since(old_time).as_secs() >= 1 {
-        send_traffic_stat()?;
-        let mut time_stamp = TIME_STAMP.write().map_err(|e| Error::from(e.to_string()))?;
-        *time_stamp = std::time::Instant::now();
-    }
-    Ok(())
 }
 
-fn send_traffic_stat() -> Result<()> {
+fn _send_traffic_stat(traffic_status: &TrafficStatus) -> Result<()> {
     use std::io::{Read, Write};
-    let stat_path = { (*STAT_PATH.read().map_err(|e| Error::from(e.to_string()))?).clone() };
-    if stat_path.is_empty() {
-        return Ok(());
-    }
+    let stat_path = {
+        let stat_path = STAT_PATH.lock().map_err(|e| Error::from(e.to_string()))?;
+        stat_path.clone().ok_or_else(|| Error::from("stat path is not initialized"))?
+    };
     let mut stream = std::os::unix::net::UnixStream::connect(&stat_path)?;
     stream.set_write_timeout(Some(std::time::Duration::new(1, 0)))?;
     stream.set_read_timeout(Some(std::time::Duration::new(1, 0)))?;
-    let buf = {
-        let traffic_status = TRAFFIC_STATUS.read().map_err(|e| Error::from(e.to_string()))?;
-        unsafe { std::mem::transmute::<TrafficStatus, [u8; std::mem::size_of::<TrafficStatus>()]>(*traffic_status) }
-    };
+    let buf = unsafe { std::mem::transmute::<TrafficStatus, [u8; std::mem::size_of::<TrafficStatus>()]>(*traffic_status) };
     stream.write_all(&buf)?;
 
     let mut response = String::new();
