@@ -15,6 +15,7 @@ exclude = [
 
 [export.rename]
 "ArgVerbosity" = "OverTlsVerbosity"
+"TrafficStatus" = "OverTlsTrafficStatus"
 
 [enum]
 prefix_with_name = true
