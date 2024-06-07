@@ -1,5 +1,4 @@
 use crate::error::{Error, Result};
-use std::sync::RwLock;
 use std::{os::raw::c_void, sync::Mutex};
 
 /// # Safety
@@ -46,33 +45,42 @@ static TRAFFIC_STATUS_CALLBACK: Mutex<Option<TrafficStatusCallback>> = Mutex::ne
 static SEND_INTERVAL_SECS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 lazy_static::lazy_static! {
-    static ref TRAFFIC_STATUS: RwLock<TrafficStatus> = RwLock::new(TrafficStatus::default());
-    static ref TIME_STAMP: RwLock<std::time::Instant> = RwLock::new(std::time::Instant::now());
+    static ref TRAFFIC_STATUS: Mutex<TrafficStatus> = Mutex::new(TrafficStatus::default());
+    static ref TIME_STAMP: Mutex<std::time::Instant> = Mutex::new(std::time::Instant::now());
 }
 
 pub(crate) fn traffic_status_update(delta_tx: usize, delta_rx: usize) -> Result<()> {
     {
-        let mut traffic_status = TRAFFIC_STATUS.write().map_err(|e| Error::from(e.to_string()))?;
+        let is_none_or_error = TRAFFIC_STATUS_CALLBACK.lock().map(|guard| guard.is_none()).unwrap_or_else(|e| {
+            log::error!("Failed to acquire lock: {}", e);
+            true
+        });
+        if is_none_or_error {
+            return Ok(());
+        }
+    }
+    let traffic_status = {
+        let mut traffic_status = TRAFFIC_STATUS.lock().map_err(|e| Error::from(e.to_string()))?;
         traffic_status.tx += delta_tx as u64;
         traffic_status.rx += delta_rx as u64;
-    }
-    let old_time = { *TIME_STAMP.read().map_err(|e| Error::from(e.to_string()))? };
+        *traffic_status
+    };
+    let old_time = { *TIME_STAMP.lock().map_err(|e| Error::from(e.to_string()))? };
     let interval_secs = SEND_INTERVAL_SECS.load(std::sync::atomic::Ordering::Relaxed);
     if std::time::Instant::now().duration_since(old_time).as_secs() >= interval_secs {
-        send_traffic_stat()?;
+        send_traffic_stat(&traffic_status)?;
         {
-            let mut time_stamp = TIME_STAMP.write().map_err(|e| Error::from(e.to_string()))?;
+            let mut time_stamp = TIME_STAMP.lock().map_err(|e| Error::from(e.to_string()))?;
             *time_stamp = std::time::Instant::now();
         }
     }
     Ok(())
 }
 
-fn send_traffic_stat() -> Result<()> {
+fn send_traffic_stat(traffic_status: &TrafficStatus) -> Result<()> {
     if let Ok(cb) = TRAFFIC_STATUS_CALLBACK.lock() {
         if let Some(cb) = cb.clone() {
-            let traffic_status = { *TRAFFIC_STATUS.read().map_err(|e| Error::from(e.to_string()))? };
-            unsafe { cb.call(&traffic_status) };
+            unsafe { cb.call(traffic_status) };
         }
     }
     Ok(())
