@@ -26,11 +26,10 @@ cargo build --release --target aarch64-apple-ios-sim
 echo "Generating includes..."
 mkdir -p target/include/
 rm -rf target/include/*
-cbindgen --config cbindgen.toml -l C -o target/include/overtls.h
+cbindgen --config cbindgen.toml -l C --cpp-compat -o target/include/overtls.h
 cat > target/include/overtls.modulemap <<EOF
 framework module overtls {
     umbrella header "overtls.h"
-
     export *
     module * { export * }
 }
