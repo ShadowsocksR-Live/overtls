@@ -33,12 +33,23 @@ impl WeirdUri {
     }
 }
 
+fn combine_addr_and_port(addr: &url::Host<&str>, port: Option<u16>) -> String {
+    match port {
+        None => addr.to_string(),
+        Some(port) => match addr {
+            url::Host::Domain(domain) => format!("{}:{}", domain, port),
+            url::Host::Ipv4(ip) => format!("{}:{}", ip, port),
+            url::Host::Ipv6(ip) => format!("[{}]:{}", ip, port),
+        },
+    }
+}
+
 impl IntoClientRequest for WeirdUri {
     fn into_client_request(self) -> Result<Request> {
         let uri = url::Url::parse(&self.uri).map_err(|_| Error::Url(UrlError::NoPathOrQuery))?;
 
-        let host = uri.host_str().ok_or(Error::Url(UrlError::EmptyHostName))?;
-        let host = crate::combine_addr_and_port(host, uri.port().unwrap_or(80));
+        let host = uri.host().ok_or(Error::from(UrlError::EmptyHostName))?;
+        let host = combine_addr_and_port(&host, uri.port());
 
         let mut builder = Request::builder()
             .method("GET")
