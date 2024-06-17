@@ -8,14 +8,6 @@ fn main() -> Result<(), BoxError> {
             return Err("C API is not supported for server".into());
         }
 
-        // TODO: Using opt.node_url to generate a config file for client is not supported yet.
-        let cfg = opt.config.as_ref().ok_or("Config file is required for client")?;
-
-        // Test the C API usage
-        let config_path_str = cfg.as_path().to_string_lossy().into_owned();
-        let c_string = std::ffi::CString::new(config_path_str)?;
-        let config_path: *const std::os::raw::c_char = c_string.as_ptr();
-
         let join = ctrlc2::set_handler(|| {
             log::info!("Ctrl-C received, exiting...");
             unsafe { overtls::over_tls_client_stop() };
@@ -30,9 +22,30 @@ fn main() -> Result<(), BoxError> {
         unsafe extern "C" fn port_cb(port: i32, _ctx: *mut std::os::raw::c_void) {
             log::info!("Listening on {}", port);
         }
-        unsafe { overtls::over_tls_client_run(config_path, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
 
-        join.join().expect("Couldn't join on the associated thread");
+        if let Some(cfg) = opt.config.as_ref() {
+            // Test the C API usage
+            let config_path_str = cfg.as_path().to_string_lossy().into_owned();
+            let c_string = std::ffi::CString::new(config_path_str)?;
+            let config_path: *const std::os::raw::c_char = c_string.as_ptr();
+
+            unsafe { overtls::over_tls_client_run(config_path, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
+
+            join.join().expect("Couldn't join on the associated thread");
+        } else if let Some(url) = opt.url_of_node.as_ref() {
+            let url_str = std::ffi::CString::new(url.as_str())?;
+            let url_ptr = url_str.as_ptr();
+
+            let listen_addr = opt.listen_addr.unwrap_or(std::net::SocketAddr::from(([127, 0, 0, 1], 1080)));
+            let listen_addr = std::ffi::CString::new(listen_addr.to_string())?;
+            let listen_addr = listen_addr.as_ptr();
+
+            unsafe { overtls::over_tls_client_run_with_ssr_url(url_ptr, listen_addr, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
+
+            join.join().expect("Couldn't join on the associated thread");
+        } else {
+            return Err("Config file or node URL is required".into());
+        }
         return Ok(());
     }
 
@@ -45,8 +58,8 @@ fn main() -> Result<(), BoxError> {
 
     let mut config = if let Some(file) = opt.config {
         Config::from_config_file(file)?
-    } else if let Some(ref node_url) = opt.node_url {
-        let mut cfg = Config::from_ssr_url(node_url)?;
+    } else if let Some(ref url_of_node) = opt.url_of_node {
+        let mut cfg = Config::from_ssr_url(url_of_node)?;
         cfg.set_listen_addr(opt.listen_addr.unwrap_or(std::net::SocketAddr::from(([127, 0, 0, 1], 1080))));
         cfg
     } else {

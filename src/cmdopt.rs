@@ -81,15 +81,15 @@ pub struct CmdOpt {
     pub role: Role,
 
     /// Config file path
-    #[arg(short, long, value_name = "file path", conflicts_with = "node_url")]
+    #[arg(short, long, value_name = "file path", conflicts_with = "url_of_node")]
     pub config: Option<std::path::PathBuf>,
 
     /// URL of the server node used by client
     #[arg(short, long, value_name = "url", conflicts_with = "config")]
-    pub node_url: Option<String>,
+    pub url_of_node: Option<String>,
 
     /// Local listening address associated with the URL
-    #[arg(short, long, value_name = "addr:port", requires = "node_url", conflicts_with = "config")]
+    #[arg(short, long, value_name = "addr:port", requires = "url_of_node", conflicts_with = "config")]
     pub listen_addr: Option<std::net::SocketAddr>,
 
     /// Cache DNS Query result
@@ -139,11 +139,11 @@ impl CmdOpt {
             if args.listen_addr.is_some() {
                 output_error_and_exit("Listen address is not supported for server");
             }
-            if args.node_url.is_some() {
+            if args.url_of_node.is_some() {
                 output_error_and_exit("Node URL is not supported for server");
             }
         }
-        if args.role == Role::Client && args.config.is_none() && args.node_url.is_none() {
+        if args.role == Role::Client && args.config.is_none() && args.url_of_node.is_none() {
             output_error_and_exit("Config file or node URL is required for client");
         }
         args

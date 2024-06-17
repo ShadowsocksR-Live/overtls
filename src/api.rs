@@ -73,12 +73,18 @@ pub unsafe extern "C" fn over_tls_client_run(
 /// # Safety
 ///
 /// Run the overtls client with SSR URL.
-/// The callback function will be called when the client is listening on a port.
-/// It should be thread-safe and will be called with the port number and should be called only once.
+/// Parameters:
+/// - `url`: SSR style URL string of the server node, e.g. "ssr://server:port:protocol:method:obfs:password_base64/?params_base64".
+/// - `listen_addr`: The address to listen on, in the format of "ip:port".
+/// - `verbosity`: The verbosity level of the logger.
+/// - `callback`: The callback function to be called when the client is listening on a port.
+///               It should be thread-safe and will be called with the port number and should be called only once.
+/// - `ctx`: The context pointer to be passed to the callback function.
 ///
 #[no_mangle]
 pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
     url: *const c_char,
+    listen_addr: *const c_char,
     verbosity: ArgVerbosity,
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
@@ -89,31 +95,28 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
             log::warn!("failed to set logger, error={:?}", err);
         }
     }
-    let url = match std::ffi::CStr::from_ptr(url).to_str() {
-        Err(err) => {
-            log::error!("invalid config path, error={:?}", err);
-            return -1;
-        }
-        Ok(url) => url,
+
+    let result = || {
+        let url = std::ffi::CStr::from_ptr(url).to_str()?;
+        let listen_addr = if listen_addr.is_null() {
+            std::net::SocketAddr::from(([127, 0, 0, 1], 1080))
+        } else {
+            std::ffi::CStr::from_ptr(listen_addr).to_str()?.parse()?
+        };
+
+        let mut config = Config::from_ssr_url(url)?;
+        config.set_listen_addr(listen_addr);
+        config.check_correctness(false)?;
+        _over_tls_client_run(config, callback, ctx)
     };
 
-    let mut config = match Config::from_ssr_url(url) {
+    match result() {
+        Ok(_) => 0,
         Err(err) => {
-            log::error!("failed to load config, error={:?}", err);
-            return -2;
+            log::error!("failed to run client, error={:?}", err);
+            -1
         }
-        Ok(config) => config,
-    };
-
-    if let Err(err) = config.check_correctness(false) {
-        log::error!("invalid config, error={:?}", err);
-        return -3;
     }
-    if let Err(err) = _over_tls_client_run(config, callback, ctx) {
-        log::error!("failed to run client, error={:?}", err);
-        return -4;
-    }
-    0
 }
 
 fn _over_tls_client_run(config: Config, callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>, ctx: *mut c_void) -> Result<()> {
