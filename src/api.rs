@@ -43,31 +43,22 @@ pub unsafe extern "C" fn over_tls_client_run(
             log::warn!("failed to set logger, error={:?}", err);
         }
     }
-    let config_path = match std::ffi::CStr::from_ptr(config_path).to_str() {
-        Err(err) => {
-            log::error!("invalid config path, error={:?}", err);
-            return -1;
+    let result = || {
+        if config_path.is_null() {
+            return Err("config_path is null".into());
         }
-        Ok(config_path) => config_path,
+        let config_path = std::ffi::CStr::from_ptr(config_path).to_str()?;
+        let mut config = Config::from_config_file(config_path)?;
+        config.check_correctness(false)?;
+        _over_tls_client_run(config, callback, ctx)
     };
-
-    let mut config = match Config::from_config_file(config_path) {
+    match result() {
+        Ok(_) => 0,
         Err(err) => {
-            log::error!("failed to load config, error={:?}", err);
-            return -2;
+            log::error!("failed to run client, error={:?}", err);
+            -1
         }
-        Ok(config) => config,
-    };
-
-    if let Err(err) = config.check_correctness(false) {
-        log::error!("invalid config, error={:?}", err);
-        return -3;
     }
-    if let Err(err) = _over_tls_client_run(config, callback, ctx) {
-        log::error!("failed to run client, error={:?}", err);
-        return -4;
-    }
-    0
 }
 
 /// # Safety
