@@ -105,6 +105,7 @@ function build_android() {
         fi
         mkdir -p $android_libs/$target_dir
         cp $BASE/target/$target/${mode2}/lib${name}.so $android_libs/${target_dir}/lib${name}.so
+        cp $BASE/target/$target/${mode2}/lib${name}.a $android_libs/${target_dir}/lib${name}.a
     done
 
     cbindgen -c $BASE/cbindgen.toml -l C --cpp-compat -o $android_libs/$name.h
