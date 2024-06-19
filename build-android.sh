@@ -1,5 +1,10 @@
 #! /bin/bash
 
+if [ "$(uname)" != "Linux" ]; then
+    echo "This script is for Linux only"
+    exit 1
+fi
+
 work_dir=$(pwd)
 
 ANDROID_API_VERSION=21

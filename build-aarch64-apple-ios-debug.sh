@@ -1,5 +1,10 @@
 #! /bin/sh
 
+if [ "$(uname)" != "Darwin" ]; then
+    echo "This script is for macOS only."
+    exit 1
+fi
+
 echo "Setting up the rust environment..."
 rustup target add aarch64-apple-ios
 cargo install cbindgen
