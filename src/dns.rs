@@ -1,9 +1,9 @@
-use moka::future::Cache;
-use std::{net::IpAddr, time::Duration};
-use trust_dns_proto::{
+use hickory_proto::{
     op::{Message, Query, ResponseCode::NoError},
     rr::RData,
 };
+use moka::future::Cache;
+use std::{net::IpAddr, time::Duration};
 
 pub(crate) fn parse_data_to_dns_message(data: &[u8], used_by_tcp: bool) -> std::io::Result<Message> {
     if used_by_tcp {

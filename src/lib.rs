@@ -15,6 +15,7 @@ pub(crate) mod traffic_status;
 pub(crate) mod udprelay;
 pub(crate) mod webapi;
 pub(crate) mod weirduri;
+pub mod win_svc;
 
 pub use api::{over_tls_client_run, over_tls_client_run_with_ssr_url, over_tls_client_stop, overtls_free_string, overtls_generate_url};
 use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
@@ -62,4 +63,41 @@ pub(crate) fn b64str_to_address(s: &str, url_safe: bool) -> Result<Address> {
         }
     };
     Address::try_from(&buf[..]).map_err(|e| e.into())
+}
+
+#[doc(hidden)]
+pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: CancellationToken) -> Result<()> {
+    if allow_shutdown {
+        let shutdown_token_clone = shutdown_token.clone();
+        ctrlc2::set_async_handler(async move {
+            log::info!("Ctrl-C received, exiting...");
+            shutdown_token_clone.cancel();
+        })
+        .await;
+    }
+
+    let main_body = async {
+        if config.is_server {
+            if config.exist_server() {
+                run_server(&config, shutdown_token).await?;
+            } else {
+                return Err(Error::from("Config is not a server config"));
+            }
+        } else if config.exist_client() {
+            let callback = |addr| {
+                log::trace!("Listening on {}", addr);
+            };
+            run_client(&config, shutdown_token, Some(callback)).await?;
+        } else {
+            return Err("Config is not a client config".into());
+        }
+
+        Ok(())
+    };
+
+    if let Err(e) = main_body.await {
+        log::error!("main_body error: \"{}\"", e);
+    }
+
+    Ok(())
 }

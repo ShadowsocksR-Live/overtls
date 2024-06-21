@@ -1,4 +1,4 @@
-use overtls::{run_client, run_server, BoxError, CmdOpt, Config, Error, Result};
+use overtls::{async_main, BoxError, CmdOpt, Config, Result};
 
 fn main() -> Result<(), BoxError> {
     let opt = CmdOpt::parse_cmd();
@@ -88,43 +88,14 @@ fn main() -> Result<(), BoxError> {
         let _ = daemonize.start()?;
     }
 
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
-    rt.block_on(async_main(config))?;
-    Ok(())
-}
-
-async fn async_main(config: Config) -> Result<()> {
-    let shutdown_token = overtls::CancellationToken::new();
-    let shutdown_token_clone = shutdown_token.clone();
-
-    let main_body = async {
-        if config.is_server {
-            if config.exist_server() {
-                run_server(&config, shutdown_token_clone).await?;
-            } else {
-                return Err(Error::from("Config is not a server config"));
-            }
-        } else if config.exist_client() {
-            let callback = |addr| {
-                log::trace!("Listening on {}", addr);
-            };
-            run_client(&config, shutdown_token_clone, Some(callback)).await?;
-        } else {
-            return Err("Config is not a client config".into());
-        }
-
-        Ok(())
-    };
-
-    ctrlc2::set_async_handler(async move {
-        log::info!("Ctrl-C received, exiting...");
-        shutdown_token.cancel();
-    })
-    .await;
-
-    if let Err(e) = main_body.await {
-        log::error!("main_body error: \"{}\"", e);
+    #[cfg(target_os = "windows")]
+    if opt.daemonize {
+        overtls::win_svc::start_service()?;
+        return Ok(());
     }
 
+    let shutdown_token = overtls::CancellationToken::new();
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    rt.block_on(async_main(config, true, shutdown_token))?;
     Ok(())
 }
