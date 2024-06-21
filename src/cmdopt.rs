@@ -101,7 +101,7 @@ pub struct CmdOpt {
     pub verbosity: ArgVerbosity,
 
     #[arg(short, long)]
-    /// Daemonize for unix family.
+    /// Daemonize for unix family or run as service for windows
     pub daemonize: bool,
 
     /// Generate URL of the server node for client.
