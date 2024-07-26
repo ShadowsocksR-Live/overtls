@@ -1,5 +1,8 @@
 use crate::error::{Error, Result};
-use std::{os::raw::c_void, sync::Mutex};
+use std::{
+    os::raw::c_void,
+    sync::{LazyLock, Mutex},
+};
 
 /// # Safety
 ///
@@ -44,10 +47,8 @@ unsafe impl Sync for TrafficStatusCallback {}
 static TRAFFIC_STATUS_CALLBACK: Mutex<Option<TrafficStatusCallback>> = Mutex::new(None);
 static SEND_INTERVAL_SECS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
-lazy_static::lazy_static! {
-    static ref TRAFFIC_STATUS: Mutex<TrafficStatus> = Mutex::new(TrafficStatus::default());
-    static ref TIME_STAMP: Mutex<std::time::Instant> = Mutex::new(std::time::Instant::now());
-}
+static TRAFFIC_STATUS: LazyLock<Mutex<TrafficStatus>> = LazyLock::new(|| Mutex::new(TrafficStatus::default()));
+static TIME_STAMP: LazyLock<Mutex<std::time::Instant>> = LazyLock::new(|| Mutex::new(std::time::Instant::now()));
 
 pub(crate) fn traffic_status_update(delta_tx: usize, delta_rx: usize) -> Result<()> {
     {

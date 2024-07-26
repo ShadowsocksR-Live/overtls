@@ -6,6 +6,7 @@ license = "MIT"
 description = "A simple proxy tunnel, minimalist tool for bypassing the GFW."
 repository = "https://github.com/ShadowsocksR-Live/overtls"
 readme = "readme.md"
+rust-version = "1.80"
 
 [lib]
 crate-type = ["staticlib", "cdylib", "lib"]
@@ -26,7 +27,6 @@ futures-util = { version = "0.3", default-features = false, features = [
 hickory-proto = "0.24"
 http = "1"
 httparse = "1"
-lazy_static = "1"
 log = { version = "0.4", features = ["std"] }
 moka = { version = "0.12", default-features = false, features = ["future"] }
 reqwest = { version = "0.12", default-features = false, features = [
