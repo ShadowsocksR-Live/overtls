@@ -19,7 +19,7 @@ pub unsafe extern "C" fn overtls_set_traffic_status_callback(
         log::error!("set traffic status callback failed");
     }
     if send_interval_secs > 0 {
-        SEND_INTERVAL_SECS.store(send_interval_secs as u64, std::sync::atomic::Ordering::Relaxed);
+        SEND_INTERVAL_SECS.store(send_interval_secs, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -45,7 +45,7 @@ unsafe impl Send for TrafficStatusCallback {}
 unsafe impl Sync for TrafficStatusCallback {}
 
 static TRAFFIC_STATUS_CALLBACK: Mutex<Option<TrafficStatusCallback>> = Mutex::new(None);
-static SEND_INTERVAL_SECS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+static SEND_INTERVAL_SECS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
 
 static TRAFFIC_STATUS: LazyLock<Mutex<TrafficStatus>> = LazyLock::new(|| Mutex::new(TrafficStatus::default()));
 static TIME_STAMP: LazyLock<Mutex<std::time::Instant>> = LazyLock::new(|| Mutex::new(std::time::Instant::now()));
@@ -68,7 +68,7 @@ pub(crate) fn traffic_status_update(delta_tx: usize, delta_rx: usize) -> Result<
     };
     let old_time = { *TIME_STAMP.lock().map_err(|e| Error::from(e.to_string()))? };
     let interval_secs = SEND_INTERVAL_SECS.load(std::sync::atomic::Ordering::Relaxed);
-    if std::time::Instant::now().duration_since(old_time).as_secs() >= interval_secs {
+    if std::time::Instant::now().duration_since(old_time).as_secs() >= interval_secs as u64 {
         send_traffic_stat(&traffic_status)?;
         {
             let mut time_stamp = TIME_STAMP.lock().map_err(|e| Error::from(e.to_string()))?;
