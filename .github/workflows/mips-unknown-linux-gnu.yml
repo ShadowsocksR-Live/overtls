@@ -1,0 +1,43 @@
+name: Build mips-unknown-linux-gnu Releases
+on:
+  push:
+    tags:
+      - "*"
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        target:
+          - mips-unknown-linux-gnu
+
+        include:
+          - target: mips-unknown-linux-gnu
+            host_os: ubuntu-latest
+
+    runs-on: ${{ matrix.host_os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare
+        shell: bash
+        run: |
+          cargo install cbindgen
+          mkdir release
+
+      - name: Build
+        shell: bash
+        run: |
+          ./.github/workflows/mips-unknown-linux-gnu.sh
+          cbindgen -c cbindgen.toml -l C --cpp-compat -o ./overtls.h
+          zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.so
+
+      - name: Upload
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: release/*
