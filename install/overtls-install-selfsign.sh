@@ -499,6 +499,13 @@ function print_url() {
     echo "${qrcode}"
 }
 
+function cron_random_restart_overtls_svc() {
+    local random_hour=$(od -An -N1 -i /dev/urandom | awk '{print $1 % 24}')
+    local random_minute=$(od -An -N1 -i /dev/urandom | awk '{print $1 % 60}')
+
+    (crontab -l; echo "${random_minute} ${random_hour} * * * systemctl restart overtls") | crontab -
+}
+
 function install_overtls_remote_server() {
     check_system
     dependency_install
@@ -529,6 +536,8 @@ function install_overtls_remote_server() {
         echo "${service_name} install failed, please contact the author!"
         exit 1
     fi
+
+    cron_random_restart_overtls_svc
 
     echo
     echo "======== config.json ========"
