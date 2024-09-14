@@ -28,7 +28,7 @@ pub enum Error {
     HeaderToStr(#[from] http::header::ToStrError),
 
     #[error("tungstenite::error::Error {0}")]
-    Tungstenite(#[from] tungstenite::error::Error),
+    Tungstenite(#[from] tokio_tungstenite::tungstenite::error::Error),
 
     #[error("reqwest::Error {0}")]
     Reqwest(#[from] reqwest::Error),

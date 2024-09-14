@@ -21,8 +21,7 @@ use tokio::{
     sync::{broadcast, mpsc, Mutex},
     time,
 };
-use tokio_tungstenite::WebSocketStream;
-use tungstenite::protocol::Message;
+use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
 
 pub(crate) type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Address)>;
 pub(crate) type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;

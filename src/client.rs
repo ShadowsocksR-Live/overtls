@@ -22,14 +22,16 @@ use tokio::{
     net::TcpStream,
 };
 use tokio_rustls::client::TlsStream;
-use tokio_tungstenite::WebSocketStream;
-use tungstenite::{
-    client::IntoClientRequest,
-    handshake::{
-        client::{self, Response},
-        machine::TryParse,
+use tokio_tungstenite::{
+    tungstenite::{
+        client::IntoClientRequest,
+        handshake::{
+            client::{self, Response},
+            machine::TryParse,
+        },
+        protocol::{Message, Role},
     },
-    protocol::{Message, Role},
+    WebSocketStream,
 };
 
 pub async fn run_client<F>(config: &Config, quit: crate::CancellationToken, callback: Option<F>) -> Result<()>
@@ -274,7 +276,7 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     let response = Response::try_parse(&buf)?.ok_or("response parse failed")?.1;
     let remote_key = response.headers().get("Sec-WebSocket-Accept").ok_or(format!("{:?}", response))?;
 
-    let accept_key = tungstenite::handshake::derive_accept_key(key.as_bytes());
+    let accept_key = tokio_tungstenite::tungstenite::handshake::derive_accept_key(key.as_bytes());
 
     if accept_key.as_str() != remote_key.to_str().map_err(|e| e.to_string())? {
         return Err(Error::from("accept key error"));

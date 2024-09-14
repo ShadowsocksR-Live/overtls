@@ -1,4 +1,4 @@
-use tungstenite::{
+use tokio_tungstenite::tungstenite::{
     client::IntoClientRequest,
     error::{Error, Result, UrlError},
     handshake::client::{generate_key, Request},
