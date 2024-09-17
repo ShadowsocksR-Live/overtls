@@ -72,7 +72,7 @@ programming language environment first, and then run the following commands to c
 git clone https://github.com/shadowsocksr-live/overtls.git
 cd overtls
 cargo build --release
-sudo cp target/release/overtls /usr/local/bin/
+sudo cp target/release/overtls-bin /usr/local/bin/
 ```
 
 ## Server-side one-click installation script
@@ -97,12 +97,12 @@ sudo systemctl start overtls
 
 ### Server
 ```bash
-overtls -r server -c config.json
+overtls-bin -r server -c config.json
 ```
 
 ### Client
 ```bash
-overtls -r client -c config.json
+overtls-bin -r client -c config.json
 ```
 
 If you want to see log info, you can create a `.env` file in current dir (`pwd`)

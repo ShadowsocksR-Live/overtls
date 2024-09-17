@@ -126,4 +126,4 @@ EOF
 echolog "开始启动-----------------------------"
 echolog "使用的tunnel_path=$TUNNEL_PATH-------"
 checkssl && initIndex && initConfig && nginx && \
-cd /default && chmod +x ./overtls && ./overtls -v $OVERTLS_LOG_LEVEL -r server -c config.json
+cd /default && chmod +x ./overtls-bin && ./overtls-bin -v $OVERTLS_LOG_LEVEL -r server -c config.json

@@ -11,6 +11,10 @@ rust-version = "1.80"
 [lib]
 crate-type = ["staticlib", "cdylib", "lib"]
 
+[[bin]]
+name = "overtls-bin"
+path = "src/bin/main.rs"
+
 [dependencies]
 async-shared-timeout = "0.2"
 base64 = "0.22"

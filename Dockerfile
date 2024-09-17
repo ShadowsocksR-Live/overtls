@@ -19,7 +19,7 @@ RUN git clone https://github.com/shadowsocksr-live/overtls.git && \
 ENV CONFIG=/app/config.json
 
 
-CMD bash /app/overtls -r server -c ${CONFIG}
+CMD bash /app/overtls-bin -r server -c ${CONFIG}
 
 
 

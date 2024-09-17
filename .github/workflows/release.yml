@@ -69,9 +69,9 @@ jobs:
           fi
           cbindgen -c cbindgen.toml -l C --cpp-compat -o ./overtls.h
           if [[ "${{ matrix.host_os }}" == "windows-latest" ]]; then
-            powershell Compress-Archive -Path target/${{ matrix.target }}/release/overtls.exe, ./config.json, ./overtls.h, target/${{ matrix.target }}/release/overtls.dll -DestinationPath release/overtls-${{ matrix.target }}.zip
+            powershell Compress-Archive -Path target/${{ matrix.target }}/release/overtls-bin.exe, ./config.json, ./overtls.h, target/${{ matrix.target }}/release/overtls.dll -DestinationPath release/overtls-${{ matrix.target }}.zip
           elif [[ "${{ matrix.host_os }}" == "macos-latest" ]]; then
-            zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.dylib
+            zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls-bin ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.dylib
             if [[ "${{ matrix.target }}" == "x86_64-apple-darwin" ]]; then
               ./build-aarch64-apple-ios.sh
               zip -r release/overtls-aarch64-apple-ios-xcframework.zip ./overtls.xcframework/
@@ -79,7 +79,7 @@ jobs:
               zip -r release/overtls-apple-xcframework.zip ./overtls.xcframework/
             fi
           elif [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
-            zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.so
+            zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls-bin ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.so
           fi
 
           if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]]; then

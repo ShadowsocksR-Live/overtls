@@ -66,8 +66,8 @@ nginx_conf_dir="/etc/nginx/conf.d"
 nginx_conf_file="${nginx_conf_dir}/overtls.conf"
 site_dir="/fakesite"
 site_cert_dir="/fakesite_cert"
-target_bin_path="/usr/local/bin/overtls"
-bin_name=overtls
+target_bin_path="/usr/local/bin/overtls-bin"
+bin_name=overtls-bin
 
 INSTALL_CMD="apt"
 
