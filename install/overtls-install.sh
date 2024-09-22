@@ -464,7 +464,7 @@ function nginx_web_server_config_end() {
 
         location ~ \\.php$ {
             # include snippets/fastcgi-php.conf;
-            # fastcgi_pass unix:/run/php/php7.4-fpm.sock;
+            # fastcgi_pass unix:/run/php/php8.3-fpm.sock;
         }
 
         location /${reverse_proxy_location}/ {
