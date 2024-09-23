@@ -2,7 +2,7 @@ name: Build mips-unknown-linux-gnu Releases
 on:
   push:
     tags:
-      - "*"
+      - "v*.*.*"
 env:
   CARGO_TERM_COLOR: always
 
