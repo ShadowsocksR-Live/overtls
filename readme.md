@@ -55,7 +55,7 @@ In summary, we need to prepare the following things
 
 If you have installed the [Rust](https://rustup.rs/), you can install overtls directly.
 ```bash
-cargo install overtls
+cargo install overtls --root /usr/local/
 ```
 
 ### Pre-compiled binary file

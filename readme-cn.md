@@ -42,7 +42,7 @@ overtls 客戶端首先與 overtls 服務端建立 TLS 連接，然後 overtls �
 如果你已經安裝了 [Rust](https://rustup.rs/)，你可以直接安裝 overtls。
 
 ```bash
-cargo install overtls
+cargo install overtls --root /usr/local/
 ```
 
 ### 預編譯二進制文件
