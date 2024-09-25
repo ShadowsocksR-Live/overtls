@@ -46,6 +46,12 @@ fn combine_addr_and_port(addr: &url::Host<&str>, port: Option<u16>) -> String {
 
 impl IntoClientRequest for WeirdUri {
     fn into_client_request(self) -> Result<Request> {
+        self.into_client_request_v1()
+    }
+}
+
+impl WeirdUri {
+    fn into_client_request_v1(self) -> Result<Request> {
         let uri = url::Url::parse(&self.uri).map_err(|_| Error::Url(UrlError::NoPathOrQuery))?;
 
         let host = uri.host().ok_or(Error::from(UrlError::EmptyHostName))?;
