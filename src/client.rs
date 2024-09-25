@@ -262,8 +262,9 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     let tunnel_path = config.tunnel_path.extract().first().ok_or(err)?.trim_matches('/');
 
     let b64_dst = dst_addr.as_ref().map(|dst_addr| addess_to_b64str(dst_addr, false));
+    let host = client.server_domain.as_ref().unwrap_or(&client.server_host);
 
-    let uri = format!("ws://{}/{}/", client.server_host, tunnel_path);
+    let uri = format!("ws://{}/{}/", host, tunnel_path);
 
     let uri = WeirdUri::new(&uri, b64_dst, udp_tunnel, client.client_id.clone());
 
