@@ -75,6 +75,19 @@ chmod +x overtls-install-musl.sh
 sudo systemctl start overtls
 ```
 
+### 使用 Caddy 的安裝腳本
+<details>
+<summary>使用 Caddy 的腳本的安裝步驟</summary>
+
+```bash
+sudo apt install -y wget # Debian/Ubuntu
+wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install-caddy.sh
+bash ./overtls-install-caddy.sh
+sudo systemctl start overtls
+```
+
+</details>
+
 ## 用法
 
 ### 服務端
