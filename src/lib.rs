@@ -67,13 +67,18 @@ pub(crate) fn b64str_to_address(s: &str, url_safe: bool) -> Result<Address> {
 
 #[doc(hidden)]
 pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: CancellationToken) -> Result<()> {
+    let ctrlc_fired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut ctrlc_handle = None;
     if allow_shutdown {
         let shutdown_token_clone = shutdown_token.clone();
-        ctrlc2::set_async_handler(async move {
+        let ctrlc_fired_clone = ctrlc_fired.clone();
+        let handle = ctrlc2::set_async_handler(async move {
             log::info!("Ctrl-C received, exiting...");
+            ctrlc_fired_clone.store(true, std::sync::atomic::Ordering::SeqCst);
             shutdown_token_clone.cancel();
         })
         .await;
+        ctrlc_handle = Some(handle);
     }
 
     let main_body = async {
@@ -92,6 +97,13 @@ pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: Ca
             return Err("Config is not a client config".into());
         }
 
+        if ctrlc_fired.load(std::sync::atomic::Ordering::SeqCst) {
+            let Some(handle) = ctrlc_handle else {
+                return Ok(());
+            };
+            log::info!("Waiting for Ctrl-C handler to finish...");
+            handle.await.map_err(|e| e.to_string())?;
+        }
         Ok(())
     };
 

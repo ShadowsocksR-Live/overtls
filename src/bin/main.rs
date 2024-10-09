@@ -8,8 +8,11 @@ fn main() -> Result<(), BoxError> {
             return Err("C API is not supported for server".into());
         }
 
-        let join = ctrlc2::set_handler(|| {
+        let ctrlc_fired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let ctrlc_fired_clone = ctrlc_fired.clone();
+        let ctrl_handle = ctrlc2::set_handler(move || {
             log::info!("Ctrl-C received, exiting...");
+            ctrlc_fired_clone.store(true, std::sync::atomic::Ordering::SeqCst);
             unsafe { overtls::over_tls_client_stop() };
             true
         })?;
@@ -31,7 +34,9 @@ fn main() -> Result<(), BoxError> {
 
             unsafe { overtls::over_tls_client_run(config_path, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
 
-            join.join().expect("Couldn't join on the associated thread");
+            if ctrlc_fired.load(std::sync::atomic::Ordering::SeqCst) {
+                ctrl_handle.join().map_err(|e| format!("{:?}", e))?;
+            }
         } else if let Some(url) = opt.url_of_node.as_ref() {
             let url_str = std::ffi::CString::new(url.as_str())?;
             let url_ptr = url_str.as_ptr();
@@ -42,7 +47,9 @@ fn main() -> Result<(), BoxError> {
 
             unsafe { overtls::over_tls_client_run_with_ssr_url(url_ptr, listen_addr, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
 
-            join.join().expect("Couldn't join on the associated thread");
+            if ctrlc_fired.load(std::sync::atomic::Ordering::SeqCst) {
+                ctrl_handle.join().map_err(|e| format!("{:?}", e))?;
+            }
         } else {
             return Err("Config file or node URL is required".into());
         }
