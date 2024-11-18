@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           ./.github/workflows/mips-unknown-linux-gnu.sh
-          cbindgen -c cbindgen.toml -l C --cpp-compat -o ./overtls.h
+          cbindgen -c cbindgen.toml -o ./overtls.h
           zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls-bin ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.so
 
       - name: Upload

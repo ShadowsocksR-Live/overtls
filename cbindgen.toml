@@ -1,3 +1,6 @@
+language = "C"
+cpp_compat = true
+
 [export]
 include = [
     "over_tls_client_run",

@@ -84,7 +84,7 @@ jobs:
             fi
           fi
 
-          cbindgen -c cbindgen.toml -l C --cpp-compat -o ./overtls.h
+          cbindgen -c cbindgen.toml -o ./overtls.h
           if [[ "${{ matrix.host_os }}" == "windows-latest" ]]; then
             powershell Compress-Archive -Path target/${{ matrix.target }}/release/overtls-bin.exe, ./config.json, ./overtls.h, target/${{ matrix.target }}/release/overtls.dll -DestinationPath release/overtls-${{ matrix.target }}.zip
           elif [[ "${{ matrix.host_os }}" == "macos-latest" ]]; then
