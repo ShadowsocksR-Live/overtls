@@ -180,7 +180,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
                     ws_stream.send(Message::Close(None)).await?;
                     break;
                 }
-                ws_stream.send(Message::Binary(buf.to_vec())).await?;
+                ws_stream.send(Message::binary(buf.to_vec())).await?;
                 log::trace!("{} -> {} length {}", peer_addr, target_addr, buf.len());
 
                 if let Err(e) = crate::traffic_status::traffic_status_update(len, 0) {
@@ -198,7 +198,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
 
                 match msg {
                     Message::Binary(data) => {
-                        incoming.write_all(&data).await?;
+                        incoming.write_all(data.as_slice()).await?;
                         log::trace!("{} <- {} length {}", peer_addr, target_addr, data.len());
                     }
                     Message::Close(_) => {
@@ -212,7 +212,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
                 }
             }
             _ = timer.tick() => {
-                ws_stream.send(Message::Ping(vec![])).await?;
+                ws_stream.send(Message::Ping(vec![].into())).await?;
                 log::trace!("{} -> {} Websocket ping from local", peer_addr, target_addr);
             }
         }

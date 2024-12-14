@@ -351,7 +351,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         break;
                     }
                     Message::Text(_) | Message::Binary(_) => {
-                        outgoing.write_all(&msg.into_data()).await?;
+                        outgoing.write_all(msg.into_data().as_slice()).await?;
                     }
                     _ => {}
                 }
@@ -364,7 +364,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         break;
                     }
                     Ok(n) => {
-                        let msg = Message::Binary(buffer[..n].to_vec());
+                        let msg = Message::binary(buffer[..n].to_vec());
                         let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
                         log::trace!("{peer} <- {dst_addr} length {}", len);
                         if let Some(client_id) = &client_id {
@@ -410,8 +410,7 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     break;
                 }
                 if msg.is_text() || msg.is_binary() {
-                    let data = msg.into_data();
-                    let mut buf = BytesMut::from(&data[..]);
+                    let mut buf = BytesMut::from(&msg.into_data().as_mut_slice()[..]);
                     let dst_addr = Address::try_from(&buf[..])?;
                     let _ = buf.split_to(dst_addr.len());
                     let src_addr = Address::try_from(&buf[..])?;

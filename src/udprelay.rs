@@ -197,7 +197,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     } else {
                         log::debug!("[UDP] {src_addr} -> {dst_addr} send to remote size {}", buf.len());
                     }
-                    let msg = Message::Binary(buf.freeze().to_vec());
+                    let msg = Message::binary(buf.freeze().to_vec());
                     ws_stream.send(msg).await?;
                 } else {
                     // log::trace!("[UDP] {dst_addr} <- {src_addr} skip feedback packet");
@@ -212,7 +212,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
 
                 match msg {
                     Some(Ok(Message::Binary(buf))) => {
-                        let mut buf = BytesMut::from(&buf[..]);
+                        let mut buf = BytesMut::from(buf.as_slice());
                         let incoming_addr = Address::try_from(&buf[..])?;
                         let _ = buf.split_to(incoming_addr.len());
                         let remote_addr = Address::try_from(&buf[..])?;
@@ -256,7 +256,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                 Ok::<_, Error>(())
             },
             _ = timer.tick() => {
-                ws_stream.send(Message::Ping(vec![])).await?;
+                ws_stream.send(Message::Ping(vec![].into())).await?;
                 log::trace!("[UDP] Websocket ping from local");
                 Ok::<_, Error>(())
             }
