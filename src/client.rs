@@ -198,7 +198,7 @@ async fn client_traffic_loop<T: AsyncRead + AsyncWrite + Unpin, S: AsyncRead + A
 
                 match msg {
                     Message::Binary(data) => {
-                        incoming.write_all(data.as_slice()).await?;
+                        incoming.write_all(&data).await?;
                         log::trace!("{} <- {} length {}", peer_addr, target_addr, data.len());
                     }
                     Message::Close(_) => {

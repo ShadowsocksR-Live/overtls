@@ -212,7 +212,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
 
                 match msg {
                     Some(Ok(Message::Binary(buf))) => {
-                        let mut buf = BytesMut::from(buf.as_slice());
+                        let mut buf = BytesMut::from(buf);
                         let incoming_addr = Address::try_from(&buf[..])?;
                         let _ = buf.split_to(incoming_addr.len());
                         let remote_addr = Address::try_from(&buf[..])?;

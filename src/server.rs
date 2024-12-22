@@ -351,7 +351,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         break;
                     }
                     Message::Text(_) | Message::Binary(_) => {
-                        outgoing.write_all(msg.into_data().as_slice()).await?;
+                        outgoing.write_all(&msg.into_data()).await?;
                     }
                     _ => {}
                 }
@@ -410,7 +410,7 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     break;
                 }
                 if msg.is_text() || msg.is_binary() {
-                    let mut buf = BytesMut::from(&msg.into_data().as_mut_slice()[..]);
+                    let mut buf = BytesMut::from(&msg.into_data()[..]);
                     let dst_addr = Address::try_from(&buf[..])?;
                     let _ = buf.split_to(dst_addr.len());
                     let src_addr = Address::try_from(&buf[..])?;
