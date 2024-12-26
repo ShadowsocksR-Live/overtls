@@ -130,12 +130,10 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     Ok(())
 }
 
-async fn handle_incoming<S: AsyncRead + AsyncWrite + Unpin>(
-    mut stream: S,
-    peer: SocketAddr,
-    config: Config,
-    traffic_audit: TrafficAuditPtr,
-) -> Result<()> {
+async fn handle_incoming<S>(mut stream: S, peer: SocketAddr, config: Config, traffic_audit: TrafficAuditPtr) -> Result<()>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     let mut buf = BytesMut::with_capacity(2048);
     let size = stream.read_buf(&mut buf).await?;
     if size == 0 {
