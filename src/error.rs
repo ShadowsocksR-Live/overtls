@@ -13,7 +13,7 @@ pub enum Error {
     Json(#[from] serde_json::Error),
 
     #[error("Base64 error: {0}")]
-    Base64(#[from] base64::DecodeError),
+    Base64(#[from] base64easy::Error),
 
     #[error("tokio::sync::mpsc::error::SendError {0}")]
     MpscSend(#[from] tokio::sync::mpsc::error::SendError<()>),

@@ -17,7 +17,7 @@ path = "src/bin/main.rs"
 
 [dependencies]
 async-shared-timeout = "0.2"
-base64 = "0.22"
+base64easy = "0.1"
 bytes = "1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }

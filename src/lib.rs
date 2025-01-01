@@ -1,6 +1,5 @@
 pub(crate) mod android;
 pub(crate) mod api;
-pub(crate) mod base64_wrapper;
 pub(crate) mod client;
 pub(crate) mod cmdopt;
 pub(crate) mod config;
@@ -18,7 +17,6 @@ pub(crate) mod weirduri;
 pub mod win_svc;
 
 pub use api::{over_tls_client_run, over_tls_client_run_with_ssr_url, over_tls_client_stop, overtls_free_string, overtls_generate_url};
-use base64_wrapper::{base64_decode, base64_encode, Base64Engine};
 use bytes::BytesMut;
 pub use client::run_client;
 pub use cmdopt::{ArgVerbosity, CmdOpt, Role};
@@ -39,25 +37,25 @@ pub(crate) fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     let mut buf = BytesMut::with_capacity(1024);
     addr.write_to_buf(&mut buf);
     if url_safe {
-        base64_encode(&buf, Base64Engine::UrlSafeNoPad)
+        base64easy::encode(&buf, base64easy::EngineKind::UrlSafeNoPad)
     } else {
-        base64_encode(&buf, Base64Engine::StandardNoPad)
+        base64easy::encode(&buf, base64easy::EngineKind::StandardNoPad)
     }
 }
 
 pub(crate) fn b64str_to_address(s: &str, url_safe: bool) -> Result<Address> {
     let buf = if url_safe {
-        let result = base64_decode(s, Base64Engine::UrlSafeNoPad);
+        let result = base64easy::decode(s, base64easy::EngineKind::UrlSafeNoPad);
         if result.is_err() {
-            base64_decode(s, Base64Engine::UrlSafe)?
+            base64easy::decode(s, base64easy::EngineKind::UrlSafe)?
         } else {
             result?
         }
     } else {
-        let result = base64_decode(s, Base64Engine::StandardNoPad);
+        let result = base64easy::decode(s, base64easy::EngineKind::StandardNoPad);
         if result.is_err() {
             // backward compatibility for SSRoT
-            base64_decode(s, Base64Engine::Standard)?
+            base64easy::decode(s, base64easy::EngineKind::Standard)?
         } else {
             result?
         }

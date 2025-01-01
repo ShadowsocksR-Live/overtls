@@ -377,9 +377,9 @@ impl Config {
 
     /// load from `ssr://...` style url
     pub fn from_ssr_url(url: &str) -> Result<Self> {
-        let engine = crate::Base64Engine::UrlSafeNoPad;
+        let engine = base64easy::EngineKind::UrlSafeNoPad;
         let url = url.trim_start_matches("ssr://");
-        let url = crate::base64_decode(url, engine)?;
+        let url = base64easy::decode(url, engine)?;
         let url = String::from_utf8(url)?;
         // split string by `/?`
         let mut parts = url.split("/?");
@@ -395,7 +395,7 @@ impl Config {
         let protocol = parts0.remove(0);
         let method = parts0.remove(0); // none is default
         let obfs = parts0.remove(0);
-        let password = String::from_utf8(crate::base64_decode(parts0.remove(0), engine)?)?;
+        let password = String::from_utf8(base64easy::decode(parts0.remove(0), engine)?)?;
 
         if method != "none" {
             return Err("method is not none".into());
@@ -423,14 +423,14 @@ impl Config {
         if ot_enable != "1" {
             return Err("ot_enable is not 1".into());
         }
-        let remarks = map.get("remarks").and_then(|r| match crate::base64_decode(r, engine) {
+        let remarks = map.get("remarks").and_then(|r| match base64easy::decode(r, engine) {
             Ok(decoded) => match String::from_utf8(decoded) {
                 Ok(string) => Some(string),
                 Err(_) => None,
             },
             Err(_) => None,
         });
-        let ot_domain = map.get("ot_domain").and_then(|r| match crate::base64_decode(r, engine) {
+        let ot_domain = map.get("ot_domain").and_then(|r| match base64easy::decode(r, engine) {
             Ok(decoded) => match String::from_utf8(decoded) {
                 Ok(string) => Some(string),
                 Err(_) => None,
@@ -438,11 +438,11 @@ impl Config {
             Err(_) => None,
         });
         let ot_path = map.get("ot_path").ok_or("ot_path is not set")?;
-        let ot_path = String::from_utf8(crate::base64_decode(ot_path, engine)?)?;
+        let ot_path = String::from_utf8(base64easy::decode(ot_path, engine)?)?;
 
         let ot_cert = map
             .get("ot_cert")
-            .and_then(|r| crate::base64_decode(r, engine).ok())
+            .and_then(|r| base64easy::decode(r, engine).ok())
             .and_then(|decoded| String::from_utf8(decoded).ok())
             .filter(|s| !s.is_empty());
 
@@ -466,16 +466,16 @@ impl Config {
 
     pub fn generate_ssr_url(&self) -> Result<String> {
         let client = self.client.as_ref().ok_or(Error::from("client is not set"))?;
-        let engine = crate::Base64Engine::UrlSafeNoPad;
+        let engine = base64easy::EngineKind::UrlSafeNoPad;
         let method = self.method.as_ref().map_or("none".to_string(), |m| m.clone());
         let password = self.password.as_ref().map_or("password".to_string(), |p| p.clone());
-        let password = crate::base64_encode(password.as_bytes(), engine);
+        let password = base64easy::encode(password.as_bytes(), engine);
         let remarks = self.remarks.as_ref().map_or("remarks".to_string(), |r| r.clone());
-        let remarks = crate::base64_encode(remarks.as_bytes(), engine);
+        let remarks = base64easy::encode(remarks.as_bytes(), engine);
         let domain = client.server_domain.as_ref().map_or("".to_string(), |d| d.clone());
-        let domain = crate::base64_encode(domain.as_bytes(), engine);
+        let domain = base64easy::encode(domain.as_bytes(), engine);
         let err = "tunnel_path is not set";
-        let tunnel_path = crate::base64_encode(self.tunnel_path.extract().first().ok_or(err)?.as_bytes(), engine);
+        let tunnel_path = base64easy::encode(self.tunnel_path.extract().first().ok_or(err)?.as_bytes(), engine);
         let host = &client.server_host;
         let port = client.server_port;
 
@@ -483,11 +483,11 @@ impl Config {
         url.push_str(&format!("&ot_domain={domain}&ot_path={tunnel_path}"));
 
         if let Some(ref ca) = client.certificate_content() {
-            let ca = crate::base64_encode(ca.as_bytes(), engine);
+            let ca = base64easy::encode(ca.as_bytes(), engine);
             url.push_str(&format!("&ot_cert={}", ca));
         }
 
-        Ok(format!("ssr://{}", crate::base64_encode(url.as_bytes(), engine)))
+        Ok(format!("ssr://{}", base64easy::encode(url.as_bytes(), engine)))
     }
 }
 
