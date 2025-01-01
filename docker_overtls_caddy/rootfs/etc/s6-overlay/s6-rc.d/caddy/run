@@ -1,0 +1,5 @@
+#!/command/with-contenv sh
+CADDY_PATH="${BASE_PATH}/caddy"
+exec \
+    /command/s6-notifyoncheck -d -n 300 -w 1000 -c "nc -z localhost ${OVERTLS_PORT}" \
+    "${CADDY_PATH}/caddy" run --config /etc/caddy/Caddyfile
