@@ -13,7 +13,7 @@ ENV TUNNEL_PATH=/secret-tunnel-path/ \
 
 COPY --chmod=755 ./rootfs /
 
-RUN apk update && apk add --no-cache unzip wget bash curl && \
+RUN apk update && apk add --no-cache unzip wget && \
     wget -O /tmp/s6-overlay-noarch.tar.xz https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz && \
     tar -C / -Jxf /tmp/s6-overlay-noarch.tar.xz && \
     rm -f /tmp/s6-overlay-noarch.tar.xz && \
