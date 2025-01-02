@@ -1,0 +1,84 @@
+#!/command/with-contenv sh
+function initCaddyfile() {
+    rm -rf /etc/caddy/Caddyfile
+    cat > /etc/caddy/Caddyfile <<EOF
+    ${DOMAIN_NAME}:${HTTPS_PORT} {
+    tls s@gmail.com
+    encode gzip
+EOF
+     TUNNEL_PATH_STRING="$TUNNEL_PATH"
+     OLD_IFS="$IFS"
+     IFS=','
+     for path in $TUNNEL_PATH; do  
+          path="${path#"${path%%[![:space:]]*}"}"  
+          path="${path%"${path##*[![:space:]]}"}"  
+          cat >> /etc/caddy/Caddyfile <<EOF
+            reverse_proxy ${path} $OVERTLS_HOST:$OVERTLS_PORT
+EOF
+    done
+    IFS="$OLD_IFS"
+    cat >> /etc/caddy/Caddyfile <<EOF
+    file_server browse {
+           root /web
+    }
+EOF
+}
+
+random_string_gen() {
+    local PASS=""
+    local MATRIX="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" # "~!@#$%^&*()_+="
+    local LENGTH=$1
+    [ -z $1 ] && LENGTH="16"
+    while [ "${n:=1}" -le "$LENGTH" ]
+    do
+        PASS="$PASS${MATRIX:$(($RANDOM%${#MATRIX})):1}"
+        let n+=1
+    done
+
+    echo ${PASS}
+}
+
+gettunnelpath(){
+    TUNNEL_PATH_STRING="$TUNNEL_PATH"   
+    TUNNEL_PATH_STRING="${TUNNEL_PATH_STRING#,}"  
+    TUNNEL_PATH_STRING="${TUNNEL_PATH_STRING%,}"  
+    NEW_TUNNEL_PATH=""  
+    OLD_IFS="$IFS"
+    IFS=','  
+    for item in $TUNNEL_PATH_STRING; do  
+        item="${item#"${item%%[![:space:]]*}"}"  
+        item="${item%"${item##*[![:space:]]}"}" 
+        if [ -n "$NEW_TUNNEL_PATH" ]; then  
+            NEW_TUNNEL_PATH="$NEW_TUNNEL_PATH,\"$item\""  
+        else  
+            NEW_TUNNEL_PATH="\"$item\""  
+        fi  
+    done  
+    IFS="$OLD_IFS"
+    NEW_TUNNEL_PATH="[${NEW_TUNNEL_PATH}]"  
+    echo $NEW_TUNNEL_PATH
+}
+
+function initOvertlsConfig() {
+    local identity=$(random_string_gen 4)
+    rm -rf ${BASE_PATH}/overtls/config.json
+    cat > ${BASE_PATH}/overtls/config.json <<EOF
+{
+    "remarks": "${identity}",
+    "tunnel_path": $(gettunnelpath),
+
+    "server_settings": {
+        "listen_host": "$OVERTLS_HOST",
+        "listen_port": $OVERTLS_PORT
+    }
+
+}
+EOF
+}
+
+if [ -z "${DOMAIN_NAME}" ] || [ -z "${TUNNEL_PATH}" ]; then
+    echo "Error: DOMAIN_NAME or TUNNEL_PATH is not set or empty. Exiting."
+    exit 1
+fi
+initCaddyfile
+initOvertlsConfig

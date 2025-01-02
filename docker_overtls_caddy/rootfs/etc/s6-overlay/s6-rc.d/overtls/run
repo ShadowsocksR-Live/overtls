@@ -1,0 +1,3 @@
+#!/command/with-contenv sh
+OVERTLS_PATH="${BASE_PATH}/overtls"
+exec "${OVERTLS_PATH}/overtls-bin" -v $OVERTLS_LOG_LEVEL -r server -c "${OVERTLS_PATH}/config.json"
