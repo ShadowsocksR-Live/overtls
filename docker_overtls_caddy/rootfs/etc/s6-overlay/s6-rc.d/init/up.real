@@ -3,23 +3,24 @@ function initCaddyfile() {
     rm -rf /etc/caddy/Caddyfile
     cat > /etc/caddy/Caddyfile <<EOF
     ${DOMAIN_NAME}:${HTTPS_PORT} {
-    tls s@gmail.com
-    encode gzip
+        tls s@gmail.com
+        encode gzip
 EOF
-     TUNNEL_PATH_STRING="$TUNNEL_PATH"
-     OLD_IFS="$IFS"
-     IFS=','
-     for path in $TUNNEL_PATH; do  
-          path="${path#"${path%%[![:space:]]*}"}"  
-          path="${path%"${path##*[![:space:]]}"}"  
-          cat >> /etc/caddy/Caddyfile <<EOF
-            reverse_proxy ${path} $OVERTLS_HOST:$OVERTLS_PORT
+    TUNNEL_PATH_STRING="$TUNNEL_PATH"
+    OLD_IFS="$IFS"
+    IFS=','
+    for path in $TUNNEL_PATH; do  
+        path="${path#"${path%%[![:space:]]*}"}"  
+        path="${path%"${path##*[![:space:]]}"}"  
+        cat >> /etc/caddy/Caddyfile <<EOF
+        reverse_proxy ${path} $OVERTLS_HOST:$OVERTLS_PORT
 EOF
     done
     IFS="$OLD_IFS"
     cat >> /etc/caddy/Caddyfile <<EOF
-    file_server browse {
-           root /web
+        file_server browse {
+            root /web
+        }
     }
 EOF
 }
