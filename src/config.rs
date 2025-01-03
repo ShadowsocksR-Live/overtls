@@ -290,7 +290,7 @@ impl Config {
     }
 
     pub fn cache_dns(&self) -> bool {
-        self.client.as_ref().map_or(false, |c| c.cache_dns)
+        self.client.as_ref().is_some_and(|c| c.cache_dns)
     }
 
     pub fn set_cache_dns(&mut self, cache_dns: bool) {
