@@ -45,18 +45,6 @@ jobs:
             RUST_BACKTRACE=1 cargo +${{ matrix.toolchain }} clippy --all-features --release -- -D warnings
             RUST_BACKTRACE=1 cargo +${{ matrix.toolchain }} build --all-features --release
 
-            cat my.json <<EOF
-            {
-              "remarks": "ddewr",
-              "tunnel_path": "/tunnel_path/",
-              "server_settings": {
-                "listen_host": "127.0.0.1",
-                "listen_port": 20000
-              }
-            }
-            EOF
-
-            # Run the binary
-            ./target/release/overtls-bin -c my.json -v trace -r server &
+            ./target/release/overtls-bin -c ./my.json -v trace -r server &
             sleep 5
             pkill -f overtls-bin
