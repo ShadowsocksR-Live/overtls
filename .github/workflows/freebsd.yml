@@ -48,3 +48,5 @@ jobs:
             ./target/release/overtls-bin -c ./my.json -v trace -r server &
             sleep 5
             pkill -f overtls-bin
+            sleep 1
+            echo $(id -u)
