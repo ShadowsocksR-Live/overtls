@@ -19,8 +19,8 @@ jobs:
 
     runs-on: ${{ matrix.host_os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3 # stable
 
       - name: Prepare
         shell: bash
@@ -36,7 +36,7 @@ jobs:
           zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls-bin ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.so
 
       - name: Upload
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
