@@ -2,8 +2,11 @@ name: Publish FreeBSD
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -23,7 +26,7 @@ jobs:
         with:
           usesh: true
           sync: rsync
-          copyback: true
+          copyback: false
           prepare: |
             pkg install -y curl pkgconf glib
             curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf > install.sh
@@ -42,18 +45,8 @@ jobs:
             RUST_BACKTRACE=1 cargo +${{ matrix.toolchain }} clippy --all-features --release -- -D warnings
             RUST_BACKTRACE=1 cargo +${{ matrix.toolchain }} build --all-features --release
 
-      - name: Archive
-        run: |
-          mkdir -p pubdir
-          zip -j pubdir/overtls-x86_64-unknown-freebsd.zip ./target/release/overtls-bin ./config.json
-
-      - name: Publish
-        uses: softprops/action-gh-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          files: pubdir/*
-          # name: Automated build of ${{ github.sha }}
-          # tag_name: r${{ github.sha }}
-          # draft: false
-          # prerelease: true
+            ./target/release/overtls-bin -c ./my.json -v trace -r server &
+            sleep 5
+            pkill -f overtls-bin
+            sleep 1
+            echo $(id -u)
