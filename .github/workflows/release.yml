@@ -27,7 +27,7 @@ jobs:
 
         include:
           - target: x86_64-unknown-linux-gnu
-            host_os: ubuntu-latest
+            host_os: ubuntu-20.04
           - target: x86_64-unknown-linux-musl
             host_os: ubuntu-latest
           - target: aarch64-unknown-linux-gnu
@@ -63,14 +63,14 @@ jobs:
         run: |
           cargo install cbindgen
           mkdir release
-          if [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
+          if [[ "${{ contains(matrix.host_os, 'ubuntu') }}" == "true" && "${{ matrix.host_os }}" != "ubuntu-20.04" ]]; then
             sudo .github/workflows/install-cross.sh
           fi
 
       - name: Build
         shell: bash
         run: |
-          if [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
+          if [[ "${{ contains(matrix.host_os, 'ubuntu') }}" == "true" && "${{ matrix.host_os }}" != "ubuntu-20.04" ]]; then
             rustup target add ${{ matrix.target }}
             cross build --all-features --release --target ${{ matrix.target }}
           else
@@ -95,7 +95,7 @@ jobs:
               ./build-apple.sh
               zip -r release/overtls-apple-xcframework.zip ./overtls.xcframework/
             fi
-          elif [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
+          elif [[ "${{ contains(matrix.host_os, 'ubuntu') }}" == "true" ]]; then
             zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls-bin ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.so
           fi
 
