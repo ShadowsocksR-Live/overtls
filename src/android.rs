@@ -15,7 +15,7 @@ static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::s
 /// # Safety
 ///
 /// Run the overtls client with config file.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient(
     mut env: JNIEnv,
     _: JClass,
@@ -116,7 +116,7 @@ fn _protect_socket(env: &mut JNIEnv, vpn_service: &JObject, socket: i32) -> Resu
 /// # Safety
 ///
 /// Shutdown the client.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient(_: JNIEnv, _: JClass) -> jint {
     if let Ok(mut token) = EXITING_FLAG.lock() {
         if let Some(token) = token.take() {

@@ -7,7 +7,7 @@ use std::{
 /// # Safety
 ///
 /// set traffic status callback.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn overtls_set_traffic_status_callback(
     send_interval_secs: u32,
     callback: Option<unsafe extern "C" fn(*const TrafficStatus, *mut c_void)>,
@@ -36,7 +36,7 @@ struct TrafficStatusCallback(Option<unsafe extern "C" fn(*const TrafficStatus, *
 impl TrafficStatusCallback {
     unsafe fn call(self, info: &TrafficStatus) {
         if let Some(cb) = self.0 {
-            cb(info, self.1);
+            unsafe { cb(info, self.1) };
         }
     }
 }
