@@ -36,9 +36,7 @@ struct TrafficStatusCallback(Option<unsafe extern "C" fn(*const TrafficStatus, *
 impl TrafficStatusCallback {
     unsafe fn call(self, info: &TrafficStatus) {
         if let Some(cb) = self.0 {
-            unsafe {
-                cb(info, self.1);
-            }
+            unsafe { cb(info, self.1) };
         }
     }
 }

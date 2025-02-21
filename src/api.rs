@@ -1,7 +1,7 @@
 use crate::{
-    ArgVerbosity,
     config::Config,
     error::{Error, Result},
+    ArgVerbosity,
 };
 use std::{
     net::SocketAddr,
@@ -14,9 +14,7 @@ struct CCallback(Option<unsafe extern "C" fn(c_int, *mut c_void)>, *mut c_void);
 impl CCallback {
     unsafe fn call(self, arg: c_int) {
         if let Some(cb) = self.0 {
-            unsafe {
-                cb(arg, self.1);
-            }
+            unsafe { cb(arg, self.1) };
         }
     }
 }
@@ -49,12 +47,10 @@ pub unsafe extern "C" fn over_tls_client_run(
         if config_path.is_null() {
             return Err("config_path is null".into());
         }
-        unsafe {
-            let config_path = std::ffi::CStr::from_ptr(config_path).to_str()?;
-            let mut config = Config::from_config_file(config_path)?;
-            config.check_correctness(false)?;
-            _over_tls_client_run(config, callback, ctx)
-        }
+        let config_path = unsafe { std::ffi::CStr::from_ptr(config_path).to_str()? };
+        let mut config = Config::from_config_file(config_path)?;
+        config.check_correctness(false)?;
+        _over_tls_client_run(config, callback, ctx)
     };
     match result() {
         Ok(_) => 0,
@@ -91,12 +87,12 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
         }
     }
 
-    let result = || unsafe {
-        let url = std::ffi::CStr::from_ptr(url).to_str()?;
+    let result = || {
+        let url = unsafe { std::ffi::CStr::from_ptr(url).to_str()? };
         let listen_addr = if listen_addr.is_null() {
             std::net::SocketAddr::from(([127, 0, 0, 1], 1080))
         } else {
-            std::ffi::CStr::from_ptr(listen_addr).to_str()?.parse()?
+            unsafe { std::ffi::CStr::from_ptr(listen_addr) }.to_str()?.parse()?
         };
 
         let mut config = Config::from_ssr_url(url)?;
@@ -125,8 +121,8 @@ fn _over_tls_client_run(config: Config, callback: Option<unsafe extern "C" fn(c_
 
     let ccb = CCallback(callback, ctx);
 
-    let cb = |addr: SocketAddr| unsafe {
-        ccb.call(addr.port() as _);
+    let cb = |addr: SocketAddr| {
+        unsafe { ccb.call(addr.port() as _) };
     };
 
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
@@ -155,22 +151,20 @@ pub unsafe extern "C" fn over_tls_client_stop() -> c_int {
 /// Create a SSR URL from the config file.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn overtls_generate_url(cfg_path: *const c_char) -> *mut c_char {
-    unsafe {
-        let cfg_path = std::ffi::CStr::from_ptr(cfg_path);
-        let cfg_path = match cfg_path.to_str() {
-            Ok(s) => s,
-            Err(_) => return std::ptr::null_mut(),
-        };
-        let url = match crate::config::generate_ssr_url(cfg_path) {
-            Ok(s) => s,
-            Err(_) => return std::ptr::null_mut(),
-        };
-        let url = match std::ffi::CString::new(url) {
-            Ok(s) => s,
-            Err(_) => return std::ptr::null_mut(),
-        };
-        url.into_raw()
-    }
+    let cfg_path = unsafe { std::ffi::CStr::from_ptr(cfg_path) };
+    let cfg_path = match cfg_path.to_str() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let url = match crate::config::generate_ssr_url(cfg_path) {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let url = match std::ffi::CString::new(url) {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    url.into_raw()
 }
 
 /// # Safety
@@ -181,7 +175,5 @@ pub unsafe extern "C" fn overtls_free_string(s: *mut c_char) {
     if s.is_null() {
         return;
     }
-    unsafe {
-        drop(std::ffi::CString::from_raw(s));
-    }
+    drop(unsafe { std::ffi::CString::from_raw(s) });
 }
