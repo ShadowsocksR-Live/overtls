@@ -1,7 +1,7 @@
 use crate::{
+    ArgVerbosity,
     config::Config,
     error::{Error, Result},
-    ArgVerbosity,
 };
 use std::{
     net::SocketAddr,

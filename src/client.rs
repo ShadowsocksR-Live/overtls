@@ -11,9 +11,9 @@ use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
     protocol::{Address, Reply},
     server::{
+        AuthAdaptor, ClientConnection, Connect, IncomingConnection, Server,
         auth::{NoAuth, UserKeyAuth},
         connection::connect::NeedReply,
-        AuthAdaptor, ClientConnection, Connect, IncomingConnection, Server,
     },
 };
 use std::{net::SocketAddr, sync::Arc};
@@ -23,6 +23,7 @@ use tokio::{
 };
 use tokio_rustls::client::TlsStream;
 use tokio_tungstenite::{
+    WebSocketStream,
     tungstenite::{
         client::IntoClientRequest,
         handshake::{
@@ -31,7 +32,6 @@ use tokio_tungstenite::{
         },
         protocol::{Message, Role},
     },
-    WebSocketStream,
 };
 
 pub async fn run_client<F>(config: &Config, quit: crate::CancellationToken, callback: Option<F>) -> Result<()>

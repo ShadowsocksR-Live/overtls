@@ -1,4 +1,4 @@
-use overtls::{async_main, BoxError, CmdOpt, Config, Result};
+use overtls::{BoxError, CmdOpt, Config, Result, async_main};
 
 fn main() -> Result<(), BoxError> {
     let opt = CmdOpt::parse_cmd();

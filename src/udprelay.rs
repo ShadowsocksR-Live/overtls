@@ -4,24 +4,24 @@ use crate::{
     dns,
     error::{Error, Result},
 };
-use async_shared_timeout::{runtime, Timeout};
+use async_shared_timeout::{Timeout, runtime};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::{SinkExt, StreamExt};
 use socks5_impl::{
     protocol::{Address, Reply, StreamOperation, UdpHeader},
     server::{
-        connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},
         UdpAssociate,
+        connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},
     },
 };
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::UdpSocket,
-    sync::{broadcast, mpsc, Mutex},
+    sync::{Mutex, broadcast, mpsc},
     time,
 };
-use tokio_tungstenite::{tungstenite::protocol::Message, WebSocketStream};
+use tokio_tungstenite::{WebSocketStream, tungstenite::protocol::Message};
 
 pub(crate) type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Address)>;
 pub(crate) type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;

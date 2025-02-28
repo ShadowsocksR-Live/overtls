@@ -1,12 +1,12 @@
 [package]
 name = "overtls"
 version = "0.2.41"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 description = "A simple proxy tunnel, minimalist tool for bypassing the GFW."
 repository = "https://github.com/ShadowsocksR-Live/overtls"
 readme = "readme.md"
-rust-version = "1.80"
+rust-version = "1.85"
 
 [lib]
 crate-type = ["staticlib", "cdylib", "lib"]

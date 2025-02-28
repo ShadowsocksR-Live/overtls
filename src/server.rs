@@ -19,15 +19,14 @@ use tokio::{
     net::{TcpListener, UdpSocket},
     sync::Mutex,
 };
-use tokio_rustls::{rustls, TlsAcceptor};
+use tokio_rustls::{TlsAcceptor, rustls};
 use tokio_tungstenite::{
-    accept_hdr_async,
+    WebSocketStream, accept_hdr_async,
     tungstenite::{
-        handshake::server::{create_response, ErrorResponse, Request, Response},
+        handshake::server::{ErrorResponse, Request, Response, create_response},
         handshake::{machine::TryParse, server},
         protocol::{Message, Role},
     },
-    WebSocketStream,
 };
 
 const WS_HANDSHAKE_LEN: usize = 1024;

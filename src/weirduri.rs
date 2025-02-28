@@ -1,7 +1,7 @@
 use tokio_tungstenite::tungstenite::{
     client::IntoClientRequest,
     error::{Error, Result, UrlError},
-    handshake::client::{generate_key, Request},
+    handshake::client::{Request, generate_key},
 };
 
 pub(crate) const TARGET_ADDRESS: &str = "Target-Address";

@@ -1,12 +1,12 @@
 #![cfg(target_os = "android")]
 
-use crate::traffic_status::{overtls_set_traffic_status_callback, TrafficStatus};
+use crate::traffic_status::{TrafficStatus, overtls_set_traffic_status_callback};
 use crate::{ArgVerbosity, Error, Result};
 use jni::{
+    JNIEnv, JavaVM,
     objects::{GlobalRef, JClass, JObject, JString, JValue},
     signature::{Primitive, ReturnType},
     sys::jint,
-    JNIEnv, JavaVM,
 };
 use std::os::raw::c_void;
 

@@ -3,9 +3,9 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
 use std::{fs::File, io::BufReader, net::SocketAddr, path::Path};
 use tokio::net::TcpStream;
 use tokio_rustls::{
+    TlsConnector,
     client::TlsStream,
     rustls::{ClientConfig, RootCertStore},
-    TlsConnector,
 };
 
 //

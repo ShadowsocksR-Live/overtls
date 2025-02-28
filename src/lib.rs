@@ -26,7 +26,7 @@ pub use error::{BoxError, Error, Result};
 pub use server::run_server;
 use socks5_impl::protocol::{Address, StreamOperation};
 pub use tokio_util::sync::CancellationToken;
-pub use traffic_status::{overtls_set_traffic_status_callback, TrafficStatus};
+pub use traffic_status::{TrafficStatus, overtls_set_traffic_status_callback};
 
 #[cfg(target_os = "windows")]
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32;
