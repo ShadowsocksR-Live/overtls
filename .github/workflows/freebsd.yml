@@ -48,7 +48,7 @@ jobs:
           zip -j pubdir/overtls-x86_64-unknown-freebsd.zip ./target/release/overtls-bin ./config.json
 
       - name: Publish
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

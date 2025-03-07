@@ -511,11 +511,11 @@ fn test_config() {
     config.password = Some("password".to_string());
 
     let client = Client {
-        server_host: "baidu.com".to_string(),
+        server_host: "www.gov.cn".to_string(),
         server_port: 443,
         listen_host: "127.0.0.1".to_string(),
         listen_port: 0,
-        // server_domain: Some("baidu.com".to_string()),
+        // server_domain: Some("www.gov.cn".to_string()),
         ..Client::default()
     };
     config.client = Some(client);
