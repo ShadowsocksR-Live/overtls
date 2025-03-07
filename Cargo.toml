@@ -66,7 +66,7 @@ webpki-roots = "0.26"
 daemonize = "0.5"
 
 [target.'cfg(target_os="android")'.dependencies]
-android_logger = "0.14"
+android_logger = "0.15"
 jni = { version = "0.21", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
