@@ -57,7 +57,7 @@ pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient
             let mut stat = STAT_PATH.lock().map_err(|e| Error::from(e.to_string()))?;
             *stat = Some(stat_path);
 
-            overtls_set_traffic_status_callback(1, Some(send_traffic_stat), std::ptr::null_mut());
+            unsafe { overtls_set_traffic_status_callback(1, Some(send_traffic_stat), std::ptr::null_mut()) };
         }
         let config_path = get_java_string(&mut env, &config_path)?.to_owned();
         set_panic_handler();
@@ -141,7 +141,7 @@ fn remove_panic_handler() {
 static STAT_PATH: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
 unsafe extern "C" fn send_traffic_stat(traffic_status: *const TrafficStatus, _ctx: *mut c_void) {
-    let traffic_status = *traffic_status;
+    let traffic_status = unsafe { *traffic_status };
     if let Err(e) = _send_traffic_stat(&traffic_status) {
         log::error!("failed to send traffic stat, error={:?}", e);
     }

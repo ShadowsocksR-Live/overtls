@@ -63,9 +63,11 @@ jobs:
         run: |
           cargo install cbindgen
           mkdir release
-          if [[ "${{ contains(matrix.host_os, 'ubuntu') }}" == "true" && "${{ matrix.host_os }}" != "ubuntu-20.04" ]]; then
-            sudo .github/workflows/install-cross.sh
-          fi
+
+      - name: Install cross
+        if: ${{ contains(matrix.host_os, 'ubuntu') && matrix.host_os != 'ubuntu-20.04' }}
+        run: |
+          sudo .github/workflows/install-cross.sh
 
       - name: Build
         shell: bash
