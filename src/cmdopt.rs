@@ -74,7 +74,7 @@ impl std::fmt::Display for ArgVerbosity {
 
 /// Proxy tunnel over tls
 #[derive(clap::Parser, Debug, Clone, PartialEq, Eq, Default)]
-#[command(author, version, about = "Proxy tunnel over tls.", long_about = None)]
+#[command(author, version = version_info(), about = "Proxy tunnel over tls.", long_about = None)]
 pub struct CmdOpt {
     /// Role of server or client
     #[arg(short, long, value_enum, value_name = "role", default_value = "client")]
@@ -147,4 +147,8 @@ impl CmdOpt {
         }
         args
     }
+}
+
+fn version_info() -> &'static str {
+    concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), " ", env!("BUILD_TIME"), ")")
 }

@@ -71,3 +71,6 @@ jni = { version = "0.21", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-service = "0.8"
+
+[build-dependencies]
+chrono = "0.4"
