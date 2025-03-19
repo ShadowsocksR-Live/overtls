@@ -28,7 +28,7 @@ futures-util = { version = "0.3", default-features = false, features = [
     "sink",
     "std",
 ] }
-hickory-proto = "0.24"
+hickory-proto = "0.25"
 http = "1"
 httparse = "1"
 log = { version = "0.4", features = ["std"] }
