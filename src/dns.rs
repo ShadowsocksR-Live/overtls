@@ -26,8 +26,7 @@ pub(crate) fn extract_ipaddr_from_dns_message(message: &Message) -> std::io::Res
     }
     let mut cname = None;
     for answer in message.answers() {
-        let err = std::io::Error::new(std::io::ErrorKind::Other, "DNS response not contains answer data");
-        match answer.data().ok_or(err)? {
+        match answer.data() {
             RData::A(addr) => {
                 return Ok(IpAddr::V4((*addr).into()));
             }
