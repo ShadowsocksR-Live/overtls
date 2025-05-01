@@ -27,7 +27,7 @@ jobs:
 
         include:
           - target: x86_64-unknown-linux-gnu
-            host_os: ubuntu-20.04
+            host_os: ubuntu-22.04
           - target: x86_64-unknown-linux-musl
             host_os: ubuntu-latest
           - target: aarch64-unknown-linux-gnu
@@ -65,7 +65,7 @@ jobs:
           mkdir release
 
       - name: Install cross
-        if: ${{ contains(matrix.host_os, 'ubuntu') && matrix.host_os != 'ubuntu-20.04' }}
+        if: ${{ contains(matrix.host_os, 'ubuntu') && matrix.host_os != 'ubuntu-22.04' }}
         run: |
           cargo install cross --git https://github.com/cross-rs/cross --rev 36c0d78
           cross --version
@@ -73,7 +73,7 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          if [[ "${{ contains(matrix.host_os, 'ubuntu') }}" == "true" && "${{ matrix.host_os }}" != "ubuntu-20.04" ]]; then
+          if [[ "${{ contains(matrix.host_os, 'ubuntu') }}" == "true" && "${{ matrix.host_os }}" != "ubuntu-22.04" ]]; then
             rustup target add ${{ matrix.target }}
             cross build --all-features --release --target ${{ matrix.target }}
           else

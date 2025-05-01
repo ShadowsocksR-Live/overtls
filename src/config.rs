@@ -424,17 +424,11 @@ impl Config {
             return Err("ot_enable is not 1".into());
         }
         let remarks = map.get("remarks").and_then(|r| match base64easy::decode(r, engine) {
-            Ok(decoded) => match String::from_utf8(decoded) {
-                Ok(string) => Some(string),
-                Err(_) => None,
-            },
+            Ok(decoded) => String::from_utf8(decoded).ok(),
             Err(_) => None,
         });
         let ot_domain = map.get("ot_domain").and_then(|r| match base64easy::decode(r, engine) {
-            Ok(decoded) => match String::from_utf8(decoded) {
-                Ok(string) => Some(string),
-                Err(_) => None,
-            },
+            Ok(decoded) => String::from_utf8(decoded).ok(),
             Err(_) => None,
         });
         let ot_path = map.get("ot_path").ok_or("ot_path is not set")?;

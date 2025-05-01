@@ -69,7 +69,7 @@ pub unsafe extern "C" fn over_tls_client_run(
 /// - `listen_addr`: The address to listen on, in the format of "ip:port".
 /// - `verbosity`: The verbosity level of the logger.
 /// - `callback`: The callback function to be called when the client is listening on a port.
-///               It should be thread-safe and will be called with the port number and should be called only once.
+///   It should be thread-safe and will be called with the port number and should be called only once.
 /// - `ctx`: The context pointer to be passed to the callback function.
 ///
 #[unsafe(no_mangle)]
