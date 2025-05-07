@@ -60,7 +60,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = [
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
 tokio-util = "0.7"
 url = "2"
-webpki-roots = "0.26"
+webpki-roots = "1.0"
 
 [target.'cfg(unix)'.dependencies]
 daemonize = "0.5"
