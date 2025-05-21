@@ -40,13 +40,13 @@ pub(crate) fn extract_ipaddr_from_dns_message(message: &Message) -> std::io::Res
         }
     }
     if let Some(cname) = cname {
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, cname));
+        return Err(std::io::Error::other(cname));
     }
-    Err(std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", message.answers())))
+    Err(std::io::Error::other(format!("{:?}", message.answers())))
 }
 
 pub(crate) fn extract_domain_from_dns_message(message: &Message) -> std::io::Result<String> {
-    let err = std::io::Error::new(std::io::ErrorKind::Other, "DNS request not contains query body");
+    let err = std::io::Error::other("DNS request not contains query body");
     let query = message.queries().first().ok_or(err)?;
     let name = query.name().to_string();
     Ok(name)

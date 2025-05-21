@@ -51,6 +51,7 @@ impl IntoClientRequest for WeirdUri {
 }
 
 impl WeirdUri {
+    #[allow(clippy::result_large_err)]
     fn into_client_request_v1(self) -> Result<Request> {
         let uri = url::Url::parse(&self.uri).map_err(|_| Error::Url(UrlError::NoPathOrQuery))?;
 

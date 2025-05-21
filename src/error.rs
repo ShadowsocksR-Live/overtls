@@ -28,7 +28,7 @@ pub enum Error {
     HeaderToStr(#[from] http::header::ToStrError),
 
     #[error("tungstenite::error::Error {0}")]
-    Tungstenite(#[from] tokio_tungstenite::tungstenite::error::Error),
+    Tungstenite(#[from] Box<tokio_tungstenite::tungstenite::error::Error>),
 
     #[error("reqwest::Error {0}")]
     Reqwest(#[from] reqwest::Error),
@@ -75,11 +75,17 @@ pub enum Error {
     String(String),
 }
 
+impl From<tokio_tungstenite::tungstenite::error::Error> for Error {
+    fn from(e: tokio_tungstenite::tungstenite::error::Error) -> Self {
+        Error::Tungstenite(Box::new(e))
+    }
+}
+
 impl From<Error> for std::io::Error {
     fn from(e: Error) -> Self {
         match e {
             Error::Io(e) => e,
-            _ => std::io::Error::new(std::io::ErrorKind::Other, e.to_string()),
+            _ => std::io::Error::other(e),
         }
     }
 }
