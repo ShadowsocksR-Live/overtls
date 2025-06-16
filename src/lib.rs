@@ -70,12 +70,12 @@ pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: Ca
     if allow_shutdown {
         let shutdown_token_clone = shutdown_token.clone();
         let ctrlc_fired_clone = ctrlc_fired.clone();
-        let handle = ctrlc2::set_async_handler(async move {
+        let handle = ctrlc2::AsyncCtrlC::new(move || {
             log::info!("Ctrl-C received, exiting...");
             ctrlc_fired_clone.store(true, std::sync::atomic::Ordering::SeqCst);
             shutdown_token_clone.cancel();
-        })
-        .await;
+            true
+        })?;
         ctrlc_handle = Some(handle);
     }
 
