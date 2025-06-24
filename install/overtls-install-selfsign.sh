@@ -511,7 +511,9 @@ function install_overtls_remote_server() {
     dependency_install
 
     web_svr_reverse_proxy_port=`random_listen_port`
-    web_svr_domain=$(random_string_gen 10)".com"
+
+    local domain_length=$(shuf -i 8-16 -n 1)
+    web_svr_domain=$(random_string_gen ${domain_length})".com"
 
     web_svr_local_ip_addr=$(get_vps_valid_ip)
     local exit_status=$?
