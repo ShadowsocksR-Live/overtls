@@ -338,6 +338,7 @@ function write_overtls_config_file() {
         "server_port": ${web_svr_reverse_proxy_port},
         "server_domain": "${web_svr_domain}",
         "cafile": "${self_signed_root_ca_file}",
+        "dangerous_mode": false,
         "listen_host": "127.0.0.1",
         "listen_port": 1080
     }

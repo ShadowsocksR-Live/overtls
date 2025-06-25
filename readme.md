@@ -173,5 +173,12 @@ sudo yum install -y wget # CentOS
 wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install-selfsign.sh
 bash ./overtls-install-selfsign.sh
 ```
-> Note: The `GFW` maybe block your server since you are using a self-signed certificate.
->       So please do not use it for long-term production purposes.
+> - Note: The `GFW` maybe block your server since you are using a self-signed certificate.
+>   So please do not use it for long-term production purposes.
+> - Note: It is better to copy the root certificate file `ca.crt` to your local machine, and set the
+>   `cafile` option in the configuration file to the path of this root certificate file.
+> - Note: If you use a self-signed certificate and find it inconvenient to use the root certificate file
+>   on the client side, you can set the `dangerous_mode` option in the configuration file to `true`,
+>   so that you can skip the certificate verification. But this is very dangerous, it is easy to be attacked
+>   by [Man-in-the-middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack),
+>   and may steal your password and other sensitive information when you use network accounts.

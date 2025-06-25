@@ -227,6 +227,14 @@ pub(crate) async fn create_tls_ws_stream(
 ) -> Result<WsTlsStream> {
     let client = config.client.as_ref().ok_or("client not exist")?;
 
+    if client.dangerous_mode.unwrap_or(false) {
+        log::warn!("Dangerous mode enabled, this will skip certificate verification. It is not recommended for production use");
+        let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
+        let stream = create_dangerous_tls_client_stream(svr_addr, domain).await?;
+        let ws_stream = create_ws_stream(dst_addr, config, udp_tunnel, stream).await?;
+        return Ok(ws_stream);
+    }
+
     let cert_content = client.certificate_content();
     let cert_store = retrieve_root_cert_store_for_client(&cert_content)?;
     let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);

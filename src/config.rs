@@ -137,6 +137,8 @@ pub struct Client {
     pub server_domain: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cafile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dangerous_mode: Option<bool>,
     pub listen_host: String,
     pub listen_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -156,18 +158,17 @@ impl Client {
 
     fn _certificate_content(cert: &str) -> Option<String> {
         const BEGIN_CERT: &str = "-----BEGIN CERTIFICATE-----";
+        let checker = |s: &str| !s.is_empty() && s.starts_with(BEGIN_CERT) && s.len() > 100;
         if PathBuf::from(cert).exists() {
-            std::fs::read_to_string(cert)
-                .ok()
-                .filter(|s| !s.is_empty() && s.starts_with(BEGIN_CERT) && s.len() > 100)
-        } else if !cert.is_empty() && cert.starts_with(BEGIN_CERT) && cert.len() > 100 {
+            std::fs::read_to_string(cert).ok().filter(|s| checker(s))
+        } else if checker(cert) {
             Some(cert.to_string())
         } else {
             None
         }
     }
 
-    pub fn export_certificate(&self, path: &str) -> Result<()> {
+    pub fn export_certificate<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
         match self.certificate_content() {
             Some(cert) => std::fs::write(path, cert).map_err(|e| e.into()),
             None => Err(Error::from("certificate not exists")),
@@ -199,7 +200,7 @@ impl Config {
         self.client.as_ref().and_then(|c| c.certificate_content())
     }
 
-    pub fn export_certificate(&self, path: &str) -> Result<()> {
+    pub fn export_certificate<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
         self.client.as_ref().ok_or(Error::from("no client"))?.export_certificate(path)
     }
 
@@ -287,6 +288,19 @@ impl Config {
             return c.disable_tls.unwrap_or(false);
         }
         false
+    }
+
+    pub fn dangerous_mode(&self) -> bool {
+        if let Some(c) = &self.client {
+            return c.dangerous_mode.unwrap_or(false);
+        }
+        false
+    }
+
+    pub fn set_dangerous_mode(&mut self, dangerous_mode: bool) {
+        if let Some(c) = &mut self.client {
+            c.dangerous_mode = Some(dangerous_mode);
+        }
     }
 
     pub fn cache_dns(&self) -> bool {

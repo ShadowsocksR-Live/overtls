@@ -26,6 +26,7 @@
         "server_port": 443,
         "server_domain": "example.com",
         "cafile": "",
+        "dangerous_mode": false,
         "listen_user": "",
         "listen_password": "",
         "listen_host": "127.0.0.1",
