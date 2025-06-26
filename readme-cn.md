@@ -156,7 +156,7 @@ wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/
 bash ./overtls-install-selfsign.sh
 ```
 > - 注意：`GFW` 可能會因爲你使用了自簽證書而封鎖你的服務器。所以請不要長期用於正式場合。
-> - 注意：這時候你最好將 根證書文件 `ca.crt` 複製粘貼到本地，在配置文件中將 `cafile` 設置爲該根證書文件的路徑。 
+> - 注意：這時候你最好將 根證書文件 `root.crt` 複製粘貼到本地，在配置文件中將 `cafile` 設置爲該根證書文件的路徑。 
 > - 注意：如果你使用了自簽證書，又嫌在客戶端使用根證書文件太麻煩，可以在配置文件中將 `dangerous_mode` 設置爲 `true`，
 >   這樣就可以跳過證書驗證了。但這樣做非常危險，容易遭到
 >   [中間人攻擊](https://zh.wikipedia.org/wiki/%E4%B8%AD%E9%97%B4%E4%BA%BA%E6%94%BB%E5%87%BB) ，

@@ -317,7 +317,7 @@ function write_overtls_config_file() {
     local identity=$(random_string_gen 4)
     local self_signed_cert_file="${self_sign_dir}/server.crt"
     local self_signed_key_file="${self_sign_dir}/server.key"
-    local self_signed_root_ca_file="${self_sign_dir}/ca.crt"
+    local self_signed_root_ca_file="${self_sign_dir}/root.crt"
 
     cat > ${local_cfg_file_path} <<EOF
 {

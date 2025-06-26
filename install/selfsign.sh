@@ -9,16 +9,16 @@
 #    这 9 个参数请根据自己的实际情况修改，否则你复制粘贴命令行生成的证书有可能被 GFW 针对性封杀。
 #    ./selfsign.sh CN JiangSu ChangZhou MyGreatOrg Root_CA Server1 email@example.com example.com 123.45.67.89
 # 4. 現在你將得到以下文件:
-#    ca.crt  ca.key  server.crt  server.csr  server.key  serverca.txt
+#    root.crt  root.key  server.crt  server.csr  server.key  serverca.txt
 # 5. 將 server.crt 和 server.key 用於 overtls 服務端, 並在配置文件中使用它們。
 #    server.crt: 服務器證書
 #    server.key: 服務器私鑰
-# 6. 將根證書 ca.crt 文件用於客戶端, 用它的 全路徑 填寫配置文件中的 cafile 參數的值。
-#    ca.crt: 根證書
+# 6. 將根證書 root.crt 文件用於客戶端, 用它的 全路徑 填寫配置文件中的 cafile 參數的值。
+#    root.crt: 根證書
 # 7. 注意事项：
 #    - 這時候 overtls 不用 nginx 幫忙了，客戶端直接連接 overtls 服務端的監聽端口。
 #      當然你最好還是裝一個 nginx 監聽在 80 端口，當 GFW 的探測流量到達時，overtls 能作出體面的回應。
-#    - 客戶端的配置文件中的 cafile 參數的值，應該是 ca.crt 的全路徑， 如 /etc/overtls/ca.crt。
+#    - 客戶端的配置文件中的 cafile 參數的值，應該是 root.crt 的全路徑， 如 /etc/overtls/root.crt。
 #    - 客戶端的配置文件中的 cafile 參數的值，也可以是根證書的內容，當然它非常的長，因此不推薦這麼用，
 #      它形如這樣 “-----BEGIN CERTIFICATE-----\nMIIFfTCC...\n-----END CERTIFICATE-----”。
 #    - 由於自簽名證書不被公認，這種自簽名證書翻牆的方式，只是讓你在沒有 `域名` 時的臨時解決方案，不要長期使用；
@@ -41,10 +41,10 @@ IP_1=${9}
 DAYS=3650
 
 # 生成根證書的私鑰
-openssl genrsa -out ca.key 4096
+openssl genrsa -out root.key 4096
 
 # 生成根證書
-openssl req -outform PEM -new -x509 -sha256 -key ca.key -extensions v3_ca -out ca.crt -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGANIZATIONAL_UNIT/CN=$COMMON_NAME_CA/emailAddress=$EMAIL_ADDRESS" -days ${DAYS}
+openssl req -outform PEM -new -x509 -sha256 -key root.key -extensions v3_ca -out root.crt -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGANIZATIONAL_UNIT/CN=$COMMON_NAME_CA/emailAddress=$EMAIL_ADDRESS" -days ${DAYS}
 
 # 生成自簽名證書的私鑰
 openssl genrsa -out server.key 4096
@@ -63,7 +63,7 @@ IP.1 = $IP_1
 EOF
 
 # 生成自簽名證書
-openssl x509 -req -CA ca.crt -CAkey ca.key -in server.csr -out server.crt -extfile serverca.txt -sha256 -set_serial 0x1111 -days ${DAYS}
+openssl x509 -req -CA root.crt -CAkey root.key -in server.csr -out server.crt -extfile serverca.txt -sha256 -set_serial 0x1111 -days ${DAYS}
 
 # 查看文件
 ls
