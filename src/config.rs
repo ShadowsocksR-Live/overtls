@@ -7,7 +7,7 @@ use std::{
 
 pub(crate) const TEST_TIMEOUT_SECS: u64 = 10;
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
 pub struct Config {
     #[serde(
         rename(deserialize = "server_settings", serialize = "server_settings"),
@@ -32,7 +32,7 @@ pub struct Config {
     pub is_server: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum TunnelPath {
     Single(String),
@@ -99,7 +99,7 @@ impl TunnelPath {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
 pub struct Server {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_tls: Option<bool>,
@@ -115,7 +115,7 @@ pub struct Server {
     pub listen_port: u16,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
 pub struct ManageClients {
     pub enable: Option<bool>,
     pub webapi_url: Option<String>,
@@ -125,7 +125,7 @@ pub struct ManageClients {
     pub api_update_interval_secs: Option<u64>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug, Default, Eq)]
 pub struct Client {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_tls: Option<bool>,
@@ -149,6 +149,25 @@ pub struct Client {
     pub cache_dns: bool,
     #[serde(skip)]
     pub(crate) server_ip_addr: Option<SocketAddr>,
+}
+
+impl PartialEq for Client {
+    fn eq(&self, other: &Self) -> bool {
+        let dangerous_mode = self.dangerous_mode.unwrap_or(false);
+        let other_dangerous_mode = other.dangerous_mode.unwrap_or(false);
+        let cert_matches = if !dangerous_mode && !other_dangerous_mode {
+            self.certificate_content() == other.certificate_content()
+        } else {
+            true
+        };
+        self.server_host == other.server_host
+            && self.server_port == other.server_port
+            && self.server_domain == other.server_domain
+            && cert_matches // self.cafile == other.cafile
+            && self.dangerous_mode == other.dangerous_mode
+            && self.disable_tls == other.disable_tls
+            && self.client_id == other.client_id
+    }
 }
 
 impl Client {
@@ -176,26 +195,7 @@ impl Client {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Config {
-    pub fn new() -> Self {
-        Config {
-            remarks: None,
-            method: None,
-            password: None,
-            tunnel_path: TunnelPath::default(),
-            server: None,
-            client: None,
-            test_timeout_secs: Some(TEST_TIMEOUT_SECS),
-            is_server: false,
-        }
-    }
-
     pub fn certificate_content(&self) -> Option<String> {
         self.client.as_ref().and_then(|c| c.certificate_content())
     }
@@ -454,20 +454,25 @@ impl Config {
             .and_then(|decoded| String::from_utf8(decoded).ok())
             .filter(|s| !s.is_empty());
 
+        let dangerous_mode = map.get("dangerous_mode").and_then(|r| r.parse::<bool>().ok());
+
         let client = Client {
             server_host: host.to_string(),
             server_port: port,
             server_domain: ot_domain,
             cafile: ot_cert,
+            dangerous_mode,
             ..Client::default()
         };
 
-        let mut config = Config::new();
-        config.password = Some(password);
-        config.method = Some(method.to_string());
-        config.remarks = remarks;
-        config.tunnel_path = TunnelPath::Single(ot_path);
-        config.client = Some(client);
+        let config = Config {
+            password: Some(password),
+            method: Some(method.to_string()),
+            remarks,
+            tunnel_path: TunnelPath::Single(ot_path),
+            client: Some(client),
+            ..Config::default()
+        };
 
         Ok(config)
     }
@@ -490,9 +495,14 @@ impl Config {
         let mut url = format!("{host}:{port}:origin:{method}:plain:{password}/?remarks={remarks}&ot_enable=1");
         url.push_str(&format!("&ot_domain={domain}&ot_path={tunnel_path}"));
 
-        if let Some(ref ca) = client.certificate_content() {
+        let dangerous_mode = client.dangerous_mode.unwrap_or(false);
+        if !dangerous_mode && let Some(ref ca) = client.certificate_content() {
             let ca = base64easy::encode(ca.as_bytes(), engine);
             url.push_str(&format!("&ot_cert={ca}"));
+        }
+
+        if let Some(dangerous_mode) = client.dangerous_mode {
+            url.push_str(&format!("&dangerous_mode={dangerous_mode}"));
         }
 
         Ok(format!("ssr://{}", base64easy::encode(url.as_bytes(), engine)))
@@ -512,27 +522,32 @@ where
 
 #[test]
 fn test_config() {
-    let mut config = Config::new();
-    config.tunnel_path = TunnelPath::Single("/tunnel/".to_string());
-    config.remarks = Some("remarks".to_string());
-    config.method = Some("none".to_string());
-    config.password = Some("password".to_string());
-
     let client = Client {
         server_host: "www.gov.cn".to_string(),
         server_port: 443,
         listen_host: "127.0.0.1".to_string(),
         listen_port: 0,
         // server_domain: Some("www.gov.cn".to_string()),
+        dangerous_mode: Some(false),
         ..Client::default()
     };
-    config.client = Some(client);
+
+    let mut config = Config {
+        remarks: Some("test".to_string()),
+        method: Some("none".to_string()),
+        password: Some("password".to_string()),
+        tunnel_path: TunnelPath::Single("/tunnel/".to_string()),
+        client: Some(client),
+        ..Config::default()
+    };
 
     config.check_correctness(false).unwrap();
 
     let qrcode = config.generate_ssr_url().unwrap();
     println!("{qrcode:?}");
 
-    let config = Config::from_ssr_url(&qrcode).unwrap();
-    println!("{config:?}");
+    let config2 = Config::from_ssr_url(&qrcode).unwrap();
+    println!("{config2:?}");
+
+    assert_eq!(config, config2);
 }

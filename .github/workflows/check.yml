@@ -121,7 +121,7 @@ jobs:
 
     - name: Run tests
       if: ${{ !cancelled() }}
-      run: cargo test --verbose --all-features
+      run: cargo test --verbose --all-features -- --nocapture
 
     - name: Abort on error
       if: ${{ failure() }}
