@@ -46,14 +46,14 @@ fn combine_addr_and_port(addr: &url::Host<&str>, port: Option<u16>) -> String {
 
 impl IntoClientRequest for WeirdUri {
     fn into_client_request(self) -> Result<Request> {
-        self.into_client_request_v1()
+        Request::try_from(self) // self.try_into()
     }
 }
 
-impl WeirdUri {
-    #[allow(clippy::result_large_err)]
-    fn into_client_request_v1(self) -> Result<Request> {
-        let uri = url::Url::parse(&self.uri).map_err(|_| Error::Url(UrlError::NoPathOrQuery))?;
+impl TryFrom<WeirdUri> for Request {
+    type Error = Error;
+    fn try_from(value: WeirdUri) -> Result<Self> {
+        let uri = url::Url::parse(&value.uri).map_err(|_| Error::Url(UrlError::NoPathOrQuery))?;
 
         let host = uri.host().ok_or(Error::from(UrlError::EmptyHostName))?;
         let host = combine_addr_and_port(&host, uri.port());
@@ -64,18 +64,18 @@ impl WeirdUri {
             .header("Connection", "Upgrade")
             .header("Upgrade", "websocket")
             .header("Sec-WebSocket-Version", "13")
-            .header("Sec-WebSocket-Key", self.sec_websocket_key);
-        if let Some(ref target_address) = self.target_address {
+            .header("Sec-WebSocket-Key", value.sec_websocket_key);
+        if let Some(ref target_address) = value.target_address {
             if !target_address.is_empty() {
                 builder = builder.header(TARGET_ADDRESS, target_address);
             }
         }
-        if let Some(udp_tunnel) = self.udp_tunnel {
+        if let Some(udp_tunnel) = value.udp_tunnel {
             if udp_tunnel {
                 builder = builder.header(UDP_TUNNEL, udp_tunnel.to_string());
             }
         }
-        if let Some(ref client_id) = self.client_id {
+        if let Some(ref client_id) = value.client_id {
             if !client_id.is_empty() {
                 builder = builder.header(CLIENT_ID, client_id);
             }
