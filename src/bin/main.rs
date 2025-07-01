@@ -23,7 +23,7 @@ fn main() -> Result<(), BoxError> {
         unsafe { overtls::overtls_set_log_callback(true, Some(log_cb), std::ptr::null_mut()) };
 
         unsafe extern "C" fn port_cb(port: i32, _ctx: *mut std::os::raw::c_void) {
-            log::info!("Listening on {}", port);
+            log::info!("Listening on {port}");
         }
 
         if let Some(cfg) = opt.config.as_ref() {
@@ -35,7 +35,7 @@ fn main() -> Result<(), BoxError> {
             unsafe { overtls::over_tls_client_run(config_path, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
 
             if ctrlc_fired.load(std::sync::atomic::Ordering::SeqCst) {
-                ctrl_handle.join().map_err(|e| format!("{:?}", e))?;
+                ctrl_handle.join().map_err(|e| format!("{e:?}"))?;
             }
         } else if let Some(url) = opt.url_of_node.as_ref() {
             let url_str = std::ffi::CString::new(url.as_str())?;
@@ -48,7 +48,7 @@ fn main() -> Result<(), BoxError> {
             unsafe { overtls::over_tls_client_run_with_ssr_url(url_ptr, listen_addr, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
 
             if ctrlc_fired.load(std::sync::atomic::Ordering::SeqCst) {
-                ctrl_handle.join().map_err(|e| format!("{:?}", e))?;
+                ctrl_handle.join().map_err(|e| format!("{e:?}"))?;
             }
         } else {
             return Err("Config file or node URL is required".into());
@@ -76,7 +76,7 @@ fn main() -> Result<(), BoxError> {
 
     if opt.generate_url {
         let url = config.generate_ssr_url()?;
-        println!("{}", url);
+        println!("{url}");
         return Ok(());
     }
 

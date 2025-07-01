@@ -86,7 +86,7 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), crate::BoxErro
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
     rt.block_on(async {
         if let Err(err) = crate::async_main(config, false, shutdown_token_clone).await {
-            log::error!("Error: {}", err);
+            log::error!("Error: {err}");
         }
         Ok::<(), crate::Error>(())
     })?;

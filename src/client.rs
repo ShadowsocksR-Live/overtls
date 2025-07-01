@@ -94,12 +94,12 @@ where
                 let peer_addr = conn.peer_addr()?;
                 tokio::spawn(async move {
                     let count = session_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                    log::debug!("session #{} from {} started, session count {}", session_id, peer_addr, count);
+                    log::debug!("session #{session_id} from {peer_addr} started, session count {count}");
                     if let Err(e) = handle_incoming(conn, config, Some(udp_tx), incomings).await {
-                        log::debug!("{}", e);
+                        log::debug!("{e}");
                     }
                     let count = session_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) - 1;
-                    log::debug!("session #{} from {} ended, session count {}", session_id, peer_addr, count);
+                    log::debug!("session #{session_id} from {peer_addr} ended, session count {count}");
                 });
             }
         }
@@ -133,12 +133,12 @@ async fn handle_incoming<S: 'static>(
         }
         ClientConnection::Connect(connect, addr) => {
             if let Err(e) = handle_socks5_cmd_connection(connect, addr.clone(), config).await {
-                log::debug!("{} <> {} {}", peer_addr, addr, e);
+                log::debug!("{peer_addr} <> {addr} {e}");
             }
         }
     }
 
-    log::trace!("{} disconnected", peer_addr);
+    log::trace!("{peer_addr} disconnected");
 
     Ok(())
 }
@@ -148,7 +148,7 @@ async fn handle_socks5_cmd_connection(connect: Connect<NeedReply>, target_addr: 
 
     let peer_addr = incoming.peer_addr()?;
 
-    log::trace!("{} -> {} tunnel establishing", peer_addr, target_addr);
+    log::trace!("{peer_addr} -> {target_addr} tunnel establishing");
 
     let client = config.client.as_ref().ok_or("client not exist")?;
     let addr = client.server_ip_addr.ok_or("server host")?;
@@ -175,15 +175,15 @@ where
             result = incoming.read_buf(&mut buf) => {
                 let len = result?;
                 if len == 0 {
-                    log::trace!("{} -> {} incoming closed", src, dst);
+                    log::trace!("{src} -> {dst} incoming closed");
                     ws_stream.send(Message::Close(None)).await?;
                     break;
                 }
                 ws_stream.send(Message::binary(buf.to_vec())).await?;
-                log::trace!("{} -> {} length {}", src, dst, buf.len());
+                log::trace!("{src} -> {dst} length {}", buf.len());
 
                 if let Err(e) = crate::traffic_status::traffic_status_update(len, 0) {
-                    log::error!("{}", e);
+                    log::error!("{e}");
                 }
 
                 buf.clear();
@@ -192,25 +192,25 @@ where
                 let msg = result.ok_or("message not exist")??;
 
                 if let Err(e) = crate::traffic_status::traffic_status_update(0, msg.len()) {
-                    log::error!("{}", e);
+                    log::error!("{e}");
                 }
 
                 match msg {
                     Message::Binary(data) => {
                         incoming.write_all(&data).await?;
-                        log::trace!("{} <- {} length {}", src, dst, data.len());
+                        log::trace!("{src} <- {dst} length {}", data.len());
                     }
                     Message::Close(_) => {
-                        log::trace!("{} <- {} ws closed, exiting...", src, dst);
+                        log::trace!("{src} <- {dst} ws closed, exiting...");
                         break;
                     }
-                    Message::Pong(_) => log::trace!("{} <- {} Websocket pong from remote", src, dst),
+                    Message::Pong(_) => log::trace!("{src} <- {dst} Websocket pong from remote"),
                     _ => {}
                 }
             }
             _ = timer.tick() => {
                 ws_stream.send(Message::Ping(vec![].into())).await?;
-                log::trace!("{} -> {} Websocket ping from local", src, dst);
+                log::trace!("{src} -> {dst} Websocket ping from local");
             }
         }
     }
@@ -269,7 +269,7 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     let b64_dst = dst_addr.as_ref().map(|dst_addr| addess_to_b64str(dst_addr, false));
     let host = client.server_domain.as_ref().unwrap_or(&client.server_host);
 
-    let uri = format!("ws://{}/{}/", host, tunnel_path);
+    let uri = format!("ws://{host}/{tunnel_path}/");
 
     let uri = WeirdUri::new(&uri, b64_dst, udp_tunnel, client.client_id.clone());
 
@@ -280,7 +280,7 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     stream.read_buf(&mut buf).await?;
 
     let response = Response::try_parse(&buf)?.ok_or("response parse failed")?.1;
-    let remote_key = response.headers().get("Sec-WebSocket-Accept").ok_or(format!("{:?}", response))?;
+    let remote_key = response.headers().get("Sec-WebSocket-Accept").ok_or(format!("{response:?}"))?;
 
     let accept_key = tokio_tungstenite::tungstenite::handshake::derive_accept_key(key.as_bytes());
 

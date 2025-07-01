@@ -32,10 +32,10 @@ impl WebApi {
         }
         let json = response.json::<HashMap<String, String>>().await?;
         if json.len() != 2 {
-            return Err(Error::from(format!("Wrong data: {:?}", json)));
+            return Err(Error::from(format!("Wrong data: {json:?}")));
         }
         if json.get("ret").ok_or_else(|| Error::from(""))? == "0" {
-            return Err(Error::from(format!("Wrong data: {:?}", json)));
+            return Err(Error::from(format!("Wrong data: {json:?}")));
         }
         Ok(json.get("data").ok_or_else(|| Error::from(""))?.to_string())
     }
@@ -53,10 +53,10 @@ impl WebApi {
         }
         let json = response.json::<HashMap<String, String>>().await?;
         if json.len() != 2 {
-            return Err(Error::from(format!("Wrong data: {:?}", json)));
+            return Err(Error::from(format!("Wrong data: {json:?}")));
         }
         if json.get("ret").ok_or_else(|| Error::from(""))? == "0" {
-            return Err(Error::from(format!("Wrong data: {:?}", json)));
+            return Err(Error::from(format!("Wrong data: {json:?}")));
         }
         Ok(json.get("data").ok_or_else(|| Error::from(""))?.to_string())
     }

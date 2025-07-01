@@ -88,7 +88,7 @@ pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: Ca
             }
         } else if config.exist_client() {
             let callback = |addr| {
-                log::trace!("Listening on {}", addr);
+                log::trace!("Listening on {addr}");
             };
             run_client(&config, shutdown_token, Some(callback)).await?;
         } else {
@@ -106,7 +106,7 @@ pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: Ca
     };
 
     if let Err(e) = main_body.await {
-        log::error!("main_body error: \"{}\"", e);
+        log::error!("main_body error: \"{e}\"");
     }
 
     Ok(())

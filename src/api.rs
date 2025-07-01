@@ -40,7 +40,7 @@ pub unsafe extern "C" fn over_tls_client_run(
     log::set_max_level(verbosity.into());
     if !crate::dump_logger::check_logger() {
         if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
-            log::warn!("failed to set logger, error={:?}", err);
+            log::warn!("failed to set logger, error={err:?}");
         }
     }
     let result = || {
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn over_tls_client_run(
     match result() {
         Ok(_) => 0,
         Err(err) => {
-            log::error!("failed to run client, error={:?}", err);
+            log::error!("failed to run client, error={err:?}");
             -1
         }
     }
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
     log::set_max_level(verbosity.into());
     if !crate::dump_logger::check_logger() {
         if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
-            log::warn!("failed to set logger, error={:?}", err);
+            log::warn!("failed to set logger, error={err:?}");
         }
     }
 
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
     match result() {
         Ok(_) => 0,
         Err(err) => {
-            log::error!("failed to run client, error={:?}", err);
+            log::error!("failed to run client, error={err:?}");
             -1
         }
     }

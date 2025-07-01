@@ -45,7 +45,7 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     let certs = server.certfile.as_ref().filter(|_| !config.disable_tls()).and_then(|cert| {
         let certs = server_load_certs(cert);
         if let Err(err) = &certs {
-            log::warn!("failed to load certificate file: {}", err);
+            log::warn!("failed to load certificate file: {err}");
         }
         certs.ok()
     });
@@ -53,7 +53,7 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     let keys = server.keyfile.as_ref().filter(|_| !config.disable_tls()).and_then(|key| {
         let keys = server_load_keys(key);
         if let Err(err) = &keys {
-            log::warn!("failed to load key file: {}", err);
+            log::warn!("failed to load key file: {err}");
         }
         keys.ok().filter(|keys| !keys.is_empty())
     });
@@ -115,12 +115,12 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
 
                 tokio::spawn(async move {
                     let count = session_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                    log::debug!("session #{} from {} started, session count {}", session_id, peer_addr, count);
+                    log::debug!("session #{session_id} from {peer_addr} started, session count {count}");
                     if let Err(e) = incoming_task.await {
                         log::debug!("{peer_addr}: {e}");
                     }
                     let count = session_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) - 1;
-                    log::debug!("session #{} from {} ended, session count {}", session_id, peer_addr, count);
+                    log::debug!("session #{session_id} from {peer_addr} ended, session count {count}");
                 });
             }
         }
@@ -277,7 +277,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         }
     }
     if !enable_client {
-        log::warn!("{} -> client id: \"{:?}\" is disabled", peer, client_id);
+        log::warn!("{peer} -> client id: \"{client_id:?}\" is disabled");
         return Ok(());
     }
 
@@ -290,12 +290,12 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 
     let result;
     if udp_tunnel {
-        log::trace!("[UDP] {} tunneling established", peer);
+        log::trace!("[UDP] {peer} tunneling established");
         result = create_udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
         if let Err(ref e) = result {
-            log::debug!("[UDP] {} closed with error \"{}\"", peer, e);
+            log::debug!("[UDP] {peer} closed with error \"{e}\"");
         } else {
-            log::trace!("[UDP] {} closed.", peer);
+            log::trace!("[UDP] {peer} closed.");
         }
     } else {
         let addr_str = b64str_to_address(&target_address, false)?.to_string();
@@ -310,15 +310,15 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
                     break;
                 }
                 Err(ref e) => {
-                    log::debug!("{} <> {} destination address is unreachable: {}", peer, dst_addr, e);
+                    log::debug!("{peer} <> {dst_addr} destination address is unreachable: {e}");
                 }
             }
         }
-        let info = format!("{} <> {} All addresses failed to connect", peer, addr_str);
+        let info = format!("{peer} <> {addr_str} All addresses failed to connect");
         let successful_addr = successful_addr.ok_or(Error::from(info))?;
-        log::trace!("{} -> {} {:?} uri path: \"{}\"", peer, successful_addr, client_id, uri_path);
+        log::trace!("{peer} -> {successful_addr} {client_id:?} uri path: \"{uri_path}\"");
         result = normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, successful_addr).await;
-        log::trace!("{} <> {} connection closed with {:?}.", peer, successful_addr, result);
+        log::trace!("{peer} <> {successful_addr} connection closed with {result:?}.");
     }
     result
 }
@@ -338,7 +338,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
             msg = ws_stream.next() => {
                 let msg = msg.ok_or(format!("{peer} -> {dst_addr} no Websocket message"))??;
                 let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-                log::trace!("{peer} -> {dst_addr} length {}", len);
+                log::trace!("{peer} -> {dst_addr} length {len}");
                 if let Some(client_id) = &client_id {
                     traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
                 }
@@ -357,13 +357,13 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 match len {
                     Ok(0) => {
                         ws_stream.send(Message::Close(None)).await?;
-                        log::trace!("{} <> {} outgoing connection reached EOF", peer, dst_addr);
+                        log::trace!("{peer} <> {dst_addr} outgoing connection reached EOF");
                         break;
                     }
                     Ok(n) => {
                         let msg = Message::binary(buffer[..n].to_vec());
                         let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-                        log::trace!("{peer} <- {dst_addr} length {}", len);
+                        log::trace!("{peer} <- {dst_addr} length {len}");
                         if let Some(client_id) = &client_id {
                             traffic_audit.lock().await.add_downstream_traffic_of(client_id, len);
                         }
@@ -371,7 +371,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     }
                     Err(e) => {
                         ws_stream.send(Message::Close(None)).await?;
-                        log::debug!("{} <> {} outgoing connection closed \"{}\"", peer, dst_addr, e);
+                        log::debug!("{peer} <> {dst_addr} outgoing connection closed \"{e}\"");
                         break;
                     }
                 }
@@ -431,7 +431,7 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                             _ => {}
                         }
                     }
-                    let info = format!("{} <> {} All addresses failed to select", src_addr, dst_addr);
+                    let info = format!("{src_addr} <> {dst_addr} All addresses failed to select");
                     let mut dst_addr = ipv4_addr.or(ipv6_addr).ok_or(Error::from(info))?;
 
                     if dst_addr.port() == 53 && addr_is_private(&dst_addr) {

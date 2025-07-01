@@ -42,7 +42,7 @@ pub enum TunnelPath {
 impl std::fmt::Display for TunnelPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TunnelPath::Single(s) => write!(f, "{}", s),
+            TunnelPath::Single(s) => write!(f, "{s}"),
             TunnelPath::Multiple(v) => {
                 let mut s = String::new();
                 for (i, item) in v.iter().enumerate() {
@@ -51,7 +51,7 @@ impl std::fmt::Display for TunnelPath {
                     }
                     s.push_str(item);
                 }
-                write!(f, "{}", s)
+                write!(f, "{s}")
             }
         }
     }
@@ -83,7 +83,7 @@ impl TunnelPath {
                 v.iter_mut().for_each(|s| {
                     *s = s.trim().trim_matches('/').to_string();
                     if !s.is_empty() {
-                        *s = format!("/{}/", s);
+                        *s = format!("/{s}/");
                     }
                 });
                 v.retain(|s| !s.is_empty());
@@ -492,7 +492,7 @@ impl Config {
 
         if let Some(ref ca) = client.certificate_content() {
             let ca = base64easy::encode(ca.as_bytes(), engine);
-            url.push_str(&format!("&ot_cert={}", ca));
+            url.push_str(&format!("&ot_cert={ca}"));
         }
 
         Ok(format!("ssr://{}", base64easy::encode(url.as_bytes(), engine)))
@@ -531,8 +531,8 @@ fn test_config() {
     config.check_correctness(false).unwrap();
 
     let qrcode = config.generate_ssr_url().unwrap();
-    println!("{:?}", qrcode);
+    println!("{qrcode:?}");
 
     let config = Config::from_ssr_url(&qrcode).unwrap();
-    println!("{:?}", config);
+    println!("{config:?}");
 }

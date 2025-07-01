@@ -37,9 +37,9 @@ fn combine_addr_and_port(addr: &url::Host<&str>, port: Option<u16>) -> String {
     match port {
         None => addr.to_string(),
         Some(port) => match addr {
-            url::Host::Domain(domain) => format!("{}:{}", domain, port),
-            url::Host::Ipv4(ip) => format!("{}:{}", ip, port),
-            url::Host::Ipv6(ip) => format!("[{}]:{}", ip, port),
+            url::Host::Domain(domain) => format!("{domain}:{port}"),
+            url::Host::Ipv4(ip) => format!("{ip}:{port}"),
+            url::Host::Ipv6(ip) => format!("[{ip}]:{port}"),
         },
     }
 }

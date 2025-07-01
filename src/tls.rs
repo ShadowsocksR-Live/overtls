@@ -19,7 +19,7 @@ pub(crate) fn retrieve_root_cert_store_for_client(ca_content: &Option<String>) -
         for cert in rustls_pemfile::certs(&mut pem) {
             match cert {
                 Ok(cert) => root_cert_store.add(cert)?,
-                Err(e) => log::error!("Error parsing certificate: {:?}", e),
+                Err(e) => log::error!("Error parsing certificate: {e:?}"),
             }
         }
     }

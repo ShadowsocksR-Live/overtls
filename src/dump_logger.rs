@@ -24,7 +24,7 @@ pub unsafe extern "C" fn overtls_set_log_callback(
         LOGGER_SETTED.store(true, std::sync::atomic::Ordering::Relaxed);
         log::set_max_level(log::LevelFilter::Trace);
         if let Err(err) = log::set_boxed_logger(Box::<DumpLogger>::default()) {
-            log::warn!("failed to set logger, error={:?}", err);
+            log::warn!("failed to set logger, error={err:?}");
         }
     }
 
@@ -63,7 +63,7 @@ impl log::Log for DumpLogger {
             let current_crate_name = env!("CARGO_CRATE_NAME");
             if record.module_path().unwrap_or("").starts_with(current_crate_name) {
                 if let Err(err) = self.do_dump_log(record) {
-                    eprint!("failed to dump log, error={:?}", err);
+                    eprint!("failed to dump log, error={err:?}");
                 }
             }
         }
@@ -74,7 +74,7 @@ impl log::Log for DumpLogger {
                 return;
             }
             if let Err(err) = self.do_dump_log(record) {
-                eprint!("failed to dump log, error={:?}", err);
+                eprint!("failed to dump log, error={err:?}");
             }
         }
     }

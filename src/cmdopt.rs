@@ -120,7 +120,7 @@ impl CmdOpt {
 
     pub fn parse_cmd() -> CmdOpt {
         fn output_error_and_exit<T: std::fmt::Display>(msg: T) -> ! {
-            eprintln!("{}", msg);
+            eprintln!("{msg}");
             std::process::exit(1);
         }
 

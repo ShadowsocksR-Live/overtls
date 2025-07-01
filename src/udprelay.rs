@@ -181,19 +181,19 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     buf.put_slice(&pkt);
 
                     if let Err(e) = crate::traffic_status::traffic_status_update(buf.len(), 0) {
-                        log::error!("{}", e);
+                        log::error!("{e}");
                     }
 
                     if dst_addr.port() == 53 {
                         let msg = dns::parse_data_to_dns_message(&pkt, false)?;
                         let domain = dns::extract_domain_from_dns_message(&msg)?;
                         if let (true, Some(cached_message)) = (cache_dns, dns::dns_cache_get_message(&cache, &msg).await) {
-                            log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query hit cache \"{}\"", domain);
+                            log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query hit cache \"{domain}\"");
                             let data = cached_message.to_vec().map_err(|e| e.to_string())?;
                             udp_tx.send((Bytes::from(data), src_addr, dst_addr))?;
                             continue;
                         }
-                        log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query \"{}\"", domain);
+                        log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query \"{domain}\"");
                     } else {
                         log::debug!("[UDP] {src_addr} -> {dst_addr} send to remote size {}", buf.len());
                     }
@@ -207,7 +207,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
             msg = ws_stream.next() => {
                 let len = msg.as_ref().map(|m| m.as_ref().map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
                 if let Err(e) = crate::traffic_status::traffic_status_update(0, len) {
-                    log::error!("{}", e);
+                    log::error!("{e}");
                 }
 
                 match msg {
@@ -227,9 +227,9 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                             if cache_dns {
                                 dns::dns_cache_put_message(&cache, &msg).await;
                             }
-                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} DNS response \"{}\" <==> \"{}\"", domain, ipaddr);
+                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} DNS response \"{domain}\" <==> \"{ipaddr}\"");
                         } else {
-                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} recv from remote size {}", len);
+                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} recv from remote size {len}");
                         }
                         udp_tx.send((Bytes::from(pkt), incoming_addr, remote_addr))?;
                     },
@@ -290,7 +290,7 @@ pub(crate) async fn udp_handler_watchdog(
                 log::trace!("[UDP] udp client guard thread started");
                 let _ = tokio::spawn(async move {
                     if let Err(e) = run_udp_loop(udp_tx, incomings, config).await {
-                        log::trace!("[UDP] {}", e);
+                        log::trace!("[UDP] {e}");
                     }
                     let _ = tx.send(()).await;
                 })
