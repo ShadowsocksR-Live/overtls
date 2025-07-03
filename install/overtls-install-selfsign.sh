@@ -88,12 +88,12 @@ function ask_dangerous_mode() {
     stty erase '^H' && read -p "是否啟用 dangerous_mode? (y/N): " enable_dangerous
     case ${enable_dangerous} in
         [yY][eE][sS]|[yY])
-            dangerous_mode="true"
             echo -e "${OK} ${Yellow} dangerous_mode 已啟用 ${Font}"
+            return 0  # Success
             ;;
         *)
-            dangerous_mode="false"
             echo -e "${OK} ${GreenBG} dangerous_mode 保持關閉 ${Font}"
+            return 1  # Failure
             ;;
     esac
 }
@@ -525,6 +525,7 @@ function print_url() {
 
     if [[ ${dangerous_mode} == "true" ]]; then
         echo -e "${Yellow}Warning: dangerous_mode is enabled, SSL/TLS verification is skipped! ${Font}"
+        echo -e "${Yellow}注意: 由於啟用了危險模式, SSL/TLS 驗證被跳過！ ${Font}"
         qrencode -t UTF8 "${qrcode}" | cat
     else
         echo -e "${Green}Note: QR code not displayed because config is too long (contains certificate content) ${Font}"
@@ -548,6 +549,8 @@ function install_overtls_remote_server() {
     local domain_length=$(shuf -i 8-16 -n 1)
     web_svr_domain=$(random_string_gen ${domain_length})".com"
 
+    echo -e "${Info} ${GreenBG} The web server domain is: ${web_svr_domain} ${Font}"
+
     web_svr_local_ip_addr=$(get_vps_valid_ip)
     local exit_status=$?
     if [[ $exit_status -ne 0 ]]; then
@@ -555,7 +558,11 @@ function install_overtls_remote_server() {
         exit 1
     fi
 
-    ask_dangerous_mode
+    if ask_dangerous_mode; then
+        dangerous_mode="true"
+    else
+        dangerous_mode="false"
+    fi
 
     do_uninstall_service_action
 
