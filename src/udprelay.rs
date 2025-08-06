@@ -174,11 +174,8 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
             Ok((pkt, dst_addr, src_addr)) = udp_rx.recv() => {
                 let direction = { incomings.lock().await.contains(&SocketAddr::try_from(dst_addr.clone())?) };
                 if !direction {
-                    // packet send to remote server, format: dst_addr + src_addr + pkt
-                    let mut buf = BytesMut::new();
-                    dst_addr.write_to_buf(&mut buf);
-                    src_addr.write_to_buf(&mut buf);
-                    buf.put_slice(&pkt);
+                    // packet send to remote server
+                    let buf = build_udp_packet(&dst_addr, &src_addr, &pkt);
 
                     if let Err(e) = crate::traffic_status::traffic_status_update(buf.len(), 0) {
                         log::error!("{e}");
@@ -212,12 +209,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
 
                 match msg {
                     Some(Ok(Message::Binary(buf))) => {
-                        let mut buf = BytesMut::from(buf);
-                        let incoming_addr = Address::try_from(&buf[..])?;
-                        let _ = buf.split_to(incoming_addr.len());
-                        let remote_addr = Address::try_from(&buf[..])?;
-                        let _ = buf.split_to(remote_addr.len());
-                        let pkt = buf.to_vec();
+                        let (incoming_addr, remote_addr, pkt) = decode_udp_packet(&mut BytesMut::from(buf))?;
 
                         if remote_addr.port() == 53 {
                             let msg = dns::parse_data_to_dns_message(&pkt, false)?;
@@ -237,8 +229,8 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         log::trace!("[UDP] ws stream closed by remote");
                         break;
                     },
-                    Some(Ok(Message::Pong(_))) => {
-                        log::trace!("[UDP] Websocket pong from remote");
+                    Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
+                        log::trace!("[UDP] Websocket ping/pong from remote");
                     },
                     Some(Ok(_)) => {
                         log::trace!("[UDP] unexpected Websocket message");
@@ -310,4 +302,21 @@ pub(crate) async fn udp_handler_watchdog(
         }
     });
     Ok(())
+}
+
+/// UDP packet format: dst_addr + src_addr + pkt
+pub(crate) fn build_udp_packet(dst_addr: &Address, src_addr: &Address, pkt: &[u8]) -> BytesMut {
+    let mut buf = BytesMut::new();
+    dst_addr.write_to_buf(&mut buf);
+    src_addr.write_to_buf(&mut buf);
+    buf.put_slice(pkt);
+    buf
+}
+
+pub(crate) fn decode_udp_packet(buf: &mut BytesMut) -> Result<(Address, Address, Vec<u8>)> {
+    let dst_addr = Address::try_from(&buf[..])?;
+    let _ = buf.split_to(dst_addr.len());
+    let src_addr = Address::try_from(&buf[..])?;
+    let _ = buf.split_to(src_addr.len());
+    Ok((dst_addr, src_addr, buf.to_vec()))
 }

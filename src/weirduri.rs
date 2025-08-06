@@ -65,20 +65,20 @@ impl TryFrom<WeirdUri> for Request {
             .header("Upgrade", "websocket")
             .header("Sec-WebSocket-Version", "13")
             .header("Sec-WebSocket-Key", value.sec_websocket_key);
-        if let Some(ref target_address) = value.target_address {
-            if !target_address.is_empty() {
-                builder = builder.header(TARGET_ADDRESS, target_address);
-            }
+        if let Some(target_address) = &value.target_address
+            && !target_address.is_empty()
+        {
+            builder = builder.header(TARGET_ADDRESS, target_address);
         }
-        if let Some(udp_tunnel) = value.udp_tunnel {
-            if udp_tunnel {
-                builder = builder.header(UDP_TUNNEL, udp_tunnel.to_string());
-            }
+        if let Some(udp_tunnel) = value.udp_tunnel
+            && udp_tunnel
+        {
+            builder = builder.header(UDP_TUNNEL, udp_tunnel.to_string());
         }
-        if let Some(ref client_id) = value.client_id {
-            if !client_id.is_empty() {
-                builder = builder.header(CLIENT_ID, client_id);
-            }
+        if let Some(client_id) = &value.client_id
+            && !client_id.is_empty()
+        {
+            builder = builder.header(CLIENT_ID, client_id);
         }
         let req = builder.uri(uri.as_str()).body(())?;
         Ok(req)

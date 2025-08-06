@@ -6,9 +6,9 @@ use crate::{
     traffic_audit::{TrafficAudit, TrafficAuditPtr},
     weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP_TUNNEL},
 };
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
-use socks5_impl::protocol::{Address, StreamOperation};
+use socks5_impl::protocol::Address;
 use std::{
     collections::HashMap,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
@@ -218,27 +218,27 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     handshake: &[u8],
     traffic_audit: TrafficAuditPtr,
 ) -> Result<()> {
-    let mut target_address = "".to_string();
     let mut uri_path = "".to_string();
+    let mut target_address = "".to_string();
     let mut udp_tunnel = false;
     let mut client_id = None;
 
     let mut retrieve_values = |req: &Request| {
         uri_path = req.uri().path().to_string();
-        if let Some(value) = req.headers().get(TARGET_ADDRESS) {
-            if let Ok(value) = value.to_str() {
-                target_address = value.to_string();
-            }
+        if let Some(value) = req.headers().get(TARGET_ADDRESS)
+            && let Ok(value) = value.to_str()
+        {
+            target_address = value.to_string();
         }
-        if let Some(value) = req.headers().get(UDP_TUNNEL) {
-            if let Ok(value) = value.to_str() {
-                udp_tunnel = value.parse::<bool>().unwrap_or(false);
-            }
+        if let Some(value) = req.headers().get(UDP_TUNNEL)
+            && let Ok(value) = value.to_str()
+        {
+            udp_tunnel = value.parse::<bool>().unwrap_or(false);
         }
-        if let Some(value) = req.headers().get(CLIENT_ID) {
-            if let Ok(value) = value.to_str() {
-                client_id = Some(value.to_string());
-            }
+        if let Some(value) = req.headers().get(CLIENT_ID)
+            && let Ok(value) = value.to_str()
+        {
+            client_id = Some(value.to_string());
         }
     };
 
@@ -291,7 +291,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     let result;
     if udp_tunnel {
         log::trace!("[UDP] {peer} tunneling established");
-        result = create_udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
+        result = svr_udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
         if let Err(ref e) = result {
             log::debug!("[UDP] {peer} closed with error \"{e}\"");
         } else {
@@ -317,13 +317,13 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         let info = format!("{peer} <> {addr_str} All addresses failed to connect");
         let successful_addr = successful_addr.ok_or(Error::from(info))?;
         log::trace!("{peer} -> {successful_addr} {client_id:?} uri path: \"{uri_path}\"");
-        result = normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, successful_addr).await;
+        result = svr_normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, successful_addr).await;
         log::trace!("{peer} <> {successful_addr} connection closed with {result:?}.");
     }
     result
 }
 
-async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
+async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
     peer: SocketAddr,
     _config: Config,
@@ -349,6 +349,10 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     }
                     Message::Text(_) | Message::Binary(_) => {
                         outgoing.write_all(&msg.into_data()).await?;
+                    }
+                    Message::Ping(data) | Message::Pong(data) => {
+                        let msg = String::from_utf8_lossy(&data);
+                        log::trace!("{peer} -> {dst_addr} received ping/pong message '{msg}'");
                     }
                     _ => {}
                 }
@@ -381,7 +385,7 @@ async fn normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(())
 }
 
-async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
+async fn svr_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
     _config: Config,
     traffic_audit: TrafficAuditPtr,
@@ -403,63 +407,79 @@ async fn create_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
                     traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
                 }
-                if msg.is_close() {
-                    break;
-                }
-                if msg.is_text() || msg.is_binary() {
-                    let mut buf = BytesMut::from(&msg.into_data()[..]);
-                    let dst_addr = Address::try_from(&buf[..])?;
-                    let _ = buf.split_to(dst_addr.len());
-                    let src_addr = Address::try_from(&buf[..])?;
-                    let _ = buf.split_to(src_addr.len());
-                    let pkt = buf.to_vec();
-                    log::trace!("[UDP] {src_addr} -> {dst_addr} length {}", pkt.len());
-
-                    dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr.clone());
-
-                    // select the IPv4 destination address first if available, otherwise use the IPv6 address
-                    let mut ipv4_addr = None;
-                    let mut ipv6_addr = None;
-                    for addr in dst_addr.to_socket_addrs()? {
-                        match addr {
-                            SocketAddr::V4(_) if ipv4_addr.is_none() => {
-                                ipv4_addr = Some(addr);
-                            }
-                            SocketAddr::V6(_) if ipv6_addr.is_none() => {
-                                ipv6_addr = Some(addr);
-                            }
-                            _ => {}
-                        }
+                match msg {
+                    Message::Close(_) => {
+                        log::trace!("[UDP] tunnel closed by remote client {client_id:?}");
+                        break;
                     }
-                    let info = format!("{src_addr} <> {dst_addr} All addresses failed to select");
-                    let mut dst_addr = ipv4_addr.or(ipv6_addr).ok_or(Error::from(info))?;
-
-                    if dst_addr.port() == 53 && addr_is_private(&dst_addr) {
-                        match dst_addr {
-                            SocketAddr::V4(_) => dst_addr = "8.8.8.8:53".parse::<SocketAddr>()?,
-                            SocketAddr::V6(_) => dst_addr = "[2001:4860:4860::8888]:53".parse::<SocketAddr>()?,
-                        }
+                    Message::Ping(data) | Message::Pong(data) => {
+                        let msg = String::from_utf8_lossy(&data);
+                        log::trace!("[UDP] received ping/pong message '{msg}', ignoring");
                     }
-
-                    if dst_addr.is_ipv4() {
-                        udp_socket.send_to(&pkt, &dst_addr).await?;
-                    } else {
-                        udp_socket_v6.send_to(&pkt, dst_addr).await?;
+                    Message::Binary(_) | Message::Text(_) => {
+                        let buf = BytesMut::from(&msg.into_data()[..]);
+                        svr_send_udp_packet_to_dst(buf, &dst_src_pairs, &udp_socket, &udp_socket_v6).await?;
+                    }
+                    _ => {
+                        log::warn!("[UDP] unexpected message type: {msg:?}, ignoring");
                     }
                 }
             }
             Ok((len, addr)) = udp_socket.recv_from(&mut buf) => {
                 let pkt = buf[..len].to_vec();
-                _write_ws_stream(&pkt, &mut ws_stream, &dst_src_pairs, addr, &traffic_audit, client_id).await?;
+                svr_udp_write_ws_stream(&pkt, &mut ws_stream, &dst_src_pairs, addr, &traffic_audit, client_id).await?;
             }
             Ok((len, addr)) = udp_socket_v6.recv_from(&mut buf_v6) => {
                 let pkt = buf_v6[..len].to_vec();
-                _write_ws_stream(&pkt, &mut ws_stream, &dst_src_pairs, addr, &traffic_audit, client_id).await?;
+                svr_udp_write_ws_stream(&pkt, &mut ws_stream, &dst_src_pairs, addr, &traffic_audit, client_id).await?;
             }
             else => {
                 break;
             }
         }
+    }
+    Ok(())
+}
+
+async fn svr_send_udp_packet_to_dst(
+    mut buf: BytesMut,
+    dst_src_pairs: &Arc<Mutex<HashMap<Address, Address>>>,
+    udp_socket: &UdpSocket,
+    udp_socket_v6: &UdpSocket,
+) -> Result<()> {
+    let (dst_addr, src_addr, pkt) = crate::udprelay::decode_udp_packet(&mut buf)?;
+    log::trace!("[UDP] {src_addr} -> {dst_addr} length {}", pkt.len());
+
+    dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr.clone());
+
+    // select the IPv4 destination address first if available, otherwise use the IPv6 address
+    let mut ipv4_addr = None;
+    let mut ipv6_addr = None;
+    for addr in dst_addr.to_socket_addrs()? {
+        match addr {
+            SocketAddr::V4(_) if ipv4_addr.is_none() => {
+                ipv4_addr = Some(addr);
+            }
+            SocketAddr::V6(_) if ipv6_addr.is_none() => {
+                ipv6_addr = Some(addr);
+            }
+            _ => {}
+        }
+    }
+    let info = format!("{src_addr} <> {dst_addr} All addresses failed to select");
+    let mut dst_addr = ipv4_addr.or(ipv6_addr).ok_or(Error::from(info))?;
+
+    if dst_addr.port() == 53 && addr_is_private(&dst_addr) {
+        match dst_addr {
+            SocketAddr::V4(_) => dst_addr = "8.8.8.8:53".parse::<SocketAddr>()?,
+            SocketAddr::V6(_) => dst_addr = "[2001:4860:4860::8888]:53".parse::<SocketAddr>()?,
+        }
+    }
+
+    if dst_addr.is_ipv4() {
+        udp_socket.send_to(&pkt, &dst_addr).await?;
+    } else {
+        udp_socket_v6.send_to(&pkt, dst_addr).await?;
     }
     Ok(())
 }
@@ -478,7 +498,7 @@ fn addr_is_private(addr: &SocketAddr) -> bool {
     }
 }
 
-async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
+async fn svr_udp_write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     pkt: &[u8],
     ws_stream: &mut WebSocketStream<S>,
     dst_src_pairs: &Arc<Mutex<HashMap<Address, Address>>>,
@@ -489,11 +509,8 @@ async fn _write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     let dst_addr = Address::from(addr);
     let src_addr = dst_src_pairs.lock().await.get(&dst_addr).cloned();
     if let Some(src_addr) = src_addr {
-        // write back to client, data format: src_addr + dst_addr + payload
-        let mut buf = BytesMut::new();
-        src_addr.write_to_buf(&mut buf);
-        dst_addr.write_to_buf(&mut buf);
-        buf.put_slice(pkt);
+        // Note: here dst_addr and src_addr are swapped
+        let buf = crate::udprelay::build_udp_packet(&src_addr, &dst_addr, pkt);
 
         let msg = Message::binary(buf.to_vec());
 

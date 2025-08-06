@@ -204,7 +204,7 @@ where
                         log::trace!("{src} <- {dst} ws closed, exiting...");
                         break;
                     }
-                    Message::Pong(_) => log::trace!("{src} <- {dst} Websocket pong from remote"),
+                    Message::Ping(_) | Message::Pong(_) => log::trace!("{src} <- {dst} Websocket pong from remote"),
                     _ => {}
                 }
             }
