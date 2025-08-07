@@ -298,26 +298,11 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
             log::trace!("[UDP] {peer} closed.");
         }
     } else {
-        let addr_str = b64str_to_address(&target_address, false)?.to_string();
-
-        let time_out = std::time::Duration::from_secs(config.test_timeout_secs.unwrap_or(TEST_TIMEOUT_SECS));
-        // try to connect to the first available address
-        let mut successful_addr = None;
-        for dst_addr in addr_str.to_socket_addrs()? {
-            match crate::tcp_stream::std_create(dst_addr, Some(time_out)) {
-                Ok(_) => {
-                    successful_addr = Some(dst_addr);
-                    break;
-                }
-                Err(ref e) => {
-                    log::debug!("{peer} <> {dst_addr} destination address is unreachable: {e}");
-                }
-            }
-        }
-        let info = format!("{peer} <> {addr_str} All addresses failed to connect");
-        let successful_addr = successful_addr.ok_or(Error::from(info))?;
+        let stream = tcp_stream_from_b64_str(&target_address, &config, peer)?;
+        let successful_addr = stream.peer_addr()?;
         log::trace!("{peer} -> {successful_addr} {client_id:?} uri path: \"{uri_path}\"");
-        result = svr_normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, successful_addr).await;
+        let stream = tokio::net::TcpStream::from_std(stream)?;
+        result = svr_normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, stream).await;
         log::trace!("{peer} <> {successful_addr} connection closed with {result:?}.");
     }
     result
@@ -329,9 +314,10 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     _config: Config,
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
-    dst_addr: SocketAddr,
+    original_stream: tokio::net::TcpStream,
 ) -> Result<()> {
-    let mut outgoing = crate::tcp_stream::tokio_create(dst_addr).await?;
+    let dst_addr = original_stream.peer_addr()?;
+    let mut outgoing = original_stream;
     let mut buffer = [0; crate::STREAM_BUFFER_SIZE];
     loop {
         tokio::select! {
@@ -368,10 +354,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         let msg = Message::binary(buffer[..n].to_vec());
                         let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
                         log::trace!("{peer} <- {dst_addr} length {len}");
-                        if let Some(client_id) = &client_id {
-                            traffic_audit.lock().await.add_downstream_traffic_of(client_id, len);
-                        }
-                        ws_stream.send(msg).await?;
+                        svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                     }
                     Err(e) => {
                         ws_stream.send(Message::Close(None)).await?;
@@ -382,6 +365,20 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
             }
         }
     }
+    Ok(())
+}
+
+async fn svr_send_ws_message<S: AsyncRead + AsyncWrite + Unpin>(
+    ws_stream: &mut WebSocketStream<S>,
+    msg: Message,
+    traffic_audit: &TrafficAuditPtr,
+    client_id: &Option<String>,
+) -> Result<()> {
+    if let Some(client_id) = client_id {
+        let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
+        traffic_audit.lock().await.add_downstream_traffic_of(client_id, len);
+    }
+    ws_stream.send(msg).await?;
     Ok(())
 }
 
@@ -523,4 +520,22 @@ async fn svr_udp_write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
         ws_stream.send(msg).await?;
     }
     Ok(())
+}
+
+fn tcp_stream_from_b64_str<T: AsRef<str>>(b64_addr: T, config: &Config, peer: SocketAddr) -> Result<std::net::TcpStream> {
+    let addr_str = b64str_to_address(b64_addr.as_ref(), false)?.to_string();
+
+    let time_out = std::time::Duration::from_secs(config.test_timeout_secs.unwrap_or(TEST_TIMEOUT_SECS));
+    // try to connect to the first available address
+    for dst_addr in addr_str.to_socket_addrs()? {
+        match crate::tcp_stream::std_create(dst_addr, Some(time_out)) {
+            Ok(stream) => {
+                return Ok(stream);
+            }
+            Err(ref e) => {
+                log::debug!("{peer} <> {dst_addr} destination address is unreachable: {e}");
+            }
+        }
+    }
+    Err(Error::from(format!("{peer} <> {addr_str} All addresses failed to connect")))
 }
