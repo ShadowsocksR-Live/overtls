@@ -217,8 +217,6 @@ where
     Ok(())
 }
 
-type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
-
 pub(crate) async fn create_tls_ws_stream(
     svr_addr: SocketAddr,
     dst_addr: Option<Address>,
@@ -250,7 +248,7 @@ pub(crate) async fn create_plaintext_ws_stream(
     dst_addr: Option<Address>,
     config: &Config,
     udp_tunnel: Option<bool>,
-) -> Result<WebSocketStream<TcpStream>> {
+) -> Result<WsStream> {
     let stream = crate::tcp_stream::tokio_create(server_addr).await?;
     let ws_stream = create_ws_stream(dst_addr, config, udp_tunnel, stream).await?;
     Ok(ws_stream)
@@ -293,3 +291,6 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
     Ok(ws_stream)
 }
+
+type WsStream = WebSocketStream<TcpStream>;
+type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;

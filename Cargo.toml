@@ -62,15 +62,15 @@ tokio-util = "0.7"
 url = "2"
 webpki-roots = "1.0"
 
-[target.'cfg(unix)'.dependencies]
-daemonize = "0.5"
-
-[target.'cfg(target_os="android")'.dependencies]
+[target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.15"
 jni = { version = "0.21", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-service = "0.8"
+
+[target.'cfg(unix)'.dependencies]
+daemonize = "0.5"
 
 [build-dependencies]
 chrono = "0.4"
