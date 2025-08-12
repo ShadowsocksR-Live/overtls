@@ -207,8 +207,21 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     log::error!("{e}");
                 }
 
+                let msg = match msg {
+                    Some(Ok(msg)) => msg,
+                    Some(Err(err)) => {
+                        log::trace!("[UDP] error \"{err}\"");
+                        res = Err(err.into());
+                        break;
+                    }
+                    None => {
+                        log::trace!("[UDP] Websocket stream closed by remote");
+                        break;
+                    }
+                };
+
                 match msg {
-                    Some(Ok(Message::Binary(buf))) => {
+                    Message::Binary(buf) => {
                         let (incoming_addr, remote_addr, pkt) = decode_udp_packet(&mut BytesMut::from(buf))?;
 
                         if remote_addr.port() == 53 {
@@ -225,25 +238,19 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                         }
                         udp_tx.send((Bytes::from(pkt), incoming_addr, remote_addr))?;
                     },
-                    Some(Ok(Message::Close(_))) => {
+                    Message::Close(_) => {
                         log::trace!("[UDP] ws stream closed by remote");
                         break;
                     },
-                    Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
-                        log::trace!("[UDP] Websocket ping/pong from remote");
+                    Message::Ping(_) => {
+                        log::trace!("[UDP] Websocket ping from remote");
                     },
-                    Some(Ok(_)) => {
+                    Message::Pong(_) => {
+                        log::trace!("[UDP] Websocket pong from remote");
+                    },
+                    _ => {
                         log::trace!("[UDP] unexpected Websocket message");
                     },
-                    Some(Err(err)) => {
-                        log::trace!("[UDP] error \"{err}\"");
-                        res = Err(err.into());
-                        break;
-                    },
-                    None => {
-                        log::trace!("[UDP] Websocket stream closed by local");
-                        break;
-                    }
                 }
                 Ok::<_, Error>(())
             },

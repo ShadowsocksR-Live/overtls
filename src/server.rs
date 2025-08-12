@@ -325,10 +325,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     outgoing_stream: Option<tokio::net::TcpStream>,
 ) -> Result<()> {
     let is_old_client = outgoing_stream.is_some();
-    let mut dst_addr = outgoing_stream.as_ref().and_then(|s| s.peer_addr().ok()).unwrap_or_else(|| {
-        log::debug!("{peer} no outgoing connection available, using default address");
-        SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0)
-    });
+    let mut dst_addr = outgoing_stream.as_ref().and_then(|s| s.peer_addr().ok());
     let mut outgoing: Option<tokio::net::TcpStream> = outgoing_stream;
     let mut buffer = [0; crate::STREAM_BUFFER_SIZE];
     // Mark if outgoing has been written to
@@ -337,19 +334,19 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     loop {
         tokio::select! {
             msg = ws_stream.next() => {
-                let msg = msg.ok_or(format!("{peer} -> {dst_addr} no Websocket message"))??;
+                let msg = msg.ok_or(format!("{peer} -> {dst_addr:?} no Websocket message"))??;
                 let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-                log::trace!("{peer} -> {dst_addr} length {len}");
                 if let Some(client_id) = &client_id {
                     traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
                 }
                 match msg {
                     Message::Close(_) => {
-                        log::trace!("{peer} <> {dst_addr} incoming connection closed normally");
+                        log::debug!("{peer} <> {dst_addr:?} incoming connection closed normally");
                         break;
                     }
                     Message::Binary(data) => {
                         if let Some(outgoing) = &mut outgoing {
+                            log::trace!("{peer} -> {dst_addr:?} length {len}");
                             outgoing.write_all(&data).await?;
                             outgoing_has_written = true;
                         } else {
@@ -359,25 +356,26 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     Message::Text(ref data) => {
                         let msg_str = data.as_str();
                         if msg_str == END_SESSION {
+                            log::debug!("{peer} <> {dst_addr:?} ended session");
                             if let Some(mut stream) = outgoing.take() {
                                 let _ = stream.shutdown().await;
-                                log::info!("{peer} <> {dst_addr} ended session");
                             }
+                            dst_addr = None;
                             outgoing_has_written = false;
                         } else if let Some(dst_addr_str) = msg_str.strip_prefix(&format!("{START_SESSION}:")) {
                             outgoing_has_written = false;
                             // Close existing connection
                             if let Some(mut stream) = outgoing.take() {
                                 let _ = stream.shutdown().await;
-                                log::info!("{peer} <> {dst_addr} closed previous session");
+                                log::info!("{peer} <> {dst_addr:?} closed previous session");
                             }
 
                             match tcp_stream_from_b64_str(dst_addr_str.trim(), &config, peer) {
                                 Ok(stream) => {
                                     let stream = tokio::net::TcpStream::from_std(stream)?;
-                                    dst_addr = stream.peer_addr()?;
+                                    dst_addr = Some(stream.peer_addr()?);
                                     outgoing = Some(stream);
-                                    log::info!("{peer} -> {dst_addr} started new session");
+                                    log::info!("{peer} -> {dst_addr:?} started new session");
                                     // Feedback confirmation to client
                                     let msg = Message::Text(START_SESSION.into());
                                     svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
@@ -385,21 +383,24 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                                 Err(e) => {
                                     log::error!("{peer} failed to create connection from BASE64 address '{dst_addr_str}': {e}");
                                     let msg = Message::Text(END_SESSION.into());
-                                    log::trace!("{peer} <> {dst_addr} sending text message to end session");
+                                    log::trace!("{peer} <> {dst_addr:?} sending text message to end session");
                                     svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
+                                    dst_addr = None;
                                 }
                             }
                         } else {
-                            log::warn!("{peer} -> {dst_addr} received text message len = {} in unexpected state", data.len());
+                            log::warn!("{peer} -> {dst_addr:?} received text message len = {} in unexpected state", data.len());
                         }
                     }
-                    Message::Ping(_) =>{
-                        log::trace!("{peer} -> {dst_addr} received ping message len = {}", msg.len());
+                    Message::Ping(data) => {
+                        log::debug!("{peer} -> {dst_addr:?} received ping message len = {}", data.len());
                     }
-                    Message::Pong(_) =>{
-                        log::trace!("{peer} -> {dst_addr} received pong message len = {}", msg.len());
+                    Message::Pong(data) => {
+                        log::debug!("{peer} -> {dst_addr:?} received pong message len = {}", data.len());
                     }
-                    _ => {}
+                    _ => {
+                        log::debug!("{peer} -> {dst_addr:?} received unexpected message len {}, ignoring", msg.len());
+                    }
                 }
             }
             len = async {
@@ -413,7 +414,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
             } => {
                 match len {
                     Ok(0) => {
-                        log::trace!("{peer} <> {dst_addr} outgoing connection reached EOF");
+                        log::debug!("{peer} <> {dst_addr:?} outgoing connection reached EOF");
                         if is_old_client {
                             ws_stream.send(Message::Close(None)).await?;
                             break;
@@ -422,17 +423,18 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         if let Some(mut stream) = outgoing.take() {
                             let _ = stream.shutdown().await;
                         }
+                        dst_addr = None;
                         outgoing_has_written = false;
                     }
                     Ok(n) => {
                         let msg = Message::binary(buffer[..n].to_vec());
                         let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-                        log::trace!("{peer} <- {dst_addr} length {len}");
+                        log::trace!("{peer} <- {dst_addr:?} length {len}");
                         svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                     }
                     Err(e) => {
-                        log::debug!("{peer} <> {dst_addr} outgoing connection closed \"{e}\"");
                         if is_old_client {
+                            log::debug!("{peer} <> {dst_addr:?} outgoing connection closed '{e}'");
                             ws_stream.send(Message::Close(None)).await?;
                             break;
                         }
@@ -440,9 +442,10 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         if let Some(mut stream) = outgoing.take() {
                             let _ = stream.shutdown().await;
                         }
+                        dst_addr = None;
                         outgoing_has_written = false;
                         let msg = Message::Text(END_SESSION.into());
-                        log::trace!("{peer} <> {dst_addr} sending text message to end session");
+                        log::debug!("{peer} <> {dst_addr:?} sending text message to end session");
                         svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                     }
                 }
@@ -493,13 +496,18 @@ async fn svr_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         log::trace!("[UDP] tunnel closed by remote client {client_id:?}");
                         break;
                     }
-                    Message::Ping(data) | Message::Pong(data) => {
-                        let msg = String::from_utf8_lossy(&data);
-                        log::trace!("[UDP] received ping/pong message '{msg}', ignoring");
+                    Message::Ping(_) => {
+                        log::trace!("[UDP] received ping message, ignoring");
                     }
-                    Message::Binary(_) | Message::Text(_) => {
-                        let buf = BytesMut::from(&msg.into_data()[..]);
+                    Message::Pong(_) => {
+                        log::trace!("[UDP] received pong message, ignoring");
+                    }
+                    Message::Binary(data) => {
+                        let buf = BytesMut::from(&data[..]);
                         svr_send_udp_packet_to_dst(buf, &dst_src_pairs, &udp_socket, &udp_socket_v6).await?;
+                    }
+                    Message::Text(_) => {
+                        log::warn!("[UDP] unexpected text message, ignoring");
                     }
                     _ => {
                         log::warn!("[UDP] unexpected message type: {msg:?}, ignoring");

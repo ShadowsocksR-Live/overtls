@@ -225,7 +225,7 @@ where
             } => {
                 let len = result?;
                 if len == 0 {
-                    log::trace!("{src} -> {dst} incoming closed");
+                    log::debug!("{src} -> {dst} incoming closed");
                     // Send "End session" text message
                     ws_stream.send(Message::Text(crate::server::END_SESSION.into())).await?;
                     break;
@@ -252,19 +252,19 @@ where
                         log::trace!("{src} <- {dst} length {}", data.len());
                     }
                     Message::Close(_) => {
-                        log::trace!("{src} <- {dst} ws closed, exiting...");
+                        log::debug!("{src} <- {dst} ws closed, exiting...");
                         break;
                     }
                     Message::Text(data) => {
                         let msg_str = data.as_str();
                         if msg_str == crate::server::END_SESSION {
-                            log::trace!("{src} <- {dst} session ended by remote");
+                            log::debug!("{src} <- {dst} session ended by remote");
                             break;
                         } else if msg_str.starts_with(crate::server::START_SESSION) {
                             session_confirmed = true;
-                            log::trace!("{src} <- {dst} received START_SESSION confirmation from server");
+                            log::debug!("{src} <- {dst} received START_SESSION confirmation from server");
                         } else {
-                            log::trace!("{src} <- {dst} Websocket text from remote: {msg_str}");
+                            log::warn!("{src} <- {dst} unexpected Websocket text from remote: {msg_str}");
                         }
                     }
                     Message::Ping(_) => {
@@ -369,6 +369,7 @@ use std::pin::Pin;
 
 const VALID_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
+#[derive(Clone)]
 pub struct WsPlainConnectionManager {
     pub config: Config,
 }
@@ -403,6 +404,7 @@ impl ConnectionManager for WsPlainConnectionManager {
     }
 }
 
+#[derive(Clone)]
 pub struct WsTlsConnectionManager {
     pub config: Config,
 }
