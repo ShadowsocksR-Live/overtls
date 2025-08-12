@@ -72,6 +72,29 @@ where
         callback(server.local_addr()?);
     }
 
+    if config.disable_tls() {
+        let manager = WsPlainConnectionManager { config: config.clone() };
+        let connection_pool = ConnectionPool::new(Some(50), None, None, None, manager);
+        client_event_loop::<_, TcpStream, _>(connection_pool, quit, server, config).await?;
+    } else {
+        let manager = WsTlsConnectionManager { config: config.clone() };
+        let connection_pool = ConnectionPool::new(Some(50), None, None, None, manager);
+        client_event_loop::<_, TlsStream<TcpStream>, _>(connection_pool, quit, server, config).await?;
+    };
+    Ok(())
+}
+
+async fn client_event_loop<M, S, O>(
+    pool: Arc<ConnectionPool<M>>,
+    quit: crate::CancellationToken,
+    server: Server<O>,
+    config: &Config,
+) -> Result<()>
+where
+    M: ConnectionManager<Connection = WebSocketStream<S>> + Send + Sync + 'static,
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    O: Send + Sync + 'static,
+{
     let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
     udprelay::udp_handler_watchdog(config, &incomings, &udp_tx, quit.clone()).await?;
 
@@ -92,10 +115,18 @@ where
                 let session_id = session_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let session_count = session_count.clone();
                 let peer_addr = conn.peer_addr()?;
+                let pool = pool.clone();
                 tokio::spawn(async move {
+                    let mut ws_stream = match pool.get_connection().await.map_err(std::io::Error::other) {
+                        Ok(stream) => stream,
+                        Err(e) => {
+                            log::debug!("{peer_addr} failed to acquire WebSocket stream from pool: '{e}'");
+                            return;
+                        }
+                    };
                     let count = session_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
                     log::debug!("session #{session_id} from {peer_addr} started, session count {count}");
-                    if let Err(e) = handle_incoming(conn, config, Some(udp_tx), incomings).await {
+                    if let Err(e) = handle_incoming::<_, S>(conn, config, Some(udp_tx), incomings, &mut *ws_stream).await {
                         log::debug!("{e}");
                     }
                     let count = session_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) - 1;
@@ -108,12 +139,17 @@ where
     Ok(())
 }
 
-async fn handle_incoming<S: 'static>(
-    conn: IncomingConnection<S>,
+async fn handle_incoming<IO, S>(
+    conn: IncomingConnection<IO>,
     config: Config,
     udp_tx: Option<udprelay::UdpRequestSender>,
     incomings: udprelay::SocketAddrHashSet,
-) -> Result<()> {
+    ws_stream: &mut WebSocketStream<S>,
+) -> Result<()>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    IO: 'static,
+{
     let peer_addr = conn.peer_addr()?;
     let (conn, _res) = conn.authenticate().await?;
     match conn.wait_request().await? {
@@ -132,7 +168,7 @@ async fn handle_incoming<S: 'static>(
             conn.shutdown().await?;
         }
         ClientConnection::Connect(connect, addr) => {
-            if let Err(e) = handle_socks5_cmd_connection(connect, addr.clone(), config).await {
+            if let Err(e) = handle_socks5_cmd_connection::<S>(connect, addr.clone(), config, ws_stream).await {
                 log::debug!("{peer_addr} <> {addr} {e}");
             }
         }
@@ -143,40 +179,53 @@ async fn handle_incoming<S: 'static>(
     Ok(())
 }
 
-async fn handle_socks5_cmd_connection(connect: Connect<NeedReply>, target_addr: Address, config: Config) -> Result<()> {
+async fn handle_socks5_cmd_connection<S>(
+    connect: Connect<NeedReply>,
+    target_addr: Address,
+    _config: Config,
+    ws_stream: &mut WebSocketStream<S>,
+) -> Result<()>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let incoming = connect.reply(Reply::Succeeded, Address::unspecified()).await?;
 
     let peer_addr = incoming.peer_addr()?;
 
     log::trace!("{peer_addr} -> {target_addr} tunnel establishing");
 
-    let client = config.client.as_ref().ok_or("client not exist")?;
-    let addr = client.server_ip_addr.ok_or("server host")?;
-
-    if !config.disable_tls() {
-        let ws_stream = create_tls_ws_stream(addr, Some(target_addr.clone()), &config, None).await?;
-        client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
-    } else {
-        let ws_stream = create_plaintext_ws_stream(addr, Some(target_addr.clone()), &config, None).await?;
-        client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
-    }
+    client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
     Ok(())
 }
 
-async fn client_traffic_loop<T, S>(mut incoming: T, mut ws_stream: WebSocketStream<S>, src: SocketAddr, dst: Address) -> Result<()>
+async fn client_traffic_loop<T, S>(mut incoming: T, ws_stream: &mut WebSocketStream<S>, src: SocketAddr, dst: Address) -> Result<()>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: AsyncRead + AsyncWrite + Unpin,
 {
+    // Send "Start session" command with target address
+    let b64_addr = addess_to_b64str(&dst, false);
+    let start_cmd = format!("{}:{b64_addr}", crate::server::START_SESSION);
+    ws_stream.send(Message::Text(start_cmd.into())).await?;
+
     let mut timer = tokio::time::interval(std::time::Duration::from_secs(30));
+    let mut session_confirmed = false;
     loop {
         let mut buf = BytesMut::with_capacity(crate::STREAM_BUFFER_SIZE);
         tokio::select! {
-            result = incoming.read_buf(&mut buf) => {
+            // Only allow reading from local connection after session_confirmed
+            result = async {
+                if session_confirmed {
+                    incoming.read_buf(&mut buf).await
+                } else {
+                    futures_util::future::pending::<std::io::Result<usize>>().await
+                }
+            } => {
                 let len = result?;
                 if len == 0 {
                     log::trace!("{src} -> {dst} incoming closed");
-                    ws_stream.send(Message::Close(None)).await?;
+                    // Send "End session" text message
+                    ws_stream.send(Message::Text(crate::server::END_SESSION.into())).await?;
                     break;
                 }
                 ws_stream.send(Message::binary(buf.to_vec())).await?;
@@ -204,7 +253,24 @@ where
                         log::trace!("{src} <- {dst} ws closed, exiting...");
                         break;
                     }
-                    Message::Ping(_) | Message::Pong(_) => log::trace!("{src} <- {dst} Websocket pong from remote"),
+                    Message::Text(data) => {
+                        let msg_str = data.as_str();
+                        if msg_str == crate::server::END_SESSION {
+                            log::trace!("{src} <- {dst} session ended by remote");
+                            break;
+                        } else if msg_str.starts_with(crate::server::START_SESSION) {
+                            session_confirmed = true;
+                            log::trace!("{src} <- {dst} received START_SESSION confirmation from server");
+                        } else {
+                            log::trace!("{src} <- {dst} Websocket text from remote: {msg_str}");
+                        }
+                    }
+                    Message::Ping(_) => {
+                        log::trace!("{src} <- {dst} Websocket ping from remote");
+                    }
+                    Message::Pong(_) => {
+                        log::trace!("{src} <- {dst} Websocket pong from remote");
+                    }
                     _ => {}
                 }
             }
@@ -294,3 +360,77 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
 type WsStream = WebSocketStream<TcpStream>;
 type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
+
+use connection_pool::{ConnectionManager, ConnectionPool};
+use std::future::Future;
+use std::pin::Pin;
+
+const VALID_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+pub struct WsPlainConnectionManager {
+    pub config: Config,
+}
+
+impl ConnectionManager for WsPlainConnectionManager {
+    type Connection = WsStream;
+    type Error = Error;
+    type CreateFut = Pin<Box<dyn Future<Output = Result<Self::Connection, Self::Error>> + Send>>;
+    type ValidFut<'a>
+        = Pin<Box<dyn Future<Output = bool> + Send + 'a>>
+    where
+        Self: 'a;
+
+    fn create_connection(&self) -> Self::CreateFut {
+        let config = self.config.clone();
+        Box::pin(async move {
+            let client = config.client.as_ref().ok_or("client not exist")?;
+            let server_addr = client.server_ip_addr.ok_or("server host")?;
+            let ws = create_plaintext_ws_stream(server_addr, None, &config, None).await?;
+            Ok(ws)
+        })
+    }
+
+    fn is_valid<'a>(&'a self, stream: &'a mut Self::Connection) -> Self::ValidFut<'a> {
+        Box::pin(async move {
+            let r = tokio::time::timeout(VALID_TEST_TIMEOUT, stream.send(Message::Ping(vec![].into()))).await;
+            if !matches!(r, Ok(Ok(_))) {
+                return false;
+            }
+            matches!(tokio::time::timeout(VALID_TEST_TIMEOUT, stream.next()).await, Ok(Some(_)))
+        })
+    }
+}
+
+pub struct WsTlsConnectionManager {
+    pub config: Config,
+}
+
+impl ConnectionManager for WsTlsConnectionManager {
+    type Connection = WsTlsStream;
+    type Error = Error;
+    type CreateFut = Pin<Box<dyn Future<Output = Result<Self::Connection, Self::Error>> + Send>>;
+    type ValidFut<'a>
+        = Pin<Box<dyn Future<Output = bool> + Send + 'a>>
+    where
+        Self: 'a;
+
+    fn create_connection(&self) -> Self::CreateFut {
+        let config = self.config.clone();
+        Box::pin(async move {
+            let client = config.client.as_ref().ok_or("client not exist")?;
+            let server_addr = client.server_ip_addr.ok_or("server host")?;
+            let ws = create_tls_ws_stream(server_addr, None, &config, None).await?;
+            Ok(ws)
+        })
+    }
+
+    fn is_valid<'a>(&'a self, stream: &'a mut Self::Connection) -> Self::ValidFut<'a> {
+        Box::pin(async move {
+            let r = tokio::time::timeout(VALID_TEST_TIMEOUT, stream.send(Message::Ping(vec![].into()))).await;
+            if !matches!(r, Ok(Ok(_))) {
+                return false;
+            }
+            matches!(tokio::time::timeout(VALID_TEST_TIMEOUT, stream.next()).await, Ok(Some(_)))
+        })
+    }
+}

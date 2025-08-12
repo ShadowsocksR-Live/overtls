@@ -58,7 +58,7 @@ fn main() -> Result<(), BoxError> {
 
     dotenvy::dotenv().ok();
 
-    let level = format!("overtls={:?}", opt.verbosity);
+    let level = format!("overtls={:?},connection_pool={:?}", opt.verbosity, opt.verbosity);
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(level)).init();
 
     let is_server = opt.is_server();
