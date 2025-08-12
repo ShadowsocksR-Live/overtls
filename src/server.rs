@@ -29,6 +29,9 @@ use tokio_tungstenite::{
     },
 };
 
+pub(crate) const START_SESSION: &str = "Start session";
+pub(crate) const END_SESSION: &str = "End session";
+
 const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
 
@@ -219,7 +222,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     traffic_audit: TrafficAuditPtr,
 ) -> Result<()> {
     let mut uri_path = "".to_string();
-    let mut target_address = "".to_string();
+    let mut target_address = None;
     let mut udp_tunnel = false;
     let mut client_id = None;
 
@@ -228,7 +231,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         if let Some(value) = req.headers().get(TARGET_ADDRESS)
             && let Ok(value) = value.to_str()
         {
-            target_address = value.to_string();
+            target_address = Some(value.to_string());
         }
         if let Some(value) = req.headers().get(UDP_TUNNEL)
             && let Ok(value) = value.to_str()
@@ -298,12 +301,17 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
             log::trace!("[UDP] {peer} closed.");
         }
     } else {
-        let stream = tcp_stream_from_b64_str(&target_address, &config, peer)?;
-        let successful_addr = stream.peer_addr()?;
-        log::trace!("{peer} -> {successful_addr} {client_id:?} uri path: \"{uri_path}\"");
-        let stream = tokio::net::TcpStream::from_std(stream)?;
+        let stream = if let Some(target_address) = &target_address {
+            let stream = tcp_stream_from_b64_str(target_address, &config, peer)?;
+            let successful_addr = stream.peer_addr()?;
+            log::trace!("{peer} -> {successful_addr} {client_id:?} uri path: \"{uri_path}\"");
+            let stream = tokio::net::TcpStream::from_std(stream)?;
+            Some(stream)
+        } else {
+            None
+        };
         result = svr_normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, stream).await;
-        log::trace!("{peer} <> {successful_addr} connection closed with {result:?}.");
+        log::trace!("{peer} connection closed with {result:?}.");
     }
     result
 }
@@ -311,14 +319,21 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
     peer: SocketAddr,
-    _config: Config,
+    config: Config,
     traffic_audit: TrafficAuditPtr,
     client_id: &Option<String>,
-    original_stream: tokio::net::TcpStream,
+    outgoing_stream: Option<tokio::net::TcpStream>,
 ) -> Result<()> {
-    let dst_addr = original_stream.peer_addr()?;
-    let mut outgoing = original_stream;
+    let is_old_client = outgoing_stream.is_some();
+    let mut dst_addr = outgoing_stream.as_ref().and_then(|s| s.peer_addr().ok()).unwrap_or_else(|| {
+        log::debug!("{peer} no outgoing connection available, using default address");
+        SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0)
+    });
+    let mut outgoing: Option<tokio::net::TcpStream> = outgoing_stream;
     let mut buffer = [0; crate::STREAM_BUFFER_SIZE];
+    // Mark if outgoing has been written to
+    let mut outgoing_has_written = false;
+
     loop {
         tokio::select! {
             msg = ws_stream.next() => {
@@ -333,22 +348,81 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         log::trace!("{peer} <> {dst_addr} incoming connection closed normally");
                         break;
                     }
-                    Message::Text(_) | Message::Binary(_) => {
-                        outgoing.write_all(&msg.into_data()).await?;
+                    Message::Binary(data) => {
+                        if let Some(outgoing) = &mut outgoing {
+                            outgoing.write_all(&data).await?;
+                            outgoing_has_written = true;
+                        } else {
+                            log::warn!("{peer} -> no outgoing connection available, dropping data len = {}", data.len());
+                        }
                     }
-                    Message::Ping(data) | Message::Pong(data) => {
-                        let msg = String::from_utf8_lossy(&data);
-                        log::trace!("{peer} -> {dst_addr} received ping/pong message '{msg}'");
+                    Message::Text(ref data) => {
+                        let msg_str = data.as_str();
+                        if msg_str == END_SESSION {
+                            if let Some(mut stream) = outgoing.take() {
+                                let _ = stream.shutdown().await;
+                                log::info!("{peer} <> {dst_addr} ended session");
+                            }
+                            outgoing_has_written = false;
+                        } else if let Some(dst_addr_str) = msg_str.strip_prefix(&format!("{START_SESSION}:")) {
+                            outgoing_has_written = false;
+                            // Close existing connection
+                            if let Some(mut stream) = outgoing.take() {
+                                let _ = stream.shutdown().await;
+                                log::info!("{peer} <> {dst_addr} closed previous session");
+                            }
+
+                            match tcp_stream_from_b64_str(dst_addr_str.trim(), &config, peer) {
+                                Ok(stream) => {
+                                    let stream = tokio::net::TcpStream::from_std(stream)?;
+                                    dst_addr = stream.peer_addr()?;
+                                    outgoing = Some(stream);
+                                    log::info!("{peer} -> {dst_addr} started new session");
+                                    // Feedback confirmation to client
+                                    let msg = Message::Text(START_SESSION.into());
+                                    svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
+                                }
+                                Err(e) => {
+                                    log::error!("{peer} failed to create connection from BASE64 address '{dst_addr_str}': {e}");
+                                    let msg = Message::Text(END_SESSION.into());
+                                    log::trace!("{peer} <> {dst_addr} sending text message to end session");
+                                    svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
+                                }
+                            }
+                        } else {
+                            log::warn!("{peer} -> {dst_addr} received text message len = {} in unexpected state", data.len());
+                        }
+                    }
+                    Message::Ping(_) =>{
+                        log::trace!("{peer} -> {dst_addr} received ping message len = {}", msg.len());
+                    }
+                    Message::Pong(_) =>{
+                        log::trace!("{peer} -> {dst_addr} received pong message len = {}", msg.len());
                     }
                     _ => {}
                 }
             }
-            len = outgoing.read(&mut buffer) => {
+            len = async {
+                match &mut outgoing {
+                    Some(outgoing) if outgoing_has_written => outgoing.read(&mut buffer).await,
+                    _ => {
+                        // If there is no outgoing connection, or not written yet, wait until a connection is established and a message is sent to destination
+                        futures_util::future::pending::<std::io::Result<usize>>().await
+                    }
+                }
+            } => {
                 match len {
                     Ok(0) => {
-                        ws_stream.send(Message::Close(None)).await?;
                         log::trace!("{peer} <> {dst_addr} outgoing connection reached EOF");
-                        break;
+                        if is_old_client {
+                            ws_stream.send(Message::Close(None)).await?;
+                            break;
+                        }
+                        // Don't close the WebSocket, just disconnect the outgoing connection
+                        if let Some(mut stream) = outgoing.take() {
+                            let _ = stream.shutdown().await;
+                        }
+                        outgoing_has_written = false;
                     }
                     Ok(n) => {
                         let msg = Message::binary(buffer[..n].to_vec());
@@ -357,9 +431,19 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                     }
                     Err(e) => {
-                        ws_stream.send(Message::Close(None)).await?;
                         log::debug!("{peer} <> {dst_addr} outgoing connection closed \"{e}\"");
-                        break;
+                        if is_old_client {
+                            ws_stream.send(Message::Close(None)).await?;
+                            break;
+                        }
+                        // Close the outgoing connection but keep the WebSocket connection
+                        if let Some(mut stream) = outgoing.take() {
+                            let _ = stream.shutdown().await;
+                        }
+                        outgoing_has_written = false;
+                        let msg = Message::Text(END_SESSION.into());
+                        log::trace!("{peer} <> {dst_addr} sending text message to end session");
+                        svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                     }
                 }
             }
@@ -530,6 +614,7 @@ fn tcp_stream_from_b64_str<T: AsRef<str>>(b64_addr: T, config: &Config, peer: So
     for dst_addr in addr_str.to_socket_addrs()? {
         match crate::tcp_stream::std_create(dst_addr, Some(time_out)) {
             Ok(stream) => {
+                stream.set_nonblocking(true)?;
                 return Ok(stream);
             }
             Err(ref e) => {
