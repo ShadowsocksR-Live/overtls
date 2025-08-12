@@ -68,17 +68,19 @@ where
 
     let server = Server::<O>::bind(addr, auth).await?;
 
+    let pool_max_size = client.pool_max_size.map_or(Some(crate::config::DEFAULT_POOL_MAX_SIZE), Some);
+
     if let Some(callback) = callback {
         callback(server.local_addr()?);
     }
 
     if config.disable_tls() {
         let manager = WsPlainConnectionManager { config: config.clone() };
-        let connection_pool = ConnectionPool::new(Some(50), None, None, None, manager);
+        let connection_pool = ConnectionPool::new(pool_max_size, None, None, None, manager);
         client_event_loop::<_, TcpStream, _>(connection_pool, quit, server, config).await?;
     } else {
         let manager = WsTlsConnectionManager { config: config.clone() };
-        let connection_pool = ConnectionPool::new(Some(50), None, None, None, manager);
+        let connection_pool = ConnectionPool::new(pool_max_size, None, None, None, manager);
         client_event_loop::<_, TlsStream<TcpStream>, _>(connection_pool, quit, server, config).await?;
     };
     Ok(())

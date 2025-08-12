@@ -74,6 +74,12 @@ fn main() -> Result<(), BoxError> {
     };
     config.set_cache_dns(opt.cache_dns);
 
+    if let Some(size) = opt.pool_max_size
+        && let Some(client) = config.client.as_mut()
+    {
+        client.pool_max_size = Some(size);
+    }
+
     if opt.generate_url {
         let url = config.generate_ssr_url()?;
         println!("{url}");

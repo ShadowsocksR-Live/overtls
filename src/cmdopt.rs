@@ -111,6 +111,10 @@ pub struct CmdOpt {
     /// Use C API for client.
     #[arg(long)]
     pub c_api: bool,
+
+    /// Connection pool max size
+    #[arg(long)]
+    pub pool_max_size: Option<usize>,
 }
 
 impl CmdOpt {
@@ -141,6 +145,12 @@ impl CmdOpt {
             if args.url_of_node.is_some() {
                 output_error_and_exit("Node URL is not supported for server");
             }
+        }
+        if args.role == Role::Client
+            && let Some(size) = args.pool_max_size
+            && size < 10
+        {
+            output_error_and_exit("Connection pool max size must be greater than 10");
         }
         if args.role == Role::Client && args.config.is_none() && args.url_of_node.is_none() {
             output_error_and_exit("Config file or node URL is required for client");

@@ -6,6 +6,7 @@ use std::{
 };
 
 pub(crate) const TEST_TIMEOUT_SECS: u64 = 10;
+pub(crate) const DEFAULT_POOL_MAX_SIZE: usize = 50;
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
 pub struct Config {
@@ -149,6 +150,8 @@ pub struct Client {
     pub cache_dns: bool,
     #[serde(skip)]
     pub(crate) server_ip_addr: Option<SocketAddr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pool_max_size: Option<usize>,
 }
 
 impl PartialEq for Client {

@@ -27,6 +27,7 @@
         "server_domain": "example.com",
         "cafile": "",
         "dangerous_mode": false,
+        "pool_max_size": 30,
         "listen_user": "",
         "listen_password": "",
         "listen_host": "127.0.0.1",
