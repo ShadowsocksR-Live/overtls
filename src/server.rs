@@ -329,7 +329,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     let mut outgoing: Option<tokio::net::TcpStream> = outgoing_stream;
     let mut buffer = [0; crate::STREAM_BUFFER_SIZE];
     // Mark if outgoing has been written to
-    let mut outgoing_has_written = false;
+    let mut outgoing_can_be_read = false;
 
     loop {
         tokio::select! {
@@ -348,7 +348,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         if let Some(outgoing) = &mut outgoing {
                             log::trace!("{peer} -> {dst_addr:?} length {len}");
                             outgoing.write_all(&data).await?;
-                            outgoing_has_written = true;
+                            outgoing_can_be_read = true;
                         } else {
                             log::warn!("{peer} -> no outgoing connection available, dropping data len = {}", data.len());
                         }
@@ -361,9 +361,9 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                                 let _ = stream.shutdown().await;
                             }
                             dst_addr = None;
-                            outgoing_has_written = false;
+                            outgoing_can_be_read = false;
                         } else if let Some(dst_addr_str) = msg_str.strip_prefix(&format!("{START_SESSION}:")) {
-                            outgoing_has_written = false;
+                            outgoing_can_be_read = false;
                             // Close existing connection
                             if let Some(mut stream) = outgoing.take() {
                                 let _ = stream.shutdown().await;
@@ -405,7 +405,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
             }
             len = async {
                 match &mut outgoing {
-                    Some(outgoing) if outgoing_has_written => outgoing.read(&mut buffer).await,
+                    Some(outgoing) if outgoing_can_be_read => outgoing.read(&mut buffer).await,
                     _ => {
                         // If there is no outgoing connection, or not written yet, wait until a connection is established and a message is sent to destination
                         futures_util::future::pending::<std::io::Result<usize>>().await
@@ -419,12 +419,10 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                             ws_stream.send(Message::Close(None)).await?;
                             break;
                         }
-                        // Don't close the WebSocket, just disconnect the outgoing connection
-                        if let Some(mut stream) = outgoing.take() {
-                            let _ = stream.shutdown().await;
-                        }
-                        dst_addr = None;
-                        outgoing_has_written = false;
+                        // Don't close the WebSocket, even don't close the outgoing connection
+                        // At current moment, we just mark the outgoing connection as can't be read,
+                        // but it's not means it can't be written to.
+                        outgoing_can_be_read = false;
                     }
                     Ok(n) => {
                         let msg = Message::binary(buffer[..n].to_vec());
@@ -443,7 +441,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                             let _ = stream.shutdown().await;
                         }
                         dst_addr = None;
-                        outgoing_has_written = false;
+                        outgoing_can_be_read = false;
                         let msg = Message::Text(END_SESSION.into());
                         log::debug!("{peer} <> {dst_addr:?} sending text message to end session");
                         svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
