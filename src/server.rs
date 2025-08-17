@@ -36,7 +36,7 @@ const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
 
 pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken) -> Result<()> {
-    log::info!("starting {} {} server...", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+    log::info!("starting {} {} server...", clap::crate_name!(), crate::cmdopt::version_info());
     log::trace!("with following settings:");
     log::trace!("{}", serde_json::to_string_pretty(config)?);
 

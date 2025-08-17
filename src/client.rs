@@ -38,7 +38,7 @@ pub async fn run_client<F>(config: &Config, quit: crate::CancellationToken, call
 where
     F: FnOnce(SocketAddr) + Send + Sync + 'static,
 {
-    log::info!("starting {} {} client...", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+    log::info!("starting {} {} client...", clap::crate_name!(), crate::cmdopt::version_info());
     #[cfg(not(target_os = "ios"))]
     {
         log::trace!("with following settings:");

@@ -74,7 +74,7 @@ impl std::fmt::Display for ArgVerbosity {
 
 /// Proxy tunnel over tls
 #[derive(clap::Parser, Debug, Clone, PartialEq, Eq, Default)]
-#[command(author, version = version_info(), about = "Proxy tunnel over tls.", long_about = None)]
+#[command(author = clap::crate_authors!(", "), version = version_info(), about = about_info(), long_about = None)]
 pub struct CmdOpt {
     /// Role of server or client
     #[arg(short, long, value_enum, value_name = "role", default_value = "client")]
@@ -113,7 +113,7 @@ pub struct CmdOpt {
     pub c_api: bool,
 
     /// Connection pool max size
-    #[arg(long)]
+    #[arg(short, long, value_name = "size")]
     pub pool_max_size: Option<usize>,
 }
 
@@ -159,6 +159,10 @@ impl CmdOpt {
     }
 }
 
-fn version_info() -> &'static str {
-    concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), " ", env!("BUILD_TIME"), ")")
+pub(crate) const fn version_info() -> &'static str {
+    concat!(clap::crate_version!(), " (", env!("GIT_HASH"), " ", env!("BUILD_TIME"), ")")
+}
+
+fn about_info() -> String {
+    format!("Proxy tunnel over tls.\nVersion {}", version_info())
 }
