@@ -16,7 +16,7 @@ jobs:
       matrix:
         toolchain: ["stable"] # ["nightly", "beta", "stable"] #
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build in FreeBSD
         id: test
         uses: vmactions/freebsd-vm@v1
