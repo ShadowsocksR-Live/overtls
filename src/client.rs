@@ -293,6 +293,7 @@ where
                     futures_util::future::pending::<()>().await;
                 }
             } => {
+                ws_stream.send(Message::Text(END_SESSION.into())).await?;
                 let _ = incoming.shutdown().await;
                 log::debug!("{src} <> {dst} forcibly closed after 1 second of '{REMOTE_EOF}' indication");
                 break;
