@@ -287,15 +287,15 @@ where
                 log::trace!("{src} -> {dst} Websocket ping from local");
             }
             _ = async {
-                if let Some(deadline) = shutdown_deadline {
+                if let Some(deadline) = shutdown_deadline.take() {
                     tokio::time::sleep_until(deadline).await;
                 } else {
                     futures_util::future::pending::<()>().await;
                 }
             } => {
+                log::debug!("{src} <> {dst} forcibly closed after 1 second of '{REMOTE_EOF}' indication");
                 ws_stream.send(Message::Text(END_SESSION.into())).await?;
                 let _ = incoming.shutdown().await;
-                log::debug!("{src} <> {dst} forcibly closed after 1 second of '{REMOTE_EOF}' indication");
                 break;
             }
         }
