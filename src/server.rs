@@ -31,6 +31,7 @@ use tokio_tungstenite::{
 
 pub(crate) const START_SESSION: &str = "Start session";
 pub(crate) const END_SESSION: &str = "End session";
+pub(crate) const REMOTE_EOF: &str = "Remote EOF";
 
 const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
@@ -356,7 +357,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     Message::Text(ref data) => {
                         let msg_str = data.as_str();
                         if msg_str == END_SESSION {
-                            log::debug!("{peer} <> {dst_addr:?} ended session");
+                            log::debug!("{peer} <> {dst_addr:?} ended session with '{END_SESSION}' message");
                             if let Some(mut stream) = outgoing.take() {
                                 let _ = stream.shutdown().await;
                             }
@@ -383,7 +384,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                                 Err(e) => {
                                     log::error!("{peer} failed to create connection from BASE64 address '{dst_addr_str}': {e}");
                                     let msg = Message::Text(END_SESSION.into());
-                                    log::trace!("{peer} <> {dst_addr:?} sending text message to end session");
+                                    log::trace!("{peer} <> {dst_addr:?} sending text message '{END_SESSION}' to end session");
                                     svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                                     dst_addr = None;
                                 }
@@ -422,6 +423,8 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         // Don't close the WebSocket, even don't close the outgoing connection
                         // At current moment, we just mark the outgoing connection as can't be read,
                         // but it's not means it can't be written to.
+                        let msg = Message::Text(REMOTE_EOF.into());
+                        svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                         outgoing_can_be_read = false;
                     }
                     Ok(n) => {
@@ -443,7 +446,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         dst_addr = None;
                         outgoing_can_be_read = false;
                         let msg = Message::Text(END_SESSION.into());
-                        log::debug!("{peer} <> {dst_addr:?} sending text message to end session");
+                        log::debug!("{peer} <> {dst_addr:?} sending text message '{END_SESSION}' to end session");
                         svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                     }
                 }

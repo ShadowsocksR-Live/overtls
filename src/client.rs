@@ -2,6 +2,7 @@ use crate::{
     addess_to_b64str,
     config::Config,
     error::{Error, Result},
+    server::{END_SESSION, REMOTE_EOF, START_SESSION},
     tls::*,
     udprelay,
     weirduri::WeirdUri,
@@ -207,11 +208,12 @@ where
 {
     // Send "Start session" command with target address
     let b64_addr = addess_to_b64str(&dst, false);
-    let start_cmd = format!("{}:{b64_addr}", crate::server::START_SESSION);
+    let start_cmd = format!("{START_SESSION}:{b64_addr}");
     ws_stream.send(Message::Text(start_cmd.into())).await?;
 
     let mut timer = tokio::time::interval(std::time::Duration::from_secs(30));
     let mut session_confirmed = false;
+    let mut shutdown_deadline: Option<tokio::time::Instant> = None;
     loop {
         let mut buf = BytesMut::with_capacity(crate::STREAM_BUFFER_SIZE);
         tokio::select! {
@@ -227,7 +229,7 @@ where
                 if len == 0 {
                     log::debug!("{src} -> {dst} incoming closed");
                     // Send "End session" text message
-                    ws_stream.send(Message::Text(crate::server::END_SESSION.into())).await?;
+                    ws_stream.send(Message::Text(END_SESSION.into())).await?;
                     break;
                 }
                 ws_stream.send(Message::binary(buf.to_vec())).await?;
@@ -257,12 +259,16 @@ where
                     }
                     Message::Text(data) => {
                         let msg_str = data.as_str();
-                        if msg_str == crate::server::END_SESSION {
-                            log::debug!("{src} <- {dst} session ended by remote");
+                        if msg_str == END_SESSION {
+                            log::debug!("{src} <- {dst} session ended by remote with '{END_SESSION}' message");
                             break;
-                        } else if msg_str.starts_with(crate::server::START_SESSION) {
+                        } else if msg_str.starts_with(START_SESSION) {
                             session_confirmed = true;
-                            log::debug!("{src} <- {dst} received START_SESSION confirmation from server");
+                            log::debug!("{src} <- {dst} received '{START_SESSION}' confirmation from server");
+                        } else if msg_str == REMOTE_EOF {
+                            log::debug!("{src} <- {dst} received '{REMOTE_EOF}' indication from server");
+                            // Force shutdown after 1 second
+                            shutdown_deadline = Some(tokio::time::Instant::now() + std::time::Duration::from_secs(1));
                         } else {
                             log::warn!("{src} <- {dst} unexpected Websocket text from remote: {msg_str}");
                         }
@@ -279,6 +285,17 @@ where
             _ = timer.tick() => {
                 ws_stream.send(Message::Ping(vec![].into())).await?;
                 log::trace!("{src} -> {dst} Websocket ping from local");
+            }
+            _ = async {
+                if let Some(deadline) = shutdown_deadline {
+                    tokio::time::sleep_until(deadline).await;
+                } else {
+                    futures_util::future::pending::<()>().await;
+                }
+            } => {
+                let _ = incoming.shutdown().await;
+                log::debug!("{src} <> {dst} forcibly closed after 1 second of '{REMOTE_EOF}' indication");
+                break;
             }
         }
     }
