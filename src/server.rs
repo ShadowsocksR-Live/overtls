@@ -231,8 +231,9 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         uri_path = req.uri().path().to_string();
         if let Some(value) = req.headers().get(TARGET_ADDRESS)
             && let Ok(value) = value.to_str()
+            && let Ok(address) = b64str_to_address(value, false)
         {
-            target_address = Some(value.to_string());
+            target_address = Some(address);
         }
         if let Some(value) = req.headers().get(UDP_TUNNEL)
             && let Ok(value) = value.to_str()
@@ -303,7 +304,8 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         }
     } else {
         let stream = if let Some(target_address) = &target_address {
-            let stream = tcp_stream_from_b64_str(target_address, &config, peer)?;
+            let time_out = std::time::Duration::from_secs(config.test_timeout_secs.unwrap_or(TEST_TIMEOUT_SECS));
+            let stream = tcp_stream_from_s5_address(target_address, time_out, peer)?;
             let successful_addr = stream.peer_addr()?;
             log::trace!("{peer} -> {successful_addr} {client_id:?} uri path: \"{uri_path}\"");
             let stream = tokio::net::TcpStream::from_std(stream)?;
@@ -356,14 +358,17 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     }
                     Message::Text(ref data) => {
                         let msg_str = data.as_str();
-                        if msg_str == END_SESSION {
-                            log::debug!("{peer} <> {dst_addr:?} ended session with '{END_SESSION}' message");
+                        if let Some(reason) = msg_str.strip_prefix(END_SESSION) {
+                            let reason = reason.strip_prefix(':').unwrap_or(reason).trim();
+                            log::debug!("{peer} <> {dst_addr:?} ended session with '{END_SESSION}' message with '{reason}'");
                             if let Some(mut stream) = outgoing.take() {
                                 let _ = stream.shutdown().await;
                             }
                             dst_addr = None;
                             outgoing_can_be_read = false;
-                        } else if let Some(dst_addr_str) = msg_str.strip_prefix(&format!("{START_SESSION}:")) {
+                        } else if let Some(dst_addr_str) = msg_str.strip_prefix(START_SESSION) {
+                            let dst_addr_str = dst_addr_str.strip_prefix(':').map(|s| s.trim()).unwrap_or("");
+                            let dst_address = b64str_to_address(dst_addr_str, false).unwrap_or(Address::unspecified());
                             outgoing_can_be_read = false;
                             // Close existing connection
                             if let Some(mut stream) = outgoing.take() {
@@ -371,7 +376,8 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                                 log::info!("{peer} <> {dst_addr:?} closed previous session");
                             }
 
-                            match tcp_stream_from_b64_str(dst_addr_str.trim(), &config, peer) {
+                            let time_out = std::time::Duration::from_secs(config.test_timeout_secs.unwrap_or(TEST_TIMEOUT_SECS));
+                            match tcp_stream_from_s5_address(&dst_address, time_out, peer) {
                                 Ok(stream) => {
                                     let stream = tokio::net::TcpStream::from_std(stream)?;
                                     dst_addr = Some(stream.peer_addr()?);
@@ -382,7 +388,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                                     svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                                 }
                                 Err(e) => {
-                                    log::error!("{peer} failed to create connection from BASE64 address '{dst_addr_str}': {e}");
+                                    log::error!("{peer} failed to create connection to address '{dst_address}': {e}");
                                     let msg = Message::Text(END_SESSION.into());
                                     log::trace!("{peer} <> {dst_addr:?} sending text message '{END_SESSION}' to end session");
                                     svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
@@ -393,11 +399,11 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                             log::warn!("{peer} -> {dst_addr:?} received text message len = {} in unexpected state", data.len());
                         }
                     }
-                    Message::Ping(data) => {
-                        log::debug!("{peer} -> {dst_addr:?} received ping message len = {}", data.len());
+                    Message::Ping(_data) => {
+                        log::debug!("{peer} -> {dst_addr:?} received ping message");
                     }
-                    Message::Pong(data) => {
-                        log::debug!("{peer} -> {dst_addr:?} received pong message len = {}", data.len());
+                    Message::Pong(_data) => {
+                        log::debug!("{peer} -> {dst_addr:?} received pong message");
                     }
                     _ => {
                         log::debug!("{peer} -> {dst_addr:?} received unexpected message len {}, ignoring", msg.len());
@@ -440,13 +446,13 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                             break;
                         }
                         // Close the outgoing connection but keep the WebSocket connection
-                        if let Some(mut stream) = outgoing.take() {
-                            let _ = stream.shutdown().await;
+                        if let Some(mut outgoing) = outgoing.take() {
+                            let _ = outgoing.shutdown().await;
                         }
                         dst_addr = None;
                         outgoing_can_be_read = false;
                         let msg = Message::Text(END_SESSION.into());
-                        log::debug!("{peer} <> {dst_addr:?} sending text message '{END_SESSION}' to end session");
+                        log::debug!("{peer} <> {dst_addr:?} sending text message '{END_SESSION}' to end session because '{e}'");
                         svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                     }
                 }
@@ -615,12 +621,9 @@ async fn svr_udp_write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(())
 }
 
-fn tcp_stream_from_b64_str<T: AsRef<str>>(b64_addr: T, config: &Config, peer: SocketAddr) -> Result<std::net::TcpStream> {
-    let addr_str = b64str_to_address(b64_addr.as_ref(), false)?.to_string();
-
-    let time_out = std::time::Duration::from_secs(config.test_timeout_secs.unwrap_or(TEST_TIMEOUT_SECS));
+fn tcp_stream_from_s5_address(s5_addr: &Address, time_out: std::time::Duration, peer: SocketAddr) -> Result<std::net::TcpStream> {
     // try to connect to the first available address
-    for dst_addr in addr_str.to_socket_addrs()? {
+    for dst_addr in s5_addr.to_socket_addrs()? {
         match crate::tcp_stream::std_create(dst_addr, Some(time_out)) {
             Ok(stream) => {
                 stream.set_nonblocking(true)?;
@@ -631,5 +634,5 @@ fn tcp_stream_from_b64_str<T: AsRef<str>>(b64_addr: T, config: &Config, peer: So
             }
         }
     }
-    Err(Error::from(format!("{peer} <> {addr_str} All addresses failed to connect")))
+    Err(Error::from(format!("{peer} <> {s5_addr} All addresses failed to connect")))
 }

@@ -259,14 +259,15 @@ where
                     }
                     Message::Text(data) => {
                         let msg_str = data.as_str();
-                        if msg_str == END_SESSION {
-                            log::debug!("{src} <- {dst} session ended by remote with '{END_SESSION}' message");
+                        if let Some(reason) = msg_str.strip_prefix(END_SESSION) {
+                            let reason = reason.strip_prefix(':').unwrap_or(reason).trim();
+                            log::debug!("{src} <- {dst} session ended by remote message '{END_SESSION}' with reason: '{reason}'");
                             break;
                         } else if msg_str.starts_with(START_SESSION) {
                             session_confirmed = true;
                             log::debug!("{src} <- {dst} received '{START_SESSION}' confirmation from server");
                         } else if msg_str == REMOTE_EOF {
-                            log::debug!("{src} <- {dst} received '{REMOTE_EOF}' indication from server");
+                            log::debug!("{src} <- {dst} received from server the '{REMOTE_EOF}' indication");
                             // Force shutdown after 1 second
                             shutdown_deadline = Some(tokio::time::Instant::now() + std::time::Duration::from_secs(1));
                         } else {
