@@ -392,6 +392,12 @@ impl Config {
         Ok(config)
     }
 
+    /// load from JSON string
+    pub fn from_json_str(json: &str) -> Result<Self> {
+        let config: Config = serde_json::from_str(json)?;
+        Ok(config)
+    }
+
     /// load from `ssr://...` style url
     pub fn from_ssr_url(url: &str) -> Result<Self> {
         let engine = base64easy::EngineKind::UrlSafeNoPad;
