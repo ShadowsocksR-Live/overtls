@@ -20,7 +20,7 @@ pub use api::{over_tls_client_run, over_tls_client_run_with_ssr_url, over_tls_cl
 use bytes::BytesMut;
 pub use client::run_client;
 pub use cmdopt::{ArgVerbosity, CmdOpt, Role};
-pub use config::Config;
+pub use config::{Client as ClientConfig, Config, ManageClients, Server as ServerConfig, TunnelPath};
 pub use dump_logger::overtls_set_log_callback;
 pub use error::{BoxError, Error, Result};
 pub use server::run_server;
