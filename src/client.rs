@@ -406,7 +406,7 @@ impl ConnectionManager for WsPlainConnectionManager {
         let config = self.config.clone();
         Box::pin(async move {
             let client = config.client.as_ref().ok_or("client not exist")?;
-            let server_addr = client.server_ip_addr.ok_or("server host")?;
+            let server_addr = client.server_ip_addr().ok_or("server host")?;
             let ws = create_plaintext_ws_stream(server_addr, None, &config, None).await?;
             Ok(ws)
         })
@@ -441,7 +441,7 @@ impl ConnectionManager for WsTlsConnectionManager {
         let config = self.config.clone();
         Box::pin(async move {
             let client = config.client.as_ref().ok_or("client not exist")?;
-            let server_addr = client.server_ip_addr.ok_or("server host")?;
+            let server_addr = client.server_ip_addr().ok_or("server host")?;
             let ws = create_tls_ws_stream(server_addr, None, &config, None).await?;
             Ok(ws)
         })

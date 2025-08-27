@@ -149,7 +149,7 @@ pub struct Client {
     #[serde(skip)]
     pub cache_dns: bool,
     #[serde(skip)]
-    pub(crate) server_ip_addr: Option<SocketAddr>,
+    server_ip_addr: Option<SocketAddr>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pool_max_size: Option<usize>,
 }
@@ -195,6 +195,10 @@ impl Client {
             Some(cert) => std::fs::write(path, cert).map_err(|e| e.into()),
             None => Err(Error::from("certificate not exists")),
         }
+    }
+
+    pub fn server_ip_addr(&self) -> Option<SocketAddr> {
+        self.server_ip_addr
     }
 }
 

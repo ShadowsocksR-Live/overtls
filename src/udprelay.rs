@@ -144,7 +144,7 @@ pub(crate) fn create_udp_tunnel() -> (UdpRequestSender, UdpRequestReceiver, Sock
 
 pub(crate) async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddrHashSet, config: Config) -> Result<()> {
     let client = config.client.as_ref().ok_or("config client not exist")?;
-    let svr_addr = client.server_ip_addr.ok_or("server ip addr")?;
+    let svr_addr = client.server_ip_addr().ok_or("server ip addr")?;
 
     if !config.disable_tls() {
         let ws_stream = client::create_tls_ws_stream(svr_addr, None, &config, Some(true)).await?;
