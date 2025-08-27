@@ -1,6 +1,6 @@
 [package]
 name = "overtls"
-version = "0.3.5"
+version = "0.3.6"
 edition = "2024"
 license = "MIT"
 description = "A simple proxy tunnel, minimalist tool for bypassing the GFW."
