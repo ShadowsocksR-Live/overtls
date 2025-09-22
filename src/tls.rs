@@ -52,14 +52,11 @@ pub(crate) async fn create_tls_client_stream(
     };
 
     // Build ClientConfig with custom CryptoProvider
-    let mut config = ClientConfig::builder_with_provider(crypto_provider.into())
+    let config = ClientConfig::builder_with_provider(crypto_provider.into())
         .with_safe_default_protocol_versions() // Use default protocol versions (TLS 1.2 and TLS 1.3)
         .map_err(|e| Error::from(format!("Failed to set protocol versions: {e}")))?
         .with_root_certificates(root_cert_store)
         .with_no_client_auth();
-
-    // Add ALPN protocols to mimic Chrome (HTTP/2 and HTTP/1.1)
-    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
     create_tls_client_stream_with_config(Arc::new(config), addr, domain).await
 }
