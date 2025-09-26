@@ -58,7 +58,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = [
     "tls12",
     "ring",
 ] }
-tokio-tungstenite = { version = "0.27", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
 tokio-util = "0.7"
 url = "2"
 webpki-roots = "1.0"
