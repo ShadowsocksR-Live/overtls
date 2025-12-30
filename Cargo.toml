@@ -34,8 +34,8 @@ http = "1"
 httparse = "1"
 log = { version = "0.4", features = ["std"] }
 moka = { version = "0.12", default-features = false, features = ["future"] }
-reqwest = { version = "0.12", default-features = false, features = [
-    "rustls-tls",
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls",
     "json",
 ] }
 rustls = { version = "0.23", default-features = false, features = [
@@ -48,7 +48,7 @@ rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 socket2 = "0.6"
-socks5-impl = { version = "0.7", default-features = false, features = [
+socks5-impl = { version = "0.8", default-features = false, features = [
     "server",
 ] }
 thiserror = "2"
