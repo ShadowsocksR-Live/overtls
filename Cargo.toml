@@ -48,7 +48,7 @@ rustls-pemfile = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 socket2 = "0.6"
-socks5-impl = { version = "0.7", default-features = false, features = [
+socks5-impl = { version = "0.8", default-features = false, features = [
     "server",
 ] }
 thiserror = "2"
