@@ -122,9 +122,6 @@ pub(crate) async fn create_dangerous_tls_client_stream(addr: SocketAddr, domain:
         .with_root_certificates(root_cert_store)
         .with_no_client_auth();
 
-    // Add ALPN protocols to mimic Chrome (HTTP/2 and HTTP/1.1)
-    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-
     // this completely disables cert-verification
     let verifier = Arc::new(NoCertificateVerification::default());
     config.dangerous().set_certificate_verifier(verifier);
