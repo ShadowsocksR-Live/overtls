@@ -588,9 +588,12 @@ fn addr_is_private(addr: &SocketAddr) -> bool {
     fn addr_v4_is_private(addr: &Ipv4Addr) -> bool {
         is_benchmarking(addr) || addr.is_private() || addr.is_loopback() || addr.is_link_local()
     }
+    fn addr_v6_is_private(addr: &Ipv6Addr) -> bool {
+        addr.is_loopback() || (addr.segments()[0] & 0xffc0) == 0xfe80 || (addr.segments()[0] & 0xfe00) == 0xfc00
+    }
     match addr {
         SocketAddr::V4(addr) => addr_v4_is_private(addr.ip()),
-        SocketAddr::V6(_) => false,
+        SocketAddr::V6(addr) => addr_v6_is_private(addr.ip()),
     }
 }
 
@@ -624,6 +627,10 @@ async fn svr_udp_write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 fn tcp_stream_from_s5_address(s5_addr: &Address, time_out: std::time::Duration, peer: SocketAddr) -> Result<std::net::TcpStream> {
     // try to connect to the first available address
     for dst_addr in s5_addr.to_socket_addrs()? {
+        if addr_is_private(&dst_addr) {
+            log::warn!("{peer} <> {dst_addr} destination address is private, skipping");
+            continue;
+        }
         match crate::tcp_stream::std_create(dst_addr, Some(time_out)) {
             Ok(stream) => {
                 stream.set_nonblocking(true)?;
