@@ -263,6 +263,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
             return Err("invalid handshake".into());
         }
     } else {
+        #[allow(clippy::result_large_err)]
         let check_headers_callback = |req: &Request, res: Response| -> std::result::Result<Response, ErrorResponse> {
             retrieve_values(req);
             Ok(res)

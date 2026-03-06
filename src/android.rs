@@ -3,12 +3,14 @@
 use crate::traffic_status::{TrafficStatus, overtls_set_traffic_status_callback};
 use crate::{ArgVerbosity, Error, Result};
 use jni::{
-    JNIEnv, JavaVM,
-    objects::{GlobalRef, JClass, JObject, JString, JValue},
-    signature::{Primitive, ReturnType},
+    Env, EnvUnowned, JavaVM,
+    objects::{Global, JClass, JObject, JString, JValue},
+    signature::{JavaType, MethodSignature, Primitive, ReturnType},
+    strings::JNIString,
     sys::jint,
 };
 use std::os::raw::c_void;
+use std::sync::PoisonError;
 
 static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::sync::Mutex::new(None);
 
@@ -17,14 +19,14 @@ static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::s
 /// Run the overtls client with config file.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient(
-    mut env: JNIEnv,
-    _: JClass,
-    vpn_service: JObject,
-    config_path: JString,
-    stat_path: JString,
+    mut env: EnvUnowned<'_>,
+    _: JClass<'_>,
+    vpn_service: JObject<'_>,
+    config_path: JString<'_>,
+    stat_path: JString<'_>,
     verbosity: jint,
 ) -> jint {
-    let block = || -> Result<()> {
+    env.with_env(|env: &mut Env| -> Result<jint> {
         let log_level = ArgVerbosity::try_from(verbosity).unwrap_or_default().to_string();
         let root = module_path!().split("::").next().unwrap_or("overtls");
         let filter_str = &format!("off,{root}={log_level}");
@@ -47,19 +49,20 @@ pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient
             *lock = Some(shutdown_token.clone());
         }
 
+        // store JavaVM and global VPN service reference
         JAVA_VM.lock().map_err(|e| Error::from(e.to_string()))?.replace(env.get_java_vm()?);
         VPN_SERVICE
             .lock()
             .map_err(|e| Error::from(e.to_string()))?
             .replace(env.new_global_ref(vpn_service)?);
 
-        if let Ok(stat_path) = get_java_string(&mut env, &stat_path) {
+        if let Ok(stat_path) = get_java_string(env, &stat_path) {
             let mut stat = STAT_PATH.lock().map_err(|e| Error::from(e.to_string()))?;
             *stat = Some(stat_path);
 
             unsafe { overtls_set_traffic_status_callback(1, Some(send_traffic_stat), std::ptr::null_mut()) };
         }
-        let config_path = get_java_string(&mut env, &config_path)?.to_owned();
+        let config_path = get_java_string(env, &config_path)?.to_owned();
         set_panic_handler();
 
         let callback = |addr| {
@@ -72,39 +75,48 @@ pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient
         let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
         rt.block_on(async {
             crate::client::run_client(&config, shutdown_token, Some(callback)).await?;
-            Ok::<(), Error>(())
+            Ok::<jint, Error>(0)
         })
-    };
-    if let Err(error) = block() {
-        log::error!("failed to run client, error={:?}", error);
-    }
-    0
+    })
+    .resolve::<jni::errors::LogErrorAndDefault>()
 }
 
-fn get_java_string(env: &mut JNIEnv, string: &JString) -> Result<String> {
-    Ok(env.get_string(string)?.into())
+fn get_java_string(env: &Env, string: &JString<'_>) -> Result<String> {
+    string.try_to_string(env).map_err(|e| e.into())
 }
 
 static JAVA_VM: std::sync::Mutex<Option<JavaVM>> = std::sync::Mutex::new(None);
-static VPN_SERVICE: std::sync::Mutex<Option<GlobalRef>> = std::sync::Mutex::new(None);
+static VPN_SERVICE: std::sync::Mutex<Option<Global<JObject<'static>>>> = std::sync::Mutex::new(None);
 
 pub fn protect_socket(socket: i32) -> Result<bool> {
-    let vm = JAVA_VM.lock().map_err(|e| Error::from(e.to_string()))?;
-    let vm = vm.as_ref().ok_or_else(|| Error::from("java vm is not initialized"))?;
-    let mut env = vm.attach_current_thread_permanently()?;
-    let vpn_service = VPN_SERVICE.lock().map_err(|e| Error::from(e.to_string()))?;
-    let vpn_service = vpn_service.as_ref().ok_or_else(|| Error::from("vpn service is not initialized"))?;
-    let vpn_service = vpn_service.as_obj();
-    _protect_socket(&mut env, vpn_service, socket)
+    let vm_guard = JAVA_VM.lock().map_err(|e| Error::from(e.to_string()))?;
+    let vm = vm_guard.as_ref().ok_or_else(|| Error::from("java vm is not initialized"))?;
+
+    vm.attach_current_thread(|env: &mut Env| {
+        let guard = VPN_SERVICE.lock().map_err(|e| Error::from(e.to_string()))?;
+        let g = guard.as_ref().ok_or_else(|| Error::from("vpn service is not initialized"))?;
+        _protect_socket(env, g.as_obj(), socket)
+    })
 }
 
 // android::net::VPNService.protect(int)
-fn _protect_socket(env: &mut JNIEnv, vpn_service: &JObject, socket: i32) -> Result<bool> {
+fn _protect_socket(env: &mut Env, vpn_service: &JObject<'_>, socket: i32) -> Result<bool> {
     if socket <= 0 {
         return Err(Error::from(format!("invalid socket {:?}", socket)));
     }
-    let class = env.find_class("android/net/VpnService")?;
-    let method_id = env.get_method_id(class, "protect", "(I)Z")?;
+    // use JNIString so we satisfy AsRef<JNIStr>
+    let class = env.find_class(JNIString::from("android/net/VpnService"))?;
+
+    // build a MethodSignature for (I)Z
+    let sig_jni = JNIString::from("(I)Z");
+    let sig = unsafe {
+        MethodSignature::from_raw_parts(
+            sig_jni.as_ref(),
+            &[JavaType::Primitive(Primitive::Int)],
+            ReturnType::Primitive(Primitive::Boolean),
+        )
+    };
+    let method_id = env.get_method_id(class, JNIString::from("protect"), sig)?;
 
     let return_type = ReturnType::Primitive(Primitive::Boolean);
     let arguments = [JValue::Int(socket).as_jni()];
@@ -117,7 +129,7 @@ fn _protect_socket(env: &mut JNIEnv, vpn_service: &JObject, socket: i32) -> Resu
 ///
 /// Shutdown the client.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient(_: JNIEnv, _: JClass) -> jint {
+pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClient(_: EnvUnowned<'_>, _: JClass<'_>) -> jint {
     if let Ok(mut token) = EXITING_FLAG.lock() {
         if let Some(token) = token.take() {
             token.cancel();
