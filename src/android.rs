@@ -10,7 +10,6 @@ use jni::{
     sys::jint,
 };
 use std::os::raw::c_void;
-use std::sync::PoisonError;
 
 static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::sync::Mutex::new(None);
 
