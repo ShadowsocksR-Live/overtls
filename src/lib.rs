@@ -33,6 +33,18 @@ pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32;
 #[cfg(not(target_os = "windows"))]
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32 * 3;
 
+pub(crate) fn ensure_rustls_crypto_provider() -> Result<()> {
+    if rustls::crypto::CryptoProvider::get_default().is_some() {
+        return Ok(());
+    }
+
+    if rustls::crypto::ring::default_provider().install_default().is_err() && rustls::crypto::CryptoProvider::get_default().is_none() {
+        return Err(Error::from("failed to install rustls ring CryptoProvider"));
+    }
+
+    Ok(())
+}
+
 pub(crate) fn addess_to_b64str(addr: &Address, url_safe: bool) -> String {
     let mut buf = BytesMut::with_capacity(1024);
     addr.write_to_buf(&mut buf);
