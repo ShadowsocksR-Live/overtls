@@ -1,6 +1,6 @@
 [package]
 name = "overtls"
-version = "0.3.7"
+version = "0.3.8"
 edition = "2024"
 license = "MIT"
 description = "A simple proxy tunnel, minimalist tool for bypassing the GFW."
@@ -16,62 +16,64 @@ name = "overtls-bin"
 path = "src/bin/main.rs"
 
 [dependencies]
-async-shared-timeout = "0.2"
-base64easy = "0.1"
-bytes = "1"
-chrono = "0.4"
-clap = { version = "4", features = ["derive", "cargo"] }
-connection-pool = { version = "0.3", default-features = false }
-ctrlc2 = { version = "3", features = ["async", "termination"] }
-dotenvy = "0.15"
-env_logger = "0.11"
-futures-util = { version = "0.3", default-features = false, features = [
+async-shared-timeout = "0.2.2"
+base64easy = "0.1.7"
+bytes = "1.11.1"
+chrono = "0.4.44"
+clap = { version = "4.6.0", features = ["derive", "cargo"] }
+connection-pool = { version = "0.3.7", default-features = false }
+ctrlc2 = { version = "3.7.3", features = ["async", "termination"] }
+dotenvy = "0.15.7"
+env_logger = "0.11.10"
+futures-util = { version = "0.3.32", default-features = false, features = [
     "sink",
     "std",
 ] }
-hickory-proto = "0.25"
-http = "1"
-httparse = "1"
-log = { version = "0.4", features = ["std"] }
-moka = { version = "0.12", default-features = false, features = ["future"] }
-reqwest = { version = "0.13", default-features = false, features = [
+hickory-proto = "0.25.2"
+http = "1.4.0"
+httparse = "1.10.1"
+log = { version = "0.4.29", features = ["std"] }
+moka = { version = "0.12.15", default-features = false, features = ["future"] }
+reqwest = { version = "0.13.2", default-features = false, features = [
     "rustls",
     "json",
 ] }
-rustls = { version = "0.23", default-features = false, features = [
+rustls = { version = "0.23.38", default-features = false, features = [
     "std",
     "tls12",
     "logging",
     "ring",
 ] }
-rustls-pemfile = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-socket2 = "0.6"
-socks5-impl = { version = "0.8", default-features = false, features = [
+rustls-pemfile = "2.2.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+socket2 = "0.6.3"
+socks5-impl = { version = "0.8.1", default-features = false, features = [
     "server",
 ] }
-thiserror = "2"
-tokio = { version = "1", features = ["full"] }
-tokio-rustls = { version = "0.26", default-features = false, features = [
+thiserror = "2.0.18"
+tokio = { version = "1.51.1", features = ["full"] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = [
     "logging",
     "tls12",
     "ring",
 ] }
-tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
-tokio-util = "0.7"
-url = "2"
-webpki-roots = "1.0"
+tokio-tungstenite = { version = "0.29.0", features = [
+    "rustls-tls-webpki-roots",
+] }
+tokio-util = "0.7.18"
+url = "2.5.8"
+webpki-roots = "1.0.6"
 
 [target.'cfg(target_os = "android")'.dependencies]
-android_logger = "0.15"
-jni = { version = "0.22.3", default-features = false }
+android_logger = "0.15.1"
+jni = { version = "0.22.4", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-service = "0.8"
+windows-service = "0.8.0"
 
 [target.'cfg(unix)'.dependencies]
-daemonize = "0.5"
+daemonize = "0.5.0"
 
 [build-dependencies]
-chrono = "0.4"
+chrono = "0.4.44"
