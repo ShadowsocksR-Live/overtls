@@ -23,12 +23,12 @@ sed -i 's/"features": "/"features": "\+soft-float,/' ~/.rustup/mips-unknown-linu
 cd ../..
 
 # Configure linker
-mkdir .cargo
+mkdir -p .cargo
 rm -rf .cargo/config.toml
 cat > .cargo/config.toml <<EOF
 [target.mips-unknown-linux-gnu]
 linker = "mips-linux-gnu-gcc"
 EOF
 
-cargo +nightly build --release -Zbuild-std --target ~/.rustup/mips-unknown-linux-gnu.json
+cargo +nightly build --release -Zbuild-std -Zjson-target-spec --target ~/.rustup/mips-unknown-linux-gnu.json
 

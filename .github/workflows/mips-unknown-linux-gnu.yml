@@ -1,5 +1,6 @@
 name: Build mips-unknown-linux-gnu Releases
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*.*.*"
@@ -36,7 +37,7 @@ jobs:
           zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls-bin ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.so
 
       - name: Upload
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
