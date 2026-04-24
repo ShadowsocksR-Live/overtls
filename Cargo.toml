@@ -20,7 +20,7 @@ async-shared-timeout = "0.2.2"
 base64easy = "0.1.7"
 bytes = "1.11.1"
 chrono = "0.4.44"
-clap = { version = "4.6.0", features = ["derive", "cargo"] }
+clap = { version = "4.6.1", features = ["derive", "cargo"] }
 connection-pool = { version = "0.3.7", default-features = false }
 ctrlc2 = { version = "3.7.3", features = ["async", "termination"] }
 dotenvy = "0.15.7"
@@ -29,7 +29,7 @@ futures-util = { version = "0.3.32", default-features = false, features = [
     "sink",
     "std",
 ] }
-hickory-proto = "0.25.2"
+hickory-proto = "0.26.0"
 http = "1.4.0"
 httparse = "1.10.1"
 log = { version = "0.4.29", features = ["std"] }
@@ -38,7 +38,7 @@ reqwest = { version = "0.13.2", default-features = false, features = [
     "rustls",
     "json",
 ] }
-rustls = { version = "0.23.38", default-features = false, features = [
+rustls = { version = "0.23.39", default-features = false, features = [
     "std",
     "tls12",
     "logging",
@@ -48,11 +48,11 @@ rustls-pemfile = "2.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 socket2 = "0.6.3"
-socks5-impl = { version = "0.8.1", default-features = false, features = [
+socks5-impl = { version = "0.8.2", default-features = false, features = [
     "server",
 ] }
 thiserror = "2.0.18"
-tokio = { version = "1.51.1", features = ["full"] }
+tokio = { version = "1.52.1", features = ["full"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = [
     "logging",
     "tls12",
@@ -63,7 +63,7 @@ tokio-tungstenite = { version = "0.29.0", features = [
 ] }
 tokio-util = "0.7.18"
 url = "2.5.8"
-webpki-roots = "1.0.6"
+webpki-roots = "1.0.7"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.15.1"
