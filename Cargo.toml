@@ -22,7 +22,7 @@ bytes = "1.11.1"
 chrono = "0.4.44"
 clap = { version = "4.6.1", features = ["derive", "cargo"] }
 connection-pool = { version = "0.3.7", default-features = false }
-ctrlc2 = { version = "3.7.3", features = ["async", "termination"] }
+ctrlc2 = { version = "4.0.0", features = ["async", "termination"] }
 dotenvy = "0.15.7"
 env_logger = "0.11.10"
 futures-util = { version = "0.3.32", default-features = false, features = [
