@@ -93,6 +93,10 @@ pub struct CmdOpt {
     #[arg(short, long, value_name = "addr:port")]
     pub listen_addr: Option<std::net::SocketAddr>,
 
+    /// Public IP address advertised in UDP ASSOCIATE replies.
+    #[arg(short, long, value_name = "ip")]
+    pub advertise_ip: Option<std::net::IpAddr>,
+
     /// Cache DNS Query result
     #[arg(long)]
     pub cache_dns: bool,
@@ -142,6 +146,9 @@ impl CmdOpt {
             }
             if args.listen_addr.is_some() {
                 output_error_and_exit("Listen address is not supported for server");
+            }
+            if args.advertise_ip.is_some() {
+                output_error_and_exit("Advertise IP is not supported for server");
             }
             if args.url_of_node.is_some() {
                 output_error_and_exit("Node URL is not supported for server");

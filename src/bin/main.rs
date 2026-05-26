@@ -32,7 +32,24 @@ fn main() -> Result<(), BoxError> {
             let c_string = std::ffi::CString::new(config_path_str)?;
             let config_path: *const std::os::raw::c_char = c_string.as_ptr();
 
-            unsafe { overtls::over_tls_client_run(config_path, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
+            let c_str: std::ffi::CString;
+            let listen_addr = if let Some(addr) = opt.listen_addr {
+                c_str = std::ffi::CString::new(addr.to_string())?;
+                c_str.as_ptr()
+            } else {
+                std::ptr::null()
+            };
+
+            let c_str2: std::ffi::CString;
+            let advertise_ip = if let Some(ip) = opt.advertise_ip {
+                c_str2 = std::ffi::CString::new(ip.to_string())?;
+                c_str2.as_ptr()
+            } else {
+                std::ptr::null()
+            };
+            let v = opt.verbosity;
+
+            unsafe { overtls::over_tls_client_run(config_path, listen_addr, advertise_ip, v, Some(port_cb), std::ptr::null_mut()) };
 
             if ctrlc_fired.load(std::sync::atomic::Ordering::SeqCst) {
                 ctrl_handle.join().map_err(|e| format!("{e:?}"))?;
@@ -45,7 +62,16 @@ fn main() -> Result<(), BoxError> {
             let listen_addr = std::ffi::CString::new(listen_addr.to_string())?;
             let listen_addr = listen_addr.as_ptr();
 
-            unsafe { overtls::over_tls_client_run_with_ssr_url(url_ptr, listen_addr, opt.verbosity, Some(port_cb), std::ptr::null_mut()) };
+            let holder: std::ffi::CString;
+            let a_ip = if let Some(ip) = opt.advertise_ip {
+                holder = std::ffi::CString::new(ip.to_string())?;
+                holder.as_ptr()
+            } else {
+                std::ptr::null()
+            };
+            let v = opt.verbosity;
+
+            unsafe { overtls::over_tls_client_run_with_ssr_url(url_ptr, listen_addr, a_ip, v, Some(port_cb), std::ptr::null_mut()) };
 
             if ctrlc_fired.load(std::sync::atomic::Ordering::SeqCst) {
                 ctrl_handle.join().map_err(|e| format!("{e:?}"))?;
@@ -74,6 +100,9 @@ fn main() -> Result<(), BoxError> {
         config.set_listen_addr(listen_addr);
     }
     config.set_cache_dns(opt.cache_dns);
+    if let ip @ Some(_) = opt.advertise_ip {
+        config.set_advertise_ip(ip);
+    }
 
     if let Some(size) = opt.pool_max_size
         && let Some(client) = config.client.as_mut()

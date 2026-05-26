@@ -29,10 +29,19 @@ static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::s
 /// Run the overtls client with config file.
 /// The callback function will be called when the client is listening on a port.
 /// It should be thread-safe and will be called with the port number and should be called only once.
+/// Parameters:
+/// - `config_path`: The path to the config file.
+/// - `listen_addr`: If not null, it overrides the listen address in the config file. It should be in the format of "ip:port".
+/// - `advertise_ip`: The public IP address to be advertised in UDP ASSOCIATE replies. If null, the server will use the local IP address.
+/// - `verbosity`: The verbosity level of the logger.
+/// - `callback`: The callback function to be called when the client is listening on a port. It should be thread-safe and will be called with the port number and should be called only once.
+/// - `ctx`: The context pointer to be passed to the callback function.
 ///
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn over_tls_client_run(
     config_path: *const c_char,
+    listen_addr: *const c_char,
+    advertise_ip: *const c_char,
     verbosity: ArgVerbosity,
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
@@ -49,6 +58,17 @@ pub unsafe extern "C" fn over_tls_client_run(
         }
         let config_path = unsafe { std::ffi::CStr::from_ptr(config_path).to_str()? };
         let mut config = Config::from_config_file(config_path)?;
+
+        if !listen_addr.is_null() {
+            let addr = unsafe { std::ffi::CStr::from_ptr(listen_addr) }.to_str()?.parse()?;
+            config.set_listen_addr(addr);
+        };
+
+        if !advertise_ip.is_null() {
+            let ip = unsafe { std::ffi::CStr::from_ptr(advertise_ip) }.to_str()?.parse()?;
+            config.set_advertise_ip(Some(ip));
+        }
+
         config.check_correctness(false)?;
         _over_tls_client_run(config, callback, ctx)
     };
@@ -67,6 +87,7 @@ pub unsafe extern "C" fn over_tls_client_run(
 /// Parameters:
 /// - `url`: SSR style URL string of the server node, e.g. "ssr://server:port:protocol:method:obfs:password_base64/?params_base64".
 /// - `listen_addr`: The address to listen on, in the format of "ip:port".
+/// - `advertise_ip`: The public IP address to be advertised in UDP ASSOCIATE replies. If null, the server will use the local IP address.
 /// - `verbosity`: The verbosity level of the logger.
 /// - `callback`: The callback function to be called when the client is listening on a port.
 ///   It should be thread-safe and will be called with the port number and should be called only once.
@@ -76,6 +97,7 @@ pub unsafe extern "C" fn over_tls_client_run(
 pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
     url: *const c_char,
     listen_addr: *const c_char,
+    advertise_ip: *const c_char,
     verbosity: ArgVerbosity,
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
@@ -95,8 +117,15 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
             unsafe { std::ffi::CStr::from_ptr(listen_addr) }.to_str()?.parse()?
         };
 
+        let advertise_ip = if advertise_ip.is_null() {
+            None
+        } else {
+            Some(unsafe { std::ffi::CStr::from_ptr(advertise_ip) }.to_str()?.parse()?)
+        };
+
         let mut config = Config::from_ssr_url(url)?;
         config.set_listen_addr(listen_addr);
+        config.set_advertise_ip(advertise_ip);
         config.check_correctness(false)?;
         _over_tls_client_run(config, callback, ctx)
     };

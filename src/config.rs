@@ -146,6 +146,8 @@ pub struct Client {
     pub listen_user: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub listen_password: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advertise_ip: Option<std::net::IpAddr>,
     #[serde(skip)]
     pub cache_dns: bool,
     #[serde(skip)]
@@ -284,6 +286,16 @@ impl Config {
             c.listen_host = addr.ip().to_string();
             c.listen_port = addr.port();
         }
+    }
+
+    pub fn set_advertise_ip(&mut self, ip: Option<std::net::IpAddr>) {
+        if let Some(c) = &mut self.client {
+            c.advertise_ip = ip;
+        }
+    }
+
+    pub fn advertise_ip(&self) -> Option<std::net::IpAddr> {
+        self.client.as_ref().and_then(|c| c.advertise_ip)
     }
 
     pub fn disable_tls(&self) -> bool {

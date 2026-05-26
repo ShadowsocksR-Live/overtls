@@ -27,20 +27,33 @@ pub(crate) type UdpRequestReceiver = broadcast::Receiver<(Bytes, Address, Addres
 pub(crate) type UdpRequestSender = broadcast::Sender<(Bytes, Address, Address)>;
 pub(crate) type SocketAddrHashSet = Arc<Mutex<HashSet<SocketAddr>>>;
 
+fn normalize_advertised_ip(ip: std::net::IpAddr) -> std::net::IpAddr {
+    if ip.is_unspecified() {
+        match ip {
+            std::net::IpAddr::V4(_) => std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+            std::net::IpAddr::V6(_) => std::net::IpAddr::V6(std::net::Ipv6Addr::LOCALHOST),
+        }
+    } else {
+        ip
+    }
+}
+
 pub(crate) async fn handle_s5_upd_associate(
     associate: UdpAssociate<UdpNeedReply>,
     udp_tx: UdpRequestSender,
     incomings: SocketAddrHashSet,
+    config: Config,
 ) -> Result<()> {
-    let listen_ip = associate.local_addr()?.ip();
+    let bind_ip = associate.local_addr()?.ip();
+    let advertise_ip = normalize_advertised_ip(config.advertise_ip().unwrap_or(bind_ip));
 
-    // listen on a random port
-    let udp_listener = UdpSocket::bind(SocketAddr::from((listen_ip, 0))).await;
+    // Bind a random port for the UDP relay, and advertise the selected endpoint back to the client.
+    let udp_listener = UdpSocket::bind(SocketAddr::from((advertise_ip, 0))).await;
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
         Ok((listen_udp, listen_addr)) => {
             log::trace!("[UDP] {listen_addr} listen on");
 
-            let s5_listen_addr = listen_addr.into();
+            let s5_listen_addr = SocketAddr::from((advertise_ip, listen_addr.port())).into();
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
 
             let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();

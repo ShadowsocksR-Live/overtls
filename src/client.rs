@@ -158,7 +158,7 @@ where
     match conn.wait_request().await? {
         ClientConnection::UdpAssociate(asso, _) => {
             if let Some(udp_tx) = udp_tx {
-                if let Err(e) = udprelay::handle_s5_upd_associate(asso, udp_tx, incomings).await {
+                if let Err(e) = udprelay::handle_s5_upd_associate(asso, udp_tx, incomings, config).await {
                     log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");
                 }
             } else {
