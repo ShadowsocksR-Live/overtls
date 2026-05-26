@@ -85,11 +85,12 @@ pub struct CmdOpt {
     pub config: Option<std::path::PathBuf>,
 
     /// URL of the server node used by client
-    #[arg(short, long, value_name = "url", conflicts_with = "config")]
+    #[arg(short, long, value_name = "url", conflicts_with = "config", requires = "listen_addr")]
     pub url_of_node: Option<String>,
 
-    /// Local listening address associated with the URL
-    #[arg(short, long, value_name = "addr:port", requires = "url_of_node", conflicts_with = "config")]
+    /// Local listening address, it is required for url_of_node, and optional for config file.
+    /// If specified with a config file, it overrides the listen address from that config.
+    #[arg(short, long, value_name = "addr:port")]
     pub listen_addr: Option<std::net::SocketAddr>,
 
     /// Cache DNS Query result

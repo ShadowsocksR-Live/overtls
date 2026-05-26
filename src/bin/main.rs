@@ -66,12 +66,13 @@ fn main() -> Result<(), BoxError> {
     let mut config = if let Some(file) = opt.config {
         Config::from_config_file(file)?
     } else if let Some(ref url_of_node) = opt.url_of_node {
-        let mut cfg = Config::from_ssr_url(url_of_node)?;
-        cfg.set_listen_addr(opt.listen_addr.unwrap_or(std::net::SocketAddr::from(([127, 0, 0, 1], 1080))));
-        cfg
+        Config::from_ssr_url(url_of_node)?
     } else {
         return Err("Config file or node URL is required".into());
     };
+    if let Some(listen_addr) = opt.listen_addr {
+        config.set_listen_addr(listen_addr);
+    }
     config.set_cache_dns(opt.cache_dns);
 
     if let Some(size) = opt.pool_max_size
