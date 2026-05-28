@@ -103,6 +103,9 @@ fn main() -> Result<(), BoxError> {
     if let ip @ Some(_) = opt.advertise_ip {
         config.set_advertise_ip(ip);
     }
+    if let max_lifetime @ Some(_) = opt.max_lifetime {
+        config.set_max_lifetime(max_lifetime);
+    }
 
     if let Some(size) = opt.pool_max_size
         && let Some(client) = config.client.as_mut()

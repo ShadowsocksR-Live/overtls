@@ -161,10 +161,10 @@ pub(crate) async fn run_udp_loop(udp_tx: UdpRequestSender, incomings: SocketAddr
 
     if !config.disable_tls() {
         let ws_stream = client::create_tls_ws_stream(svr_addr, None, &config, Some(true)).await?;
-        _run_udp_loop(udp_tx, incomings, ws_stream, config.cache_dns()).await?;
+        _run_udp_loop(udp_tx, incomings, ws_stream, config.cache_dns(), config.max_lifetime()).await?;
     } else {
         let ws_stream = client::create_plaintext_ws_stream(svr_addr, None, &config, Some(true)).await?;
-        _run_udp_loop(udp_tx, incomings, ws_stream, config.cache_dns()).await?;
+        _run_udp_loop(udp_tx, incomings, ws_stream, config.cache_dns(), config.max_lifetime()).await?;
     }
     Ok(())
 }
@@ -174,10 +174,16 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
     incomings: SocketAddrHashSet,
     mut ws_stream: WebSocketStream<S>,
     cache_dns: bool,
+    max_lifetime: Option<u64>,
 ) -> Result<()> {
     let mut udp_rx = udp_tx.subscribe();
 
     let mut timer = tokio::time::interval(Duration::from_secs(30));
+
+    // Set the maximum lifetime for the UDP loop to 1 hour to evade GFW censorship.
+    let max_lifetime = Duration::from_secs(max_lifetime.unwrap_or(3600));
+    let lifetime = time::sleep(max_lifetime);
+    tokio::pin!(lifetime);
 
     let cache = dns::create_dns_cache();
 
@@ -271,6 +277,10 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                 ws_stream.send(Message::Ping(vec![].into())).await?;
                 log::trace!("[UDP] Websocket ping from local");
                 Ok::<_, Error>(())
+            },
+            _ = &mut lifetime => {
+                log::trace!("[UDP] _run_udp_loop reached max lifetime ({max_lifetime:?})");
+                break;
             }
         };
     }

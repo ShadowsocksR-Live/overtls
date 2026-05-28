@@ -97,6 +97,10 @@ pub struct CmdOpt {
     #[arg(short, long, value_name = "ip")]
     pub advertise_ip: Option<std::net::IpAddr>,
 
+    /// Maximum lifetime in seconds for the UDP loop, default is 3600 seconds (1 hour).
+    #[arg(long, value_name = "seconds")]
+    pub max_lifetime: Option<u64>,
+
     /// Cache DNS Query result
     #[arg(long)]
     pub cache_dns: bool,
@@ -149,6 +153,9 @@ impl CmdOpt {
             }
             if args.advertise_ip.is_some() {
                 output_error_and_exit("Advertise IP is not supported for server");
+            }
+            if args.max_lifetime.is_some() {
+                output_error_and_exit("Max lifetime is not supported for server");
             }
             if args.url_of_node.is_some() {
                 output_error_and_exit("Node URL is not supported for server");

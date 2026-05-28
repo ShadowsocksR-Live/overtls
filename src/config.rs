@@ -7,6 +7,7 @@ use std::{
 
 pub(crate) const TEST_TIMEOUT_SECS: u64 = 10;
 pub(crate) const DEFAULT_POOL_MAX_SIZE: usize = 50;
+pub(crate) const MIN_MAX_LIFETIME_SECS: u64 = 10 * 60;
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
 pub struct Config {
@@ -148,6 +149,8 @@ pub struct Client {
     pub listen_password: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub advertise_ip: Option<std::net::IpAddr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_lifetime: Option<u64>,
     #[serde(skip)]
     pub cache_dns: bool,
     #[serde(skip)]
@@ -298,6 +301,16 @@ impl Config {
         self.client.as_ref().and_then(|c| c.advertise_ip)
     }
 
+    pub fn max_lifetime(&self) -> Option<u64> {
+        self.client.as_ref().and_then(|c| c.max_lifetime)
+    }
+
+    pub fn set_max_lifetime(&mut self, max_lifetime: Option<u64>) {
+        if let Some(c) = &mut self.client {
+            c.max_lifetime = max_lifetime;
+        }
+    }
+
     pub fn disable_tls(&self) -> bool {
         if self.is_server {
             if let Some(s) = &self.server {
@@ -382,6 +395,12 @@ impl Config {
             }
 
             if !self.is_server {
+                if let Some(max_lifetime) = client.max_lifetime
+                    && max_lifetime < MIN_MAX_LIFETIME_SECS
+                {
+                    return Err(Error::from("max_lifetime cannot be less than 10 minutes"));
+                }
+
                 let mut addr = (server_host, client.server_port).to_socket_addrs()?;
                 let addr = addr.next().ok_or("address not available")?;
                 {

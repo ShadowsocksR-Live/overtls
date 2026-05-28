@@ -20,7 +20,7 @@ async-shared-timeout = "0.2.2"
 base64easy = "0.1.7"
 bytes = "1.11.1"
 chrono = "0.4.44"
-clap = { version = "4.6.1", features = ["derive", "cargo"] }
+clap = { version = "4.6.1", features = ["derive", "cargo", "wrap_help"] }
 connection-pool = { version = "0.3.8", default-features = false }
 ctrlc2 = { version = "4.0.0", features = ["async", "termination"] }
 dotenvy = "0.15.7"

@@ -27,6 +27,8 @@
         "server_domain": "example.com",
         "cafile": "",
         "dangerous_mode": false,
+        "advertise_ip": "127.0.0.1",
+        "max_lifetime": 3600,
         "pool_max_size": 30,
         "listen_user": "",
         "listen_password": "",
