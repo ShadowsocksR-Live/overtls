@@ -49,25 +49,25 @@ where
     let client = config.client.as_ref().ok_or("client")?;
 
     let listen_user = client.listen_user.as_deref().filter(|s| !s.is_empty());
-    if let Some(user) = listen_user {
+    let auth: AuthAdaptor = if let Some(user) = listen_user {
         let listen_password = client.listen_password.as_deref().unwrap_or("");
         let key = UserKeyAuth::new(user, listen_password);
-        _run_client(config, Arc::new(key), quit, callback).await?;
+        Arc::new(key)
     } else {
-        _run_client(config, Arc::new(NoAuth), quit, callback).await?;
-    }
+        Arc::new(NoAuth)
+    };
+    _run_client(config, auth, quit, callback).await?;
     Ok(())
 }
 
-async fn _run_client<F, O>(config: &Config, auth: AuthAdaptor<O>, quit: crate::CancellationToken, callback: Option<F>) -> Result<()>
+async fn _run_client<F>(config: &Config, auth: AuthAdaptor, quit: crate::CancellationToken, callback: Option<F>) -> Result<()>
 where
     F: FnOnce(SocketAddr) + Send + Sync + 'static,
-    O: Send + Sync + 'static,
 {
     let client = config.client.as_ref().ok_or("client")?;
     let addr = SocketAddr::new(client.listen_host.parse()?, client.listen_port);
 
-    let server = Server::<O>::bind(addr, auth).await?;
+    let server = Server::bind(addr, auth).await?;
 
     let pool_max_size = client.pool_max_size.map_or(Some(crate::config::DEFAULT_POOL_MAX_SIZE), Some);
 
@@ -78,25 +78,24 @@ where
     if config.disable_tls() {
         let manager = WsPlainConnectionManager { config: config.clone() };
         let connection_pool = ConnectionPool::new(pool_max_size, None, None, None, manager);
-        client_event_loop::<_, TcpStream, _>(connection_pool, quit, server, config).await?;
+        client_event_loop::<_, TcpStream>(connection_pool, quit, server, config).await?;
     } else {
         let manager = WsTlsConnectionManager { config: config.clone() };
         let connection_pool = ConnectionPool::new(pool_max_size, None, None, None, manager);
-        client_event_loop::<_, TlsStream<TcpStream>, _>(connection_pool, quit, server, config).await?;
+        client_event_loop::<_, TlsStream<TcpStream>>(connection_pool, quit, server, config).await?;
     };
     Ok(())
 }
 
-async fn client_event_loop<M, S, O>(
+async fn client_event_loop<M, S>(
     pool: Arc<ConnectionPool<M>>,
     quit: crate::CancellationToken,
-    server: Server<O>,
+    server: Server,
     config: &Config,
 ) -> Result<()>
 where
     M: ConnectionManager<Connection = WebSocketStream<S>> + Send + Sync + 'static,
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    O: Send + Sync + 'static,
 {
     let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
     udprelay::udp_handler_watchdog(config, &incomings, &udp_tx, quit.clone()).await?;
@@ -129,7 +128,7 @@ where
                     };
                     let count = session_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
                     log::debug!("session #{session_id} from {peer_addr} started, session count {count}");
-                    if let Err(e) = handle_incoming::<_, S>(conn, config, Some(udp_tx), incomings, &mut *ws_stream).await {
+                    if let Err(e) = handle_incoming::<S>(conn, config, Some(udp_tx), incomings, &mut *ws_stream).await {
                         log::debug!("{e}");
                     }
                     let count = session_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) - 1;
@@ -142,8 +141,8 @@ where
     Ok(())
 }
 
-async fn handle_incoming<IO, S>(
-    conn: IncomingConnection<IO>,
+async fn handle_incoming<S>(
+    conn: IncomingConnection,
     config: Config,
     udp_tx: Option<udprelay::UdpRequestSender>,
     incomings: udprelay::SocketAddrHashSet,
@@ -151,10 +150,9 @@ async fn handle_incoming<IO, S>(
 ) -> Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    IO: 'static,
 {
     let peer_addr = conn.peer_addr()?;
-    let (conn, _res) = conn.authenticate().await?;
+    let conn = conn.authenticate().await?;
     match conn.wait_request().await? {
         ClientConnection::UdpAssociate(asso, _) => {
             if let Some(udp_tx) = udp_tx {
