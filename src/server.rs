@@ -2,6 +2,7 @@ use crate::{
     b64str_to_address,
     config::{Config, TEST_TIMEOUT_SECS},
     error::{Error, Result},
+    panel_sync::PanelSyncClient,
     tls::*,
     traffic_audit::{TrafficAudit, TrafficAuditPtr},
     weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP_TUNNEL},
@@ -82,6 +83,18 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     }
 
     let traffic_audit = Arc::new(Mutex::new(TrafficAudit::new()));
+
+    if config.panel_sync_enabled() {
+        let sync_config = config.clone();
+        let sync_traffic_audit = traffic_audit.clone();
+        let sync_quit = exiting_flag.clone();
+        tokio::spawn(async move {
+            let syncer = PanelSyncClient::new(&sync_config);
+            if let Err(e) = syncer.run(sync_traffic_audit, sync_quit).await {
+                log::warn!("panel sync task stopped: {e}");
+            }
+        });
+    }
 
     let listener = match TcpListener::bind(&addr).await {
         Ok(listener) => listener,
@@ -336,9 +349,19 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     let mut buffer = [0; crate::STREAM_BUFFER_SIZE];
     // Mark if outgoing has been written to
     let mut outgoing_can_be_read = false;
+    let mut enable_check = tokio::time::interval(std::time::Duration::from_secs(1));
 
     loop {
         tokio::select! {
+            _ = enable_check.tick() => {
+                if let Some(client_id) = client_id
+                    && !traffic_audit.lock().await.get_enable_of(client_id)
+                {
+                    log::debug!("{peer} <> {dst_addr:?} client id {client_id:?} disabled by panel sync");
+                    let _ = ws_stream.send(Message::Text(END_SESSION.into())).await;
+                    break;
+                }
+            }
             msg = ws_stream.next() => {
                 let msg = msg.ok_or(format!("{peer} -> {dst_addr:?} no Websocket message"))??;
                 let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
@@ -492,9 +515,18 @@ async fn svr_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     let mut buf_v6 = vec![0u8; crate::STREAM_BUFFER_SIZE];
 
     let dst_src_pairs = Arc::new(Mutex::new(HashMap::new()));
+    let mut enable_check = tokio::time::interval(std::time::Duration::from_secs(1));
 
     loop {
         tokio::select! {
+            _ = enable_check.tick() => {
+                if let Some(client_id) = client_id
+                    && !traffic_audit.lock().await.get_enable_of(client_id)
+                {
+                    log::debug!("[UDP] tunnel disabled by panel sync for client {client_id:?}");
+                    break;
+                }
+            }
             Some(msg) = ws_stream.next() => {
                 let msg = msg?;
                 if let Some(client_id) = client_id {

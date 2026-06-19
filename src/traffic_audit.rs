@@ -16,11 +16,11 @@ impl ClientNode {
     }
 
     pub fn add_upstream_traffic(&mut self, traffic: u64) {
-        self.upstream_traffic += traffic;
+        self.upstream_traffic = self.upstream_traffic.saturating_add(traffic);
     }
 
     pub fn add_downstream_traffic(&mut self, traffic: u64) {
-        self.downstream_traffic += traffic;
+        self.downstream_traffic = self.downstream_traffic.saturating_add(traffic);
     }
 
     pub fn get_upstream_traffic(&self) -> u64 {
@@ -32,7 +32,7 @@ impl ClientNode {
     }
 
     pub fn get_total_traffic(&self) -> u64 {
-        self.upstream_traffic + self.downstream_traffic
+        self.upstream_traffic.saturating_add(self.downstream_traffic)
     }
 
     pub fn set_enable(&mut self, enable: bool) {

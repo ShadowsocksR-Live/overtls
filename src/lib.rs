@@ -6,13 +6,13 @@ pub(crate) mod config;
 pub(crate) mod dns;
 pub(crate) mod dump_logger;
 pub(crate) mod error;
+pub(crate) mod panel_sync;
 pub(crate) mod server;
 pub(crate) mod tcp_stream;
 pub(crate) mod tls;
 pub(crate) mod traffic_audit;
 pub(crate) mod traffic_status;
 pub(crate) mod udprelay;
-pub(crate) mod webapi;
 pub(crate) mod weirduri;
 pub mod win_svc;
 
