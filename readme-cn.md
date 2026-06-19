@@ -134,6 +134,8 @@ overtls-bin -r client -c config.json
 `certfile` 和 `keyfile` 爲可選項，配正確後 軟件就變身 https 協議服務端，非翻牆流量直接轉發到 `forward_addr` 指向的目標。
 若 `certfile` 和 `keyfile` 兩項配錯或乾脆不存在，則需要前置的 `反向代理` 如 `nginx` 協助方可工作。
 
+如果你要讓服務端主動和面板同步，請使用 `server_settings.panel_sync`。
+
 > 如果 `forward_addr` 選項不存在，則默認值爲 `http://127.0.0.1:80`，即本機 `nginx` 監聽 `http` 的 `80` 端口。
 
 注意 `tunnel_path` 配置項，請務必改成你自己獨有的複雜字符串，否則 `GFW` 立馬拿你祭旗。

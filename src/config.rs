@@ -106,7 +106,7 @@ pub struct Server {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_tls: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub manage_clients: Option<ManageClients>,
+    pub panel_sync: Option<PanelSync>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub certfile: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,7 +118,7 @@ pub struct Server {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
-pub struct ManageClients {
+pub struct PanelSync {
     pub enable: Option<bool>,
     pub webapi_url: Option<String>,
     pub webapi_token: Option<String>,
@@ -216,36 +216,36 @@ impl Config {
         self.client.as_ref().ok_or(Error::from("no client"))?.export_certificate(path)
     }
 
-    pub fn manage_clients(&self) -> bool {
+    pub fn panel_sync_enabled(&self) -> bool {
         let f = |s: &Server| {
-            let f2 = |c: &ManageClients| c.enable.unwrap_or(false);
-            s.manage_clients.as_ref().map(f2).unwrap_or(false)
+            let f2 = |c: &PanelSync| c.enable.unwrap_or(false);
+            s.panel_sync.as_ref().map(f2).unwrap_or(false)
         };
         self.server.as_ref().map(f).unwrap_or(false)
     }
 
     pub fn webapi_url(&self) -> Option<String> {
-        let f = |s: &Server| s.manage_clients.as_ref().map(|c| c.webapi_url.clone()).unwrap_or(None);
+        let f = |s: &Server| s.panel_sync.as_ref().map(|c| c.webapi_url.clone()).unwrap_or(None);
         self.server.as_ref().map(f).unwrap_or(None)
     }
 
     pub fn webapi_token(&self) -> Option<String> {
         let f = |s: &Server| {
-            let f2 = |c: &ManageClients| c.webapi_token.clone();
-            s.manage_clients.as_ref().map(f2).unwrap_or(None)
+            let f2 = |c: &PanelSync| c.webapi_token.clone();
+            s.panel_sync.as_ref().map(f2).unwrap_or(None)
         };
         self.server.as_ref().map(f).unwrap_or(None)
     }
 
     pub fn node_id(&self) -> Option<usize> {
-        let f = |s: &Server| s.manage_clients.as_ref().map(|c| c.node_id).unwrap_or(None);
+        let f = |s: &Server| s.panel_sync.as_ref().map(|c| c.node_id).unwrap_or(None);
         self.server.as_ref().map(f).unwrap_or(None)
     }
 
     pub fn api_update_interval_secs(&self) -> Option<u64> {
         let f = |s: &Server| {
-            let f2 = |c: &ManageClients| c.api_update_interval_secs;
-            s.manage_clients.as_ref().map(f2).unwrap_or(None)
+            let f2 = |c: &PanelSync| c.api_update_interval_secs;
+            s.panel_sync.as_ref().map(f2).unwrap_or(None)
         };
         self.server.as_ref().map(f).unwrap_or(None)
     }

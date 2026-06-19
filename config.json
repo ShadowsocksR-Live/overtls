@@ -6,7 +6,7 @@
     "tunnel_path": "/secret-tunnel-path/",
     "server_settings": {
         "disable_tls": false,
-        "manage_clients": {
+        "panel_sync": {
             "enabled": false,
             "node_id": 1,
             "api_update_time": 60,

@@ -277,14 +277,14 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         traffic_audit.lock().await.add_client(client_id);
     }
 
-    let mut enable_client = true;
-    if config.manage_clients() {
-        enable_client = false;
+    let mut panel_sync_enabled = true;
+    if config.panel_sync_enabled() {
+        panel_sync_enabled = false;
         if let Some(client_id) = &client_id {
-            enable_client = traffic_audit.lock().await.get_enable_of(client_id);
+            panel_sync_enabled = traffic_audit.lock().await.get_enable_of(client_id);
         }
     }
-    if !enable_client {
+    if !panel_sync_enabled {
         log::warn!("{peer} -> client id: \"{client_id:?}\" is disabled");
         return Ok(());
     }

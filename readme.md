@@ -144,6 +144,8 @@ with `RUST_LOG=overtls=trace` as content.
 }
 ```
 
+If you need the server to synchronize with a control panel, use `server_settings.panel_sync`.
+
 The configuration file is very simple. It is common to both `server` and `client`.
 -    When the application is running as a `server`, the `server_settings` section is valid and the `client_settings` section is ignored.
 -    When the program is run as a `client`, the `client_settings` section is valid and the `server_settings` section is ignored.
