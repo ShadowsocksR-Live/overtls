@@ -6,7 +6,6 @@
 [![Download](https://img.shields.io/crates/d/overtls.svg)](https://crates.io/crates/overtls)
 [![License](https://img.shields.io/crates/l/overtls.svg?style=flat)](https://github.com/ShadowsocksR-Live/overtls/blob/master/LICENSE)
 
-
 [中文版](readme-cn.md)
 
 overtls is a [SOCKS5](https://en.wikipedia.org/wiki/SOCKS#SOCKS5) type proxy,
@@ -15,6 +14,7 @@ which implements data transmission through TLS and supports TCP and UDP traffic 
 The function is complete and the code is concise, and the core function is 1200 lines of code in total.
 
 > `OverTLS` is a Rust implementation of [SSRoT](https://github.com/ShadowsocksR-Live/shadowsocksr-native) without `SSR` and `SS`, only retaining `oT`, which is fast and stable.
+>
 > ```kotlin
 >     fun isOverTLS() : Boolean =
 >         over_tls_enable && method == "none" && obfs == "plain" && protocol == "origin"
@@ -44,6 +44,7 @@ Thus, the data exchange between the overtls server and the overtls client is enc
 while the data exchange between the overtls server and the target server is in "plaintext".
 
 In summary, we need to prepare the following things
+
 - A `VPS` host with a public `IP`, which must be purchased by yourself.
 - A `domain name`, which can be purchased or applied for free, and resolve the `domain name` to the `IP` of the `VPS` host.
 - A pair of `https` certificates/private keys, which can be purchased or applied for free at [Let's Encrypt](https://letsencrypt.org/) .
@@ -54,6 +55,7 @@ In summary, we need to prepare the following things
 ### Install from crates.io
 
 If you have installed the [Rust](https://rustup.rs/), you can install overtls directly.
+
 ```bash
 cargo install overtls --root /usr/local/
 ```
@@ -94,6 +96,7 @@ sudo systemctl start overtls
 ```
 
 ### Installation script with Caddy
+
 <details>
 <summary>Steps of installing with Caddy</summary>
 
@@ -109,11 +112,13 @@ sudo systemctl start overtls
 ## Usage
 
 ### Server
+
 ```bash
 overtls-bin -r server -c config.json
 ```
 
 ### Client
+
 ```bash
 overtls-bin -r client -c config.json
 ```
@@ -122,52 +127,57 @@ If you want to see log info, you can create a `.env` file in current dir (`pwd`)
 with `RUST_LOG=overtls=trace` as content.
 
 ### Configuration file
+
 ```json
 {
-    "tunnel_path": "/secret-tunnel-path/",
+  "tunnel_path": "/secret-tunnel-path/",
 
-    "server_settings": {
-        "certfile": "/etc/mysite_cert/fullchain.pem",
-        "keyfile": "/etc/mysite_cert/privkey.pem",
-        "forward_addr": "http://127.0.0.1:80",
-        "listen_host": "0.0.0.0",
-        "listen_port": 443
-    },
+  "server_settings": {
+    "certfile": "/etc/mysite_cert/fullchain.pem",
+    "keyfile": "/etc/mysite_cert/privkey.pem",
+    "forward_addr": "http://127.0.0.1:80",
+    "listen_host": "0.0.0.0",
+    "listen_port": 443
+  },
 
-    "client_settings": {
-        "server_host": "123.45.67.89",
-        "server_port": 443,
-        "server_domain": "example.com",
-        "listen_host": "127.0.0.1",
-        "listen_port": 1080
-    }
+  "client_settings": {
+    "server_host": "123.45.67.89",
+    "server_port": 443,
+    "server_domain": "example.com",
+    "listen_host": "127.0.0.1",
+    "listen_port": 1080
+  }
 }
 ```
 
 If you need the server to synchronize with a control panel, use `server_settings.panel_sync`.
 
 The configuration file is very simple. It is common to both `server` and `client`.
--    When the application is running as a `server`, the `server_settings` section is valid and the `client_settings` section is ignored.
--    When the program is run as a `client`, the `client_settings` section is valid and the `server_settings` section is ignored.
+
+- When the application is running as a `server`, the `server_settings` section is valid and the `client_settings` section is ignored.
+- When the program is run as a `client`, the `client_settings` section is valid and the `server_settings` section is ignored.
 
 The `certfile` and `keyfile` are optional, and the software will become `https` protocol server after the correct pairing, and the non-flip traffic will be forwarded directly to the `forward_addr` destination. If the `certfile` and `keyfile` are incorrectly matched or simply do not exist, you will need the help of a previous `reverse proxy` such as `nginx` to work.
 
->    If the forward_addr option does not exist, the default value is `http://127.0.0.1:80`, which is the port `80` on which the local `nginx` listens to `http`.
+> If the forward_addr option does not exist, the default value is `http://127.0.0.1:80`, which is the port `80` on which the local `nginx` listens to `http`.
 
 Note the `tunnel_path` configuration, please make sure to change it to your own unique complex string, otherwise `GFW` will block you immediately.
 
 > The `tunnel_path` option now can be a string or an array of strings, like `["/secret-tunnel-path/", "/another-secret-tunnel-path/"]`.
 > Overtls client side will select the first one to use.
-> In the server side, it will check the incoming request with the entire array of strings. 
+> In the server side, it will check the incoming request with the entire array of strings.
 
->    For testing purposes, the `disable_tls` option is provided to have the ability to disable `TLS`; that is, if this option exists and is true, the software will transmit traffic in `plain text`; for security reasons, please do not use it on official occasions.
+> For testing purposes, the `disable_tls` option is provided to have the ability to disable `TLS`; that is, if this option exists and is true, the software will transmit traffic in `plain text`; for security reasons, please do not use it on official occasions.
 
 This example shows the configuration file of the least entry, the complete configuration file can refer to [config.json](config.json).
 
-### Self-signed certificate usage
+### ~~Self-signed certificate usage~~
 
-If you have not owned a `domain name`, you can use the `openssl` command to generate a self-signed certificate
-for testing purposes.
+> [!NOTE]
+> Since Let's Encrypt has opened the issuance of certificates for IPs without domain names, self-signed certificates are actually no longer needed.
+
+~~If you have not owned a `domain name`, you can use the `openssl` command to generate a self-signed certificate~~
+~~for testing purposes.~~
 
 ```bash
 sudo apt install -y wget # Debian/Ubuntu
@@ -175,12 +185,13 @@ sudo yum install -y wget # CentOS
 wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install-selfsign.sh
 bash ./overtls-install-selfsign.sh
 ```
-> - Note: The `GFW` maybe block your server since you are using a self-signed certificate.
->   So please do not use it for long-term production purposes.
-> - Note: It is better to copy the root certificate file `root.crt` to your local machine, and set the
->   `cafile` option in the configuration file to the path of this root certificate file.
-> - Note: If you use a self-signed certificate and find it inconvenient to use the root certificate file
->   on the client side, you can set the `dangerous_mode` option in the configuration file to `true`,
->   so that you can skip the certificate verification. But this is very dangerous, it is easy to be attacked
->   by [Man-in-the-middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack),
->   and may steal your password and other sensitive information when you use network accounts.
+
+> - ~~Note: The `GFW` maybe block your server since you are using a self-signed certificate.~~
+>   ~~So please do not use it for long-term production purposes.~~
+> - ~~Note: It is better to copy the root certificate file `root.crt` to your local machine, and set the~~
+>   ~~`cafile` option in the configuration file to the path of this root certificate file.~~
+> - ~~Note: If you use a self-signed certificate and find it inconvenient to use the root certificate file~~
+>   ~~on the client side, you can set the `dangerous_mode` option in the configuration file to `true`,~~
+>   ~~so that you can skip the certificate verification. But this is very dangerous, it is easy to be attacked~~
+>   ~~by [Man-in-the-middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack),~~
+>   ~~and may steal your password and other sensitive information when you use network accounts.~~
