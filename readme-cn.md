@@ -154,6 +154,17 @@ overtls-bin -r client -c config.json
 
 本示例展示的是最少條目的配置文件，完整的配置文件可以參考 [config.json](config.json)。
 
+### 使用 纯 IP 证书
+
+如果你没有域名，或者你不想使用域名，你可以使用纯 IP 证书。
+
+```bash
+sudo apt install -y wget # Debian/Ubuntu
+sudo yum install -y wget # CentOS
+wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install-pure-ip.sh
+bash ./overtls-install-pure-ip.sh
+```
+
 ### ~~自簽證書使用~~
 
 > [!NOTE]

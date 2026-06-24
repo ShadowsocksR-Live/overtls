@@ -119,7 +119,7 @@ pub struct Server {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
 pub struct PanelSync {
-    pub enable: Option<bool>,
+    pub enabled: Option<bool>,
     pub webapi_url: Option<String>,
     pub webapi_token: Option<String>,
     pub node_id: Option<usize>,
@@ -218,7 +218,7 @@ impl Config {
 
     pub fn panel_sync_enabled(&self) -> bool {
         let f = |s: &Server| {
-            let f2 = |c: &PanelSync| c.enable.unwrap_or(false);
+            let f2 = |c: &PanelSync| c.enabled.unwrap_or(false);
             s.panel_sync.as_ref().map(f2).unwrap_or(false)
         };
         self.server.as_ref().map(f).unwrap_or(false)

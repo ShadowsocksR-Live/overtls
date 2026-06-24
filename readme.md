@@ -171,6 +171,17 @@ Note the `tunnel_path` configuration, please make sure to change it to your own 
 
 This example shows the configuration file of the least entry, the complete configuration file can refer to [config.json](config.json).
 
+### Using Pure IP Certificate
+
+If you do not have a domain name, or you do not want to use a domain name, you can use a pure IP certificate.
+
+```bash
+sudo apt install -y wget # Debian/Ubuntu
+sudo yum install -y wget # CentOS
+wget https://raw.githubusercontent.com/shadowsocksr-live/overtls/master/install/overtls-install-pure-ip.sh
+bash ./overtls-install-pure-ip.sh
+```
+
 ### ~~Self-signed certificate usage~~
 
 > [!NOTE]
