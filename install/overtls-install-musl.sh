@@ -378,7 +378,9 @@ function do_lets_encrypt_certificate_authority() {
 }
 
 function acme_cron_update(){
-    cat > ${site_cert_dir}/renew_cert.sh <<EOF
+    local cmd_file=${site_cert_dir}/renew_cert.sh
+
+    cat > ${cmd_file} <<EOF
 #!/bin/bash
 
 cd ${site_cert_dir}
@@ -391,7 +393,13 @@ systemctl start nginx
 sleep 2
 EOF
 
-    chmod a+x ${site_cert_dir}/renew_cert.sh
+    chmod a+x ${cmd_file}
+
+    # 如果 crontab 中已经存在 renew_cert.sh 的定时任务，则不再添加
+    if crontab -l | grep -q "${cmd_file}"; then
+        echo -e "${OK} ${GreenBG} The cron job for renew_cert.sh already exists. Skipping addition. ${Font}"
+        return 0
+    fi
 
     local cron_name="cron"
     if [[ "${ID}" == "centos" ]]; then
@@ -402,7 +410,7 @@ EOF
     sleep 2
     rm -rf tmp_info
     crontab -l > tmp_info
-    echo "0 0 10 * * ${site_cert_dir}/renew_cert.sh >/dev/null 2>&1" >> tmp_info && crontab tmp_info && rm -rf tmp_info
+    echo "0 0 10 * * ${cmd_file} >/dev/null 2>&1" >> tmp_info && crontab tmp_info && rm -rf tmp_info
     systemctl start ${cron_name}
 
     judge "cron scheduled task update"
