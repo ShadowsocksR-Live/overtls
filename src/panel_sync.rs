@@ -13,12 +13,6 @@ struct SyncUser {
     enable: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct SyncPayload {
-    #[serde(default)]
-    users: Vec<SyncUser>,
-}
-
 fn default_true() -> bool {
     true
 }
@@ -63,16 +57,20 @@ impl PanelSyncClient {
     }
 
     async fn sync_once(&mut self, traffic_audit: &TrafficAuditPtr) -> Result<()> {
-        let payload = self.fetch_sync_payload().await?;
+        let users = self.fetch_sync_payload().await?;
 
         let existing_clients = traffic_audit.lock().await.get_client_list();
         let mut seen_clients = HashSet::new();
 
-        for user in payload.users {
-            seen_clients.insert(user.client_id.clone());
+        log::trace!("syncing users from panel: {:?}", users);
+
+        for user in users {
+            let client_id = user.client_id.clone();
+
+            seen_clients.insert(client_id.clone());
             let mut audit = traffic_audit.lock().await;
-            audit.add_client(&user.client_id);
-            audit.set_enable_of(&user.client_id, user.enable);
+            audit.add_client(&client_id);
+            audit.set_enable_of(&client_id, user.enable);
         }
 
         for client_id in existing_clients {
@@ -88,6 +86,7 @@ impl PanelSyncClient {
     async fn report_traffic_once(&mut self, traffic_audit: &TrafficAuditPtr) -> Result<()> {
         let client_ids = traffic_audit.lock().await.get_client_list();
         let mut payload = Vec::new();
+        let mut current_traffic = HashMap::new();
 
         for client_id in client_ids {
             let (upstream, downstream) = {
@@ -105,7 +104,14 @@ impl PanelSyncClient {
                 continue;
             }
 
-            payload.push((client_id, delta_upstream, delta_downstream, upstream, downstream));
+            current_traffic.insert(client_id.clone(), (upstream, downstream));
+
+            let mut record = serde_json::Map::new();
+            record.insert("client_id".to_string(), serde_json::json!(client_id));
+            record.insert("u".to_string(), serde_json::json!(delta_upstream));
+            record.insert("d".to_string(), serde_json::json!(delta_downstream));
+
+            payload.push(serde_json::Value::Object(record));
         }
 
         if payload.is_empty() {
@@ -113,35 +119,31 @@ impl PanelSyncClient {
         }
 
         let body = serde_json::json!({
-            "data": payload.iter().map(|(client_id, delta_upstream, delta_downstream, _, _)| {
-                serde_json::json!({
-                    "client_id": client_id,
-                    "u": delta_upstream,
-                    "d": delta_downstream,
-                })
-            }).collect::<Vec<_>>()
+            "data": payload,
         });
 
         let node_id = self.config.node_id().ok_or_else(|| Error::from("panel sync node_id not set"))?;
-        // url like: {webapi_url}/node/api/v1/user/traffic?key={webapi_token}&node_id={node_id}
-        let url = self.build_url("user/traffic", &[("node_id", node_id.to_string())]);
+        // url like: {webapi_url}/mod_mu/users/traffic?key={webapi_token}&node_id={node_id}
+        let url = self.build_url("users/traffic", &[("node_id", node_id.to_string())]);
         let response = self.client.post(url).json(&body).send().await?;
-        let _: serde_json::Value = self.parse_payload(response).await?;
+        let r: serde_json::Value = self.parse_payload(response).await?;
 
-        for (client_id, _, _, upstream, downstream) in payload {
-            self.reported_traffic.insert(client_id, (upstream, downstream));
+        log::trace!("reported traffic post {body:?} response: {r:?}");
+
+        for (client_id, &(upstream, downstream)) in &current_traffic {
+            self.reported_traffic.insert(client_id.clone(), (upstream, downstream));
         }
 
         Ok(())
     }
 
-    async fn fetch_sync_payload(&self) -> Result<SyncPayload> {
+    async fn fetch_sync_payload(&self) -> Result<Vec<SyncUser>> {
         let node_id = self.config.node_id().ok_or_else(|| Error::from("panel sync node_id not set"))?;
-        // url like: {webapi_url}/node/api/v1/getUsers?key={webapi_token}&node_id={node_id}
-        let url = self.build_url("getUsers", &[("node_id", node_id.to_string())]);
+        // url like: {webapi_url}/mod_mu/users?key={webapi_token}&node_id={node_id}
+        let url = self.build_url("users", &[("node_id", node_id.to_string())]);
         let response = self.client.get(url).send().await?;
-        let payload = self.parse_payload(response).await?;
-        Ok(payload)
+        let users = self.parse_payload(response).await?;
+        Ok(users)
     }
 
     async fn parse_payload<T: for<'de> Deserialize<'de>>(&self, response: reqwest::Response) -> Result<T> {
@@ -150,7 +152,7 @@ impl PanelSyncClient {
         }
 
         let value = response.json::<serde_json::Value>().await?;
-        if value.get("ret").and_then(|v| v.as_i64()).unwrap_or(1) == 0 {
+        if value.get("ret").and_then(|v| v.as_i64()).unwrap_or_default() == 0 {
             return Err(Error::from(format!("Wrong data: {value:?}")));
         }
 
@@ -158,11 +160,11 @@ impl PanelSyncClient {
         Ok(serde_json::from_value(data)?)
     }
 
-    /// build url like: {webapi_url}/node/api/v1/{action}?key={webapi_token}&{params}
+    /// build url like: {webapi_url}/mod_mu/{action}?key={webapi_token}&{params}
     fn build_url(&self, action: &str, params: &[(&str, String)]) -> String {
         let base = self.config.webapi_url().unwrap_or_default().trim_end_matches('/').to_string();
         let token = self.config.webapi_token().unwrap_or_default();
-        let mut url = format!("{base}/node/api/v1/{action}?key={token}");
+        let mut url = format!("{base}/mod_mu/{action}?key={token}");
         for (key, value) in params {
             url.push('&');
             url.push_str(key);

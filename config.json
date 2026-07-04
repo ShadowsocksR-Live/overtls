@@ -9,7 +9,7 @@
         "panel_sync": {
             "enabled": false,
             "node_id": 1,
-            "api_update_time": 60,
+            "api_update_time": 10,
             "webapi_url": "https://sspanelhost.com:443/",
             "webapi_token": "secret-token"
         },
