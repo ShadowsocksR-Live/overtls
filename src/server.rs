@@ -257,6 +257,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         }
         if let Some(value) = req.headers().get(CLIENT_ID)
             && let Ok(value) = value.to_str()
+            && !value.is_empty()
         {
             client_id = Some(value.to_string());
         }

@@ -500,12 +500,17 @@ impl Config {
 
         let dangerous_mode = map.get("dangerous_mode").and_then(|r| r.parse::<bool>().ok());
 
+        let client_id = map
+            .get("client_id")
+            .and_then(|r| if r.is_empty() { None } else { Some(r.to_string()) });
+
         let client = Client {
             server_host: host.to_string(),
             server_port: port,
             server_domain: ot_domain,
             cafile: ot_cert,
             dangerous_mode,
+            client_id,
             ..Client::default()
         };
 
@@ -547,6 +552,12 @@ impl Config {
 
         if let Some(dangerous_mode) = client.dangerous_mode {
             url.push_str(&format!("&dangerous_mode={dangerous_mode}"));
+        }
+
+        if let Some(client_id) = &client.client_id
+            && !client_id.is_empty()
+        {
+            url.push_str(&format!("&client_id={client_id}"));
         }
 
         Ok(format!("ssr://{}", base64easy::encode(url.as_bytes(), engine)))
