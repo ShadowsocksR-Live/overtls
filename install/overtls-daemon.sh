@@ -51,12 +51,14 @@ PID=0
 RETVAL=0
 
 function check_running(){
-    PID=\$(ps -ef | grep -v grep | grep -i "\${SVC_BIN_PATH}" | awk '{print \$2}')
-    if [ -n "\${PID}" ]; then
-        return 0
-    else
-        return 1
-    fi
+    PID=""
+    for proc in /proc/[0-9]*; do
+        if [ -L "\${proc}/exe" ] && [ "\$(readlink "\${proc}/exe")" = "\${SVC_BIN_PATH}" ]; then
+            PID="\$(basename "\${proc}")"
+            return 0
+        fi
+    done
+    return 1
 }
 
 function do_start(){
