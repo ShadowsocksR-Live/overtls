@@ -444,6 +444,7 @@ function cron_random_restart_overtls_svc() {
 }
 
 function collect_overtls_server_info() {
+    echo ""
     echo -e "${Info} ${GreenBG} ==== Now input some web server information ==== ${ColorEnd} "
 
     web_svr_public_ip_addr=$(get_vps_valid_ip)
@@ -542,10 +543,15 @@ function install_overtls_remote_server() {
     echo "============================="
     echo
 
-    if ! [[ "${use_sspanel}" == "true" ]]; then
+    if [[ "${use_sspanel}" == "true" ]]; then
+        echo -e "${OK} ${GreenBG} ${service_name} installed successfully with sspanel integration! ${ColorEnd}"
+        echo ""
+        echo -e "${Info} ${GreenBG} 请将上面 分隔线内的 config.json 内容复制到 sspanel 面板内的 本节点服务端 的 自定义配置 编辑框中 ${ColorEnd}"
+        echo -e "${Info} ${GreenBG} Please copy the config.json content between the lines above into the custom configuration box of the node service in sspanel. ${ColorEnd}"
+    else
         print_url "${svc_bin_path}" "${cfg_path}"
     fi
-    echo
+    echo ""
 }
 
 function main() {
