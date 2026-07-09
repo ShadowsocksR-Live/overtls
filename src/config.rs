@@ -4,6 +4,7 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
     path::PathBuf,
 };
+use uuid::Uuid;
 
 pub(crate) const TEST_TIMEOUT_SECS: u64 = 10;
 pub(crate) const DEFAULT_POOL_MAX_SIZE: usize = 50;
@@ -132,7 +133,7 @@ pub struct Client {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_tls: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_id: Option<String>,
+    pub client_id: Option<Uuid>,
     pub server_host: String,
     pub server_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -502,7 +503,7 @@ impl Config {
 
         let client_id = map
             .get("client_id")
-            .and_then(|r| if r.is_empty() { None } else { Some(r.to_string()) });
+            .and_then(|r| if r.is_empty() { None } else { Uuid::parse_str(r).ok() });
 
         let client = Client {
             server_host: host.to_string(),
@@ -554,9 +555,7 @@ impl Config {
             url.push_str(&format!("&dangerous_mode={dangerous_mode}"));
         }
 
-        if let Some(client_id) = &client.client_id
-            && !client_id.is_empty()
-        {
+        if let Some(client_id) = &client.client_id {
             url.push_str(&format!("&client_id={client_id}"));
         }
 

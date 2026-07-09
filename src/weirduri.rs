@@ -3,6 +3,7 @@ use tokio_tungstenite::tungstenite::{
     error::{Error, Result, UrlError},
     handshake::client::{Request, generate_key},
 };
+use uuid::Uuid;
 
 pub(crate) const TARGET_ADDRESS: &str = "Target-Address";
 pub(crate) const UDP_TUNNEL: &str = "UDP-Tunnel";
@@ -18,11 +19,11 @@ pub(crate) struct WeirdUri {
     pub(crate) target_address: Option<String>,
     pub(crate) sec_websocket_key: String,
     pub(crate) udp_tunnel: Option<bool>,
-    pub(crate) client_id: Option<String>,
+    pub(crate) client_id: Option<Uuid>,
 }
 
 impl WeirdUri {
-    pub(crate) fn new(uri: &str, target_address: Option<String>, udp_tunnel: Option<bool>, client_id: Option<String>) -> Self {
+    pub(crate) fn new(uri: &str, target_address: Option<String>, udp_tunnel: Option<bool>, client_id: Option<Uuid>) -> Self {
         Self {
             uri: uri.to_owned(),
             target_address,
@@ -75,10 +76,8 @@ impl TryFrom<WeirdUri> for Request {
         {
             builder = builder.header(UDP_TUNNEL, udp_tunnel.to_string());
         }
-        if let Some(client_id) = &value.client_id
-            && !client_id.is_empty()
-        {
-            builder = builder.header(CLIENT_ID, client_id);
+        if let Some(client_id) = &value.client_id {
+            builder = builder.header(CLIENT_ID, client_id.to_string());
         }
         let req = builder.uri(uri.as_str()).body(())?;
         Ok(req)

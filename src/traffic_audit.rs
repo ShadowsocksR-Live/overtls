@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub(crate) struct ClientNode {
@@ -61,7 +62,7 @@ pub(crate) type TrafficAuditPtr = std::sync::Arc<tokio::sync::Mutex<TrafficAudit
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub(crate) struct TrafficAudit {
-    client_map: HashMap<String, ClientNode>,
+    client_map: HashMap<Uuid, ClientNode>,
 }
 
 impl TrafficAudit {
@@ -69,54 +70,54 @@ impl TrafficAudit {
         Self::default()
     }
 
-    pub fn add_client(&mut self, client_id: &str) {
-        self.client_map.entry(client_id.to_string()).or_default();
+    pub fn add_client(&mut self, client_id: &Uuid) {
+        self.client_map.entry(*client_id).or_default();
     }
 
-    pub fn remove_client(&mut self, client_id: &str) {
+    pub fn remove_client(&mut self, client_id: &Uuid) {
         self.client_map.remove(client_id);
     }
 
-    pub fn get_client_list(&self) -> Vec<String> {
-        self.client_map.keys().map(|s| s.to_string()).collect()
+    pub fn get_client_list(&self) -> Vec<Uuid> {
+        self.client_map.keys().copied().collect()
     }
 
-    pub fn contain_client(&self, client_id: &str) -> bool {
+    pub fn contain_client(&self, client_id: &Uuid) -> bool {
         self.client_map.contains_key(client_id)
     }
 
-    pub fn add_upstream_traffic_of(&mut self, client_id: &str, traffic: u64) {
+    pub fn add_upstream_traffic_of(&mut self, client_id: &Uuid, traffic: u64) {
         if let Some(client_node) = self.client_map.get_mut(client_id) {
             client_node.add_upstream_traffic(traffic);
         }
     }
 
-    pub fn add_downstream_traffic_of(&mut self, client_id: &str, traffic: u64) {
+    pub fn add_downstream_traffic_of(&mut self, client_id: &Uuid, traffic: u64) {
         if let Some(client_node) = self.client_map.get_mut(client_id) {
             client_node.add_downstream_traffic(traffic);
         }
     }
 
-    pub fn get_upstream_traffic_of(&self, client_id: &str) -> u64 {
+    pub fn get_upstream_traffic_of(&self, client_id: &Uuid) -> u64 {
         let f = |client_node: &ClientNode| client_node.get_upstream_traffic();
         self.client_map.get(client_id).map_or(0, f)
     }
 
-    pub fn get_downstream_traffic_of(&self, client_id: &str) -> u64 {
+    pub fn get_downstream_traffic_of(&self, client_id: &Uuid) -> u64 {
         let f = |client_node: &ClientNode| client_node.get_downstream_traffic();
         self.client_map.get(client_id).map_or(0, f)
     }
 
-    pub fn get_traffic_of(&self, client_id: &str) -> u64 {
+    pub fn get_traffic_of(&self, client_id: &Uuid) -> u64 {
         let f = |client_node: &ClientNode| client_node.get_total_traffic();
         self.client_map.get(client_id).map_or(0, f)
     }
 
-    pub fn set_enable_of(&mut self, client_id: &str, enable: bool) {
-        self.client_map.entry(client_id.to_string()).or_default().set_enable(enable);
+    pub fn set_enable_of(&mut self, client_id: &Uuid, enable: bool) {
+        self.client_map.entry(*client_id).or_default().set_enable(enable);
     }
 
-    pub fn get_enable_of(&self, client_id: &str) -> bool {
+    pub fn get_enable_of(&self, client_id: &Uuid) -> bool {
         let f = |client_node: &ClientNode| client_node.get_enable();
         self.client_map.get(client_id).map(f).unwrap_or(false)
     }
@@ -125,7 +126,7 @@ impl TrafficAudit {
         self.client_map.iter_mut().for_each(|(_, client_node)| client_node.reset());
     }
 
-    pub fn reset_of(&mut self, client_id: &str) {
+    pub fn reset_of(&mut self, client_id: &Uuid) {
         if let Some(client_node) = self.client_map.get_mut(client_id) {
             client_node.reset();
         }
@@ -143,13 +144,13 @@ impl TrafficAudit {
             .for_each(|(_, client_node)| client_node.reset_downstream_traffic());
     }
 
-    pub fn reset_upstream_traffic_of(&mut self, client_id: &str) {
+    pub fn reset_upstream_traffic_of(&mut self, client_id: &Uuid) {
         if let Some(client_node) = self.client_map.get_mut(client_id) {
             client_node.reset_upstream_traffic();
         }
     }
 
-    pub fn reset_downstream_traffic_of(&mut self, client_id: &str) {
+    pub fn reset_downstream_traffic_of(&mut self, client_id: &Uuid) {
         if let Some(client_node) = self.client_map.get_mut(client_id) {
             client_node.reset_downstream_traffic();
         }

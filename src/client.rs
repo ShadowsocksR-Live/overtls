@@ -354,7 +354,7 @@ pub(crate) async fn create_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
     let uri = format!("ws://{host}/{tunnel_path}/");
 
-    let uri = WeirdUri::new(&uri, b64_dst, udp_tunnel, client.client_id.clone());
+    let uri = WeirdUri::new(&uri, b64_dst, udp_tunnel, client.client_id);
 
     let (v, key) = client::generate_request(uri.into_client_request()?)?;
     stream.write_all(&v).await?;

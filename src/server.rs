@@ -29,6 +29,7 @@ use tokio_tungstenite::{
         protocol::{Message, Role},
     },
 };
+use uuid::Uuid;
 
 pub(crate) const START_SESSION: &str = "Start session";
 pub(crate) const END_SESSION: &str = "End session";
@@ -240,7 +241,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     let mut uri_path = "".to_string();
     let mut target_address = None;
     let mut udp_tunnel = false;
-    let mut client_id = None;
+    let mut client_id: Option<Uuid> = None;
 
     let mut retrieve_values = |req: &Request| {
         uri_path = req.uri().path().to_string();
@@ -257,9 +258,9 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         }
         if let Some(value) = req.headers().get(CLIENT_ID)
             && let Ok(value) = value.to_str()
-            && !value.is_empty()
+            && let Ok(uuid) = Uuid::parse_str(value)
         {
-            client_id = Some(value.to_string());
+            client_id = Some(uuid);
         }
     };
 
@@ -341,7 +342,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     peer: SocketAddr,
     config: Config,
     traffic_audit: TrafficAuditPtr,
-    client_id: &Option<String>,
+    client_id: &Option<Uuid>,
     outgoing_stream: Option<tokio::net::TcpStream>,
 ) -> Result<()> {
     let is_old_client = outgoing_stream.is_some();
@@ -493,7 +494,7 @@ async fn svr_send_ws_message<S: AsyncRead + AsyncWrite + Unpin>(
     ws_stream: &mut WebSocketStream<S>,
     msg: Message,
     traffic_audit: &TrafficAuditPtr,
-    client_id: &Option<String>,
+    client_id: &Option<Uuid>,
 ) -> Result<()> {
     if let Some(client_id) = client_id {
         let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
@@ -507,7 +508,7 @@ async fn svr_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     mut ws_stream: WebSocketStream<S>,
     _config: Config,
     traffic_audit: TrafficAuditPtr,
-    client_id: &Option<String>,
+    client_id: &Option<Uuid>,
 ) -> Result<()> {
     let udp_socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).await?;
     let udp_socket_v6 = UdpSocket::bind((Ipv6Addr::UNSPECIFIED, 0)).await?;
@@ -639,7 +640,7 @@ async fn svr_udp_write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     dst_src_pairs: &Arc<Mutex<HashMap<Address, Address>>>,
     addr: SocketAddr,
     traffic_audit: &TrafficAuditPtr,
-    client_id: &Option<String>,
+    client_id: &Option<Uuid>,
 ) -> Result<()> {
     let dst_addr = Address::from(addr);
     let src_addr = dst_src_pairs.lock().await.get(&dst_addr).cloned();

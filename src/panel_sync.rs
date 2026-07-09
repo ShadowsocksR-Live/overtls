@@ -5,10 +5,11 @@ use crate::{
 };
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Deserialize)]
 struct SyncUser {
-    client_id: String,
+    client_id: Uuid,
     #[serde(default = "default_true")]
     enable: bool,
 }
@@ -21,7 +22,7 @@ fn default_true() -> bool {
 pub(crate) struct PanelSyncClient {
     config: Config,
     client: reqwest::Client,
-    reported_traffic: HashMap<String, (u64, u64)>,
+    reported_traffic: HashMap<Uuid, (u64, u64)>,
 }
 
 impl PanelSyncClient {
@@ -65,9 +66,9 @@ impl PanelSyncClient {
         log::trace!("syncing users from panel: {:?}", users);
 
         for user in users {
-            let client_id = user.client_id.clone();
+            let client_id = user.client_id;
 
-            seen_clients.insert(client_id.clone());
+            seen_clients.insert(client_id);
             let mut audit = traffic_audit.lock().await;
             audit.add_client(&client_id);
             audit.set_enable_of(&client_id, user.enable);
@@ -89,6 +90,7 @@ impl PanelSyncClient {
         let mut current_traffic = HashMap::new();
 
         for client_id in client_ids {
+            let client_id_clone = client_id;
             let (upstream, downstream) = {
                 let audit = traffic_audit.lock().await;
                 let upstream = audit.get_upstream_traffic_of(&client_id);
@@ -104,10 +106,10 @@ impl PanelSyncClient {
                 continue;
             }
 
-            current_traffic.insert(client_id.clone(), (upstream, downstream));
+            current_traffic.insert(client_id_clone, (upstream, downstream));
 
             let mut record = serde_json::Map::new();
-            record.insert("client_id".to_string(), serde_json::json!(client_id));
+            record.insert("client_id".to_string(), serde_json::json!(client_id_clone));
             record.insert("u".to_string(), serde_json::json!(delta_upstream));
             record.insert("d".to_string(), serde_json::json!(delta_downstream));
 
@@ -131,7 +133,7 @@ impl PanelSyncClient {
         log::trace!("reported traffic post {body:?} response: {r:?}");
 
         for (client_id, &(upstream, downstream)) in &current_traffic {
-            self.reported_traffic.insert(client_id.clone(), (upstream, downstream));
+            self.reported_traffic.insert(*client_id, (upstream, downstream));
         }
 
         Ok(())

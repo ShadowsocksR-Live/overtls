@@ -18,27 +18,27 @@ path = "src/bin/main.rs"
 [dependencies]
 async-shared-timeout = "0.2.2"
 base64easy = "0.1.7"
-bytes = "1.11.1"
-chrono = "0.4.44"
+bytes = "1.12.1"
+chrono = "0.4.45"
 clap = { version = "4.6.1", features = ["derive", "cargo", "wrap_help"] }
 connection-pool = { version = "0.3.8", default-features = false }
 ctrlc2 = { version = "4.0.0", features = ["async", "termination"] }
 dotenvy = "0.15.7"
-env_logger = "0.11.10"
+env_logger = "0.11.11"
 futures-util = { version = "0.3.32", default-features = false, features = [
     "sink",
     "std",
 ] }
 hickory-proto = "0.26.1"
-http = "1.4.1"
+http = "1.4.2"
 httparse = "1.10.1"
-log = { version = "0.4.30", features = ["std"] }
+log = { version = "0.4.33", features = ["std"] }
 moka = { version = "0.12.15", default-features = false, features = ["future"] }
 reqwest = { version = "0.13.4", default-features = false, features = [
     "rustls",
     "json",
 ] }
-rustls = { version = "0.23.40", default-features = false, features = [
+rustls = { version = "0.23.41", default-features = false, features = [
     "std",
     "tls12",
     "logging",
@@ -47,8 +47,9 @@ rustls = { version = "0.23.40", default-features = false, features = [
 rustls-pemfile = "2.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
-socket2 = "0.6.3"
-socks5-impl = { version = "0.9.0", default-features = false, features = [
+uuid = { version = "1.23.4", features = ["serde", "v4"] }
+socket2 = "0.6.4"
+socks5-impl = { version = "0.9.1", default-features = false, features = [
     "server",
 ] }
 thiserror = "2.0.18"
@@ -63,7 +64,7 @@ tokio-tungstenite = { version = "0.29.0", features = [
 ] }
 tokio-util = "0.7.18"
 url = "2.5.8"
-webpki-roots = "1.0.7"
+webpki-roots = "1.0.8"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.15.1"
@@ -76,4 +77,4 @@ windows-service = "0.8.1"
 daemonize = "0.5.0"
 
 [build-dependencies]
-chrono = "0.4.44"
+chrono = "0.4.45"
