@@ -9,6 +9,7 @@ env:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         target:
           - x86_64-unknown-linux-gnu
@@ -71,6 +72,7 @@ jobs:
           cross --version
 
       - name: Build
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           if [[ "${{ contains(matrix.host_os, 'ubuntu') }}" == "true" && "${{ matrix.host_os }}" != "ubuntu-22.04" ]]; then
@@ -92,7 +94,10 @@ jobs:
             powershell Compress-Archive -Path target/${{ matrix.target }}/release/overtls-bin.exe, ./config.json, ./overtls.h, target/${{ matrix.target }}/release/overtls.dll -DestinationPath release/overtls-${{ matrix.target }}.zip
           elif [[ "${{ matrix.host_os }}" == "macos-latest" ]]; then
             zip -j release/overtls-${{ matrix.target }}.zip target/${{ matrix.target }}/release/overtls-bin ./config.json ./overtls.h target/${{ matrix.target }}/release/libovertls.dylib
-            if [[ "${{ matrix.target }}" == "x86_64-apple-darwin" ]]; then
+            if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
+              # Inject iOS 12 deployment target and allow dynamic_lookup to fix the ___chkstk_darwin linking error caused by the new C library
+              export IPHONEOS_DEPLOYMENT_TARGET="12.0"
+
               ./build-aarch64-apple-ios.sh
               zip -r release/overtls-aarch64-apple-ios-xcframework.zip ./overtls.xcframework/
               ./build-apple.sh
@@ -108,6 +113,7 @@ jobs:
           fi
 
       - name: Upload
+        if: ${{ !cancelled() }}
         uses: softprops/action-gh-release@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
