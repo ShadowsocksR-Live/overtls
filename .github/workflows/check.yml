@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - '**'
+      - "**"
   pull_request:
     branches:
-      - '**'
+      - "**"
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,58 +18,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check --all --all-targets --all-features --tests
 
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - uses: dtolnay/rust-toolchain@stable
       - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - uses: dtolnay/rust-toolchain@stable
       - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+      - run: cargo clippy --all --all-targets --all-features -- -D warnings
 
   build:
     strategy:
       fail-fast: false
       matrix:
         target:
-          - x86_64-unknown-linux-gnu      # arch: x86_64, os: linux
-          - aarch64-unknown-linux-gnu     # arch: aarch64
+          - x86_64-unknown-linux-gnu # arch: x86_64, os: linux
+          - aarch64-unknown-linux-gnu # arch: aarch64
           - armv7-unknown-linux-gnueabihf # arch: armv7
-          - x86_64-apple-darwin           # os: darwin
-          - aarch64-apple-darwin          # os: darwin
-          - x86_64-pc-windows-msvc        # os: windows
+          - x86_64-apple-darwin # os: darwin
+          - aarch64-apple-darwin # os: darwin
+          - x86_64-pc-windows-msvc # os: windows
           - i686-pc-windows-msvc
 
         include:
@@ -91,38 +71,34 @@ jobs:
     runs-on: ${{ matrix.host_os }}
 
     steps:
-    - uses: actions/checkout@v7
-    - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
 
-    - name: Prepare
-      shell: bash
-      run: |
-        rustc --version
-        rustup target add ${{ matrix.target }}
+      - name: Prepare
+        shell: bash
+        run: |
+          rustc --version
+          rustup target add ${{ matrix.target }}
 
-    - name: Install cross
-      if: ${{ matrix.host_os == 'ubuntu-latest' && matrix.target != 'x86_64-unknown-linux-gnu' }}
-      run: |
-        cargo install cross --git https://github.com/cross-rs/cross --rev 36c0d78
-        cross --version
+      - name: Install cross
+        if: ${{ matrix.host_os == 'ubuntu-latest' && matrix.target != 'x86_64-unknown-linux-gnu' }}
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross --rev 36c0d78
+          cross --version
 
-    - name: Build
-      if: ${{ !cancelled() }}
-      shell: bash
-      run: |
-        if [[ "${{ matrix.host_os }}" == "ubuntu-latest" && "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]]; then
-          cross build --verbose --target ${{ matrix.target }}
-        else
-          cargo build --verbose --target ${{ matrix.target }}
-        fi
-        if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]]; then
-          ./build-android.sh debug aarch64-linux-android
-        fi
+      - name: Build
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          if [[ "${{ matrix.host_os }}" == "ubuntu-latest" && "${{ matrix.target }}" != "x86_64-unknown-linux-gnu" ]]; then
+            cross build --verbose --target ${{ matrix.target }}
+          else
+            cargo build --verbose --target ${{ matrix.target }}
+          fi
+          if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]]; then
+            ./build-android.sh debug aarch64-linux-android
+          fi
 
-    - name: Run tests
-      if: ${{ !cancelled() }}
-      run: cargo test --verbose --all-features -- --nocapture
-
-    - name: Abort on error
-      if: ${{ failure() }}
-      run: echo "Some of jobs failed" && false
+      - name: Run tests
+        if: ${{ !cancelled() }}
+        run: cargo test --verbose --all-features -- --nocapture
