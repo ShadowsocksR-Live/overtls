@@ -8,11 +8,12 @@ use crate::{
     weirduri::WeirdUri,
 };
 use bytes::BytesMut;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{Sink, SinkExt, Stream, StreamExt};
+use socks_hub_core::{BoxedStream, HttpConnector, UserKey, run_http_service};
 use socks5_impl::{
     protocol::{Address, Reply},
     server::{
-        AuthAdaptor, ClientConnection, Connect, IncomingConnection, Server,
+        AuthAdaptor, ClientConnection, Connect, IncomingConnection,
         auth::{NoAuth, UserKeyAuth},
         connection::connect::NeedReply,
     },
@@ -20,7 +21,7 @@ use socks5_impl::{
 use std::{net::SocketAddr, sync::Arc};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    net::TcpStream,
+    net::{TcpListener, TcpStream},
 };
 use tokio_rustls::client::TlsStream;
 use tokio_tungstenite::{
@@ -40,12 +41,16 @@ where
     F: FnOnce(SocketAddr) + Send + Sync + 'static,
 {
     log::info!("starting {} {} client...", clap::crate_name!(), crate::cmdopt::version_info());
-    #[cfg(not(target_os = "ios"))]
     {
         log::trace!("with following settings:");
         log::trace!("{}", serde_json::to_string_pretty(config)?);
     }
 
+    _run_client(config, quit, callback).await?;
+    Ok(())
+}
+
+fn extract_auth_adaptor_from_config(config: &Config) -> Result<AuthAdaptor> {
     let client = config.client.as_ref().ok_or("client")?;
 
     let listen_user = client.listen_user.as_deref().filter(|s| !s.is_empty());
@@ -56,46 +61,248 @@ where
     } else {
         Arc::new(NoAuth)
     };
-    _run_client(config, auth, quit, callback).await?;
-    Ok(())
+    Ok(auth)
 }
 
-async fn _run_client<F>(config: &Config, auth: AuthAdaptor, quit: crate::CancellationToken, callback: Option<F>) -> Result<()>
+async fn _run_client<F>(config: &Config, quit: crate::CancellationToken, callback: Option<F>) -> Result<()>
 where
     F: FnOnce(SocketAddr) + Send + Sync + 'static,
 {
     let client = config.client.as_ref().ok_or("client")?;
     let addr = SocketAddr::new(client.listen_host.parse()?, client.listen_port);
 
-    let server = Server::bind(addr, auth).await?;
+    let listener = TcpListener::bind(addr).await?;
 
     let pool_max_size = client.pool_max_size.map_or(Some(crate::config::DEFAULT_POOL_MAX_SIZE), Some);
 
     if let Some(callback) = callback {
-        callback(server.local_addr()?);
+        callback(listener.local_addr()?);
     }
+
+    let credentials = if let Some(user) = client.listen_user.as_deref().filter(|s| !s.is_empty()) {
+        UserKey::new(user, client.listen_password.as_deref().unwrap_or(""))
+    } else {
+        UserKey::default()
+    };
 
     if config.disable_tls() {
         let manager = WsPlainConnectionManager { config: config.clone() };
         let connection_pool = ConnectionPool::new(pool_max_size, None, None, None, manager);
-        client_event_loop::<_, TcpStream>(connection_pool, quit, server, config).await?;
+        let connector_pool = connection_pool.clone();
+        let connector: HttpConnector = Arc::new(move |dst: Address| {
+            let pool = connector_pool.clone();
+            Box::pin(async move {
+                let mut ws_stream = pool.get_connection().await.map_err(std::io::Error::other)?.into_inner();
+                let b64_addr = addess_to_b64str(&dst, false);
+                let start_cmd = format!("{START_SESSION}:{b64_addr}");
+                ws_stream
+                    .send(Message::Text(start_cmd.into()))
+                    .await
+                    .map_err(std::io::Error::other)?;
+                Ok(Box::new(WsWebSocketStreamAdapter::new(ws_stream)) as BoxedStream)
+            })
+        });
+        client_event_loop::<_, TcpStream>(connection_pool, quit, listener, connector, credentials, config).await?;
     } else {
         let manager = WsTlsConnectionManager { config: config.clone() };
         let connection_pool = ConnectionPool::new(pool_max_size, None, None, None, manager);
-        client_event_loop::<_, TlsStream<TcpStream>>(connection_pool, quit, server, config).await?;
+        let connector_pool = connection_pool.clone();
+        let connector: HttpConnector = Arc::new(move |dst: Address| {
+            let pool = connector_pool.clone();
+            Box::pin(async move {
+                let mut ws_stream = pool.get_connection().await.map_err(std::io::Error::other)?.into_inner();
+                let b64_addr = addess_to_b64str(&dst, false);
+                let start_cmd = format!("{START_SESSION}:{b64_addr}");
+                ws_stream
+                    .send(Message::Text(start_cmd.into()))
+                    .await
+                    .map_err(std::io::Error::other)?;
+                Ok(Box::new(WsWebSocketStreamAdapter::new(ws_stream)) as BoxedStream)
+            })
+        });
+        client_event_loop::<_, TlsStream<TcpStream>>(connection_pool, quit, listener, connector, credentials, config).await?;
     };
+    Ok(())
+}
+
+struct WsWebSocketStreamAdapter<S> {
+    ws_stream: WebSocketStream<S>,
+    read_buf: BytesMut,
+    closed: bool,
+}
+
+impl<S> WsWebSocketStreamAdapter<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+{
+    fn new(ws_stream: WebSocketStream<S>) -> Self {
+        Self {
+            ws_stream,
+            read_buf: BytesMut::new(),
+            closed: false,
+        }
+    }
+}
+
+impl<S> AsyncRead for WsWebSocketStreamAdapter<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+{
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        let this = self.get_mut();
+        if !this.read_buf.is_empty() {
+            let to_copy = std::cmp::min(buf.remaining(), this.read_buf.len());
+            buf.put_slice(&this.read_buf.split_to(to_copy));
+            return std::task::Poll::Ready(Ok(()));
+        }
+
+        if this.closed {
+            return std::task::Poll::Ready(Ok(()));
+        }
+
+        loop {
+            match Pin::new(&mut this.ws_stream).poll_next(cx) {
+                std::task::Poll::Pending => return std::task::Poll::Pending,
+                std::task::Poll::Ready(Some(Ok(Message::Binary(data)))) => {
+                    if data.is_empty() {
+                        continue;
+                    }
+                    let to_copy = std::cmp::min(buf.remaining(), data.len());
+                    buf.put_slice(&data[..to_copy]);
+                    if to_copy < data.len() {
+                        this.read_buf.extend_from_slice(&data[to_copy..]);
+                    }
+                    return std::task::Poll::Ready(Ok(()));
+                }
+                std::task::Poll::Ready(Some(Ok(Message::Close(_)))) => {
+                    this.closed = true;
+                    return std::task::Poll::Ready(Ok(()));
+                }
+                std::task::Poll::Ready(Some(Ok(_))) => continue,
+                std::task::Poll::Ready(Some(Err(e))) => {
+                    return std::task::Poll::Ready(Err(std::io::Error::other(e)));
+                }
+                std::task::Poll::Ready(None) => {
+                    this.closed = true;
+                    return std::task::Poll::Ready(Ok(()));
+                }
+            }
+        }
+    }
+}
+
+impl<S> AsyncWrite for WsWebSocketStreamAdapter<S>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+{
+    fn poll_write(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &[u8]) -> std::task::Poll<std::io::Result<usize>> {
+        let this = self.get_mut();
+        match Pin::new(&mut this.ws_stream).poll_ready(cx) {
+            std::task::Poll::Ready(Ok(())) => {
+                Pin::new(&mut this.ws_stream)
+                    .start_send(Message::Binary(buf.to_vec().into()))
+                    .map_err(std::io::Error::other)?;
+                std::task::Poll::Ready(Ok(buf.len()))
+            }
+            std::task::Poll::Ready(Err(e)) => std::task::Poll::Ready(Err(std::io::Error::other(e))),
+            std::task::Poll::Pending => std::task::Poll::Pending,
+        }
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<std::io::Result<()>> {
+        Pin::new(&mut self.ws_stream).poll_flush(cx).map_err(std::io::Error::other)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<std::io::Result<()>> {
+        Pin::new(&mut self.ws_stream).poll_close(cx).map_err(std::io::Error::other)
+    }
+}
+
+async fn handle_listener_stream<M, S>(
+    mut stream: TcpStream,
+    connector: HttpConnector,
+    credentials: UserKey,
+    pool: Arc<ConnectionPool<M>>,
+    udp_tx: udprelay::UdpRequestSender,
+    incomings: udprelay::SocketAddrHashSet,
+    config: Config,
+) -> Result<()>
+where
+    M: ConnectionManager<Connection = WebSocketStream<S>> + Send + Sync + 'static,
+    S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
+{
+    let mut peek_buf = [0u8; 16];
+    let n = stream.peek(&mut peek_buf).await?;
+    if n == 0 {
+        return Ok(());
+    }
+    let peer_addr = stream.peer_addr().ok();
+    match peek_buf[0] {
+        0x05 => {
+            log::trace!("SOCKS5 client detected from {peer_addr:?}");
+            let auth = extract_auth_adaptor_from_config(&config)?;
+            let conn = IncomingConnection::new(stream, auth);
+            let mut ws_stream = match pool.get_connection().await.map_err(std::io::Error::other) {
+                Ok(stream) => stream,
+                Err(e) => {
+                    log::debug!("{peer_addr:?} failed to acquire WebSocket stream from pool: '{e}'");
+                    return Ok(());
+                }
+            };
+            handle_incoming::<S>(conn, config, Some(udp_tx), incomings, &mut *ws_stream).await?;
+            log::trace!("SOCKS5 client from {peer_addr:?} disconnected");
+        }
+        0x04 => {
+            log::warn!("socks4 client detected from {peer_addr:?}, but only SOCKS5/HTTP mixed mode is supported");
+            let _ = stream.shutdown().await;
+        }
+        _ => {
+            let first_bytes = &peek_buf[..n];
+            let is_http = if let Ok(text) = std::str::from_utf8(first_bytes) {
+                const METHODS: &[&str] = &[
+                    "CONNECT", "GET", "POST", "HEAD", "PUT", "OPTIONS", "DELETE", "TRACE", "PATCH", "LOCK", "UNLOCK", "PROPFIND", "MKCOL",
+                    "COPY", "MOVE",
+                ];
+                METHODS.iter().any(|method| {
+                    method.len() <= text.len()
+                        && text[..method.len()].eq_ignore_ascii_case(method)
+                        && text.as_bytes().get(method.len()) == Some(&b' ')
+                })
+            } else {
+                false
+            };
+
+            if !is_http {
+                let fb = first_bytes[0];
+                log::warn!("unknown client type detected from {peer_addr:?}, first byte: 0x{fb:02x}");
+                let _ = stream.shutdown().await;
+                return Ok(());
+            }
+
+            log::trace!("HTTP client detected from {peer_addr:?}");
+            run_http_service(stream, connector, credentials).await?;
+            log::trace!("HTTP client from {peer_addr:?} disconnected");
+        }
+    }
+
     Ok(())
 }
 
 async fn client_event_loop<M, S>(
     pool: Arc<ConnectionPool<M>>,
     quit: crate::CancellationToken,
-    server: Server,
+    listener: TcpListener,
+    connector: HttpConnector,
+    credentials: UserKey,
     config: &Config,
 ) -> Result<()>
 where
     M: ConnectionManager<Connection = WebSocketStream<S>> + Send + Sync + 'static,
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
     let (udp_tx, _, incomings) = udprelay::create_udp_tunnel();
     udprelay::udp_handler_watchdog(config, &incomings, &udp_tx, quit.clone()).await?;
@@ -109,30 +316,25 @@ where
                 log::info!("exiting...");
                 break;
             }
-            result = server.accept() => {
-                let (conn, _) = result?;
+            result = listener.accept() => {
+                let (stream, _) = result?;
                 let config = config.clone();
                 let udp_tx = udp_tx.clone();
                 let incomings = incomings.clone();
                 let session_id = session_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let session_count = session_count.clone();
-                let peer_addr = conn.peer_addr()?;
+                let peer_addr = stream.peer_addr().ok();
                 let pool = pool.clone();
+                let connector = connector.clone();
+                let credentials = credentials.clone();
                 tokio::spawn(async move {
-                    let mut ws_stream = match pool.get_connection().await.map_err(std::io::Error::other) {
-                        Ok(stream) => stream,
-                        Err(e) => {
-                            log::debug!("{peer_addr} failed to acquire WebSocket stream from pool: '{e}'");
-                            return;
-                        }
-                    };
                     let count = session_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                    log::debug!("session #{session_id} from {peer_addr} started, session count {count}");
-                    if let Err(e) = handle_incoming::<S>(conn, config, Some(udp_tx), incomings, &mut *ws_stream).await {
+                    log::debug!("session #{session_id} from {peer_addr:?} started, session count {count}");
+                    if let Err(e) = handle_listener_stream(stream, connector, credentials, pool, udp_tx, incomings, config).await {
                         log::debug!("{e}");
                     }
                     let count = session_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) - 1;
-                    log::debug!("session #{session_id} from {peer_addr} ended, session count {count}");
+                    log::debug!("session #{session_id} from {peer_addr:?} ended, session count {count}");
                 });
             }
         }
@@ -381,7 +583,6 @@ type WsStream = WebSocketStream<TcpStream>;
 type WsTlsStream = WebSocketStream<TlsStream<TcpStream>>;
 
 use connection_pool::{ConnectionManager, ConnectionPool};
-use std::future::Future;
 use std::pin::Pin;
 
 const VALID_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
