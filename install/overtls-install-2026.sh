@@ -445,7 +445,7 @@ function cron_random_restart_overtls_svc() {
 
 function collect_overtls_server_info() {
     echo ""
-    echo -e "${Info} ${GreenBG} ==== Now input some web server information ==== ${ColorEnd} "
+    echo -e "${Info} ${GreenBG} ==== Now input some node server information ==== ${ColorEnd} "
 
     web_svr_public_ip_addr=$(get_vps_valid_ip)
     local exit_status=$?
@@ -455,16 +455,16 @@ function collect_overtls_server_info() {
     fi
 
     echo ""
-    echo "请输入 你的网站域名 (形如 mygooodsite.com), 如果不想输入域名,可直接回车跳过,此时将使用纯 IP 证书"
-    echo "Please enter your domain name (for example: mygooodsite.com), if you don't want to enter a domain,"
+    echo "请输入 你的节点域名 (形如 mygooodsite.com), 如果不想输入域名,可直接回车跳过,这将使用纯 IP (${web_svr_public_ip_addr}) 证书"
+    echo "Please enter your node domain name (for example: mygooodsite.com), if you don't want to enter a domain,"
     stty erase '^H' && read -p "press Enter to skip, in this case, a pure IP (${web_svr_public_ip_addr}) certificate will be used: " domain_name
     [[ -z ${domain_name} ]] && domain_name=${web_svr_public_ip_addr}
     web_svr_domain=${domain_name}
 
     echo ""
     svr_listen_port=`random_listen_port`
-    echo "请输入 站点端口号 (默认值 ${svr_listen_port})"
-    stty erase '^H' && read -p "Please enter the access port number (default: ${svr_listen_port}): " port
+    echo "请输入 节点端口号 (默认值 ${svr_listen_port})"
+    stty erase '^H' && read -p "Please enter the node port number (default: ${svr_listen_port}): " port
     [[ -z ${port} ]] && port=${svr_listen_port}
     svr_listen_port=${port}
 
@@ -489,7 +489,7 @@ function collect_overtls_server_info() {
         fi
 
         echo ""
-        echo "请输入 sspanel 服务器的 API 地址 (形如 https://mysspanel.com 或 https://mysspanel.com:6543)"
+        echo "请输入 sspanel 服务器的 API 地址 (形如 https://mysspanel.com 或 https://mysspanel.com:6543), 如果你面板是 https 协议且使用了非标准端口（非 443 端口）,请务必在地址中包含端口号"
         stty erase '^H' && read -p "Please enter sspanel server address (for example: https://mysspanel.com or https://mysspanel.com:6543): " sspanel_server_addr
         if [[ -z ${sspanel_server_addr} ]]; then
             echo -e "${Error} ${RedBG} sspanel server address cannot be empty! ${ColorEnd}"
