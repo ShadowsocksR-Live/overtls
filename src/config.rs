@@ -1,4 +1,7 @@
-use crate::error::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    panel_sync::PanelSyncConfig,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
@@ -107,7 +110,7 @@ pub struct Server {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_tls: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub panel_sync: Option<PanelSync>,
+    pub panel_sync: Option<PanelSyncConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub certfile: Option<PathBuf>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -116,16 +119,6 @@ pub struct Server {
     pub forward_addr: Option<String>,
     pub listen_host: String,
     pub listen_port: u16,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
-pub struct PanelSync {
-    pub enabled: Option<bool>,
-    pub webapi_url: Option<String>,
-    pub webapi_token: Option<String>,
-    pub node_id: Option<usize>,
-    #[serde(rename(deserialize = "api_update_time", serialize = "api_update_time"))]
-    pub api_update_interval_secs: Option<u64>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default, Eq)]
@@ -217,38 +210,8 @@ impl Config {
         self.client.as_ref().ok_or(Error::from("no client"))?.export_certificate(path)
     }
 
-    pub fn panel_sync_enabled(&self) -> bool {
-        let f = |s: &Server| {
-            let f2 = |c: &PanelSync| c.enabled.unwrap_or(false);
-            s.panel_sync.as_ref().map(f2).unwrap_or(false)
-        };
-        self.server.as_ref().map(f).unwrap_or(false)
-    }
-
-    pub fn webapi_url(&self) -> Option<String> {
-        let f = |s: &Server| s.panel_sync.as_ref().map(|c| c.webapi_url.clone()).unwrap_or(None);
-        self.server.as_ref().map(f).unwrap_or(None)
-    }
-
-    pub fn webapi_token(&self) -> Option<String> {
-        let f = |s: &Server| {
-            let f2 = |c: &PanelSync| c.webapi_token.clone();
-            s.panel_sync.as_ref().map(f2).unwrap_or(None)
-        };
-        self.server.as_ref().map(f).unwrap_or(None)
-    }
-
-    pub fn node_id(&self) -> Option<usize> {
-        let f = |s: &Server| s.panel_sync.as_ref().map(|c| c.node_id).unwrap_or(None);
-        self.server.as_ref().map(f).unwrap_or(None)
-    }
-
-    pub fn api_update_interval_secs(&self) -> Option<u64> {
-        let f = |s: &Server| {
-            let f2 = |c: &PanelSync| c.api_update_interval_secs;
-            s.panel_sync.as_ref().map(f2).unwrap_or(None)
-        };
-        self.server.as_ref().map(f).unwrap_or(None)
+    pub fn get_panel_sync_config(&self) -> Option<PanelSyncConfig> {
+        self.server.as_ref().and_then(|s| s.panel_sync.clone())
     }
 
     pub fn exist_server(&self) -> bool {

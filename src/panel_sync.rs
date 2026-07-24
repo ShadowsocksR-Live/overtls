@@ -1,11 +1,26 @@
 use crate::{
-    config::Config,
     error::{Error, Result},
     traffic_audit::TrafficAuditPtr,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use url::Url;
 use uuid::Uuid;
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq, Eq)]
+pub struct PanelSyncConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webapi_url: Option<Url>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webapi_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename(deserialize = "api_update_time", serialize = "api_update_time"))]
+    pub api_update_interval_secs: Option<u64>,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 struct SyncUser {
@@ -20,13 +35,13 @@ fn default_true() -> bool {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PanelSyncClient {
-    config: Config,
+    config: PanelSyncConfig,
     client: reqwest::Client,
     reported_traffic: HashMap<Uuid, (u64, u64)>,
 }
 
 impl PanelSyncClient {
-    pub(crate) fn new(config: &Config) -> Self {
+    pub(crate) fn new(config: &PanelSyncConfig) -> Self {
         Self {
             config: config.clone(),
             client: reqwest::Client::new(),
@@ -35,7 +50,7 @@ impl PanelSyncClient {
     }
 
     pub(crate) async fn run(mut self, traffic_audit: TrafficAuditPtr, quit: crate::CancellationToken) -> Result<()> {
-        let interval_secs = self.config.api_update_interval_secs().unwrap_or(60).max(10);
+        let interval_secs = self.config.api_update_interval_secs.unwrap_or(60).max(10);
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
 
         loop {
@@ -124,9 +139,9 @@ impl PanelSyncClient {
             "data": payload,
         });
 
-        let node_id = self.config.node_id().ok_or_else(|| Error::from("panel sync node_id not set"))?;
+        let node_id = self.config.node_id.ok_or_else(|| Error::from("panel sync node_id not set"))?;
         // url like: {webapi_url}/mod_mu/users/traffic?key={webapi_token}&node_id={node_id}
-        let url = self.build_url("users/traffic", &[("node_id", node_id.to_string())]);
+        let url = self.build_url("users/traffic", &[("node_id", node_id.to_string())])?;
         let response = self.client.post(url).json(&body).send().await?;
         let r: serde_json::Value = self.parse_payload(response).await?;
 
@@ -140,9 +155,9 @@ impl PanelSyncClient {
     }
 
     async fn fetch_sync_payload(&self) -> Result<Vec<SyncUser>> {
-        let node_id = self.config.node_id().ok_or_else(|| Error::from("panel sync node_id not set"))?;
+        let node_id = self.config.node_id.ok_or_else(|| Error::from("panel sync node_id not set"))?;
         // url like: {webapi_url}/mod_mu/users?key={webapi_token}&node_id={node_id}
-        let url = self.build_url("users", &[("node_id", node_id.to_string())]);
+        let url = self.build_url("users", &[("node_id", node_id.to_string())])?;
         let response = self.client.get(url).send().await?;
         let users = self.parse_payload(response).await?;
         Ok(users)
@@ -163,16 +178,27 @@ impl PanelSyncClient {
     }
 
     /// build url like: {webapi_url}/mod_mu/{action}?key={webapi_token}&{params}
-    fn build_url(&self, action: &str, params: &[(&str, String)]) -> String {
-        let base = self.config.webapi_url().unwrap_or_default().trim_end_matches('/').to_string();
-        let token = self.config.webapi_token().unwrap_or_default();
-        let mut url = format!("{base}/mod_mu/{action}?key={token}");
+    fn build_url(&self, action: &str, params: &[(&str, String)]) -> std::io::Result<String> {
+        let base = self
+            .config
+            .webapi_url
+            .as_ref()
+            .ok_or_else(|| std::io::Error::other("webapi_url not set"))?
+            .as_str()
+            .trim_end_matches('/')
+            .to_string();
+        let token = self.config.webapi_token.clone().unwrap_or_default();
+        let mut url = base;
+        url.push_str("/mod_mu/");
+        url.push_str(action);
+        url.push_str("?key=");
+        url.push_str(&token);
         for (key, value) in params {
             url.push('&');
             url.push_str(key);
             url.push('=');
             url.push_str(value);
         }
-        url
+        Ok(url)
     }
 }

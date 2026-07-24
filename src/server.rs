@@ -85,12 +85,14 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
 
     let traffic_audit = Arc::new(Mutex::new(TrafficAudit::new()));
 
-    if config.panel_sync_enabled() {
-        let sync_config = config.clone();
+    let panel_sync_config = config.get_panel_sync_config();
+    if let Some(panel_sync_config) = panel_sync_config
+        && panel_sync_config.enabled.unwrap_or(false)
+    {
         let sync_traffic_audit = traffic_audit.clone();
         let sync_quit = exiting_flag.clone();
         tokio::spawn(async move {
-            let syncer = PanelSyncClient::new(&sync_config);
+            let syncer = PanelSyncClient::new(&panel_sync_config);
             if let Err(e) = syncer.run(sync_traffic_audit, sync_quit).await {
                 log::warn!("panel sync task stopped: {e}");
             }
@@ -293,7 +295,10 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     let mut panel_sync_enabled = true;
-    if config.panel_sync_enabled() {
+    let panel_sync_config = config.get_panel_sync_config();
+    if let Some(panel_sync_config) = panel_sync_config
+        && panel_sync_config.enabled.unwrap_or(false)
+    {
         panel_sync_enabled = false;
         if let Some(client_id) = &client_id {
             panel_sync_enabled = traffic_audit.lock().await.get_enable_of(client_id);
