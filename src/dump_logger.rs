@@ -1,8 +1,45 @@
-use crate::{ArgVerbosity, BoxError};
+use crate::BoxError;
 use std::{
     os::raw::{c_char, c_void},
     sync::Mutex,
 };
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LogLevel {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl From<LogLevel> for log::LevelFilter {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Off => Self::Off,
+            LogLevel::Error => Self::Error,
+            LogLevel::Warn => Self::Warn,
+            LogLevel::Info => Self::Info,
+            LogLevel::Debug => Self::Debug,
+            LogLevel::Trace => Self::Trace,
+        }
+    }
+}
+
+impl From<log::LevelFilter> for LogLevel {
+    fn from(level: log::LevelFilter) -> Self {
+        match level {
+            log::LevelFilter::Off => Self::Off,
+            log::LevelFilter::Error => Self::Error,
+            log::LevelFilter::Warn => Self::Warn,
+            log::LevelFilter::Info => Self::Info,
+            log::LevelFilter::Debug => Self::Debug,
+            log::LevelFilter::Trace => Self::Trace,
+        }
+    }
+}
 
 static DUMP_CALLBACK: Mutex<Option<DumpCallback>> = Mutex::new(None);
 static LOGGER_SETTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -17,7 +54,7 @@ pub(crate) fn check_logger() -> bool {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn overtls_set_log_callback(
     set_logger: bool,
-    callback: Option<unsafe extern "C" fn(ArgVerbosity, *const c_char, *mut c_void)>,
+    callback: Option<unsafe extern "C" fn(LogLevel, *const c_char, *mut c_void)>,
     ctx: *mut c_void,
 ) {
     if set_logger {
@@ -36,10 +73,10 @@ pub unsafe extern "C" fn overtls_set_log_callback(
 }
 
 #[derive(Clone)]
-struct DumpCallback(Option<unsafe extern "C" fn(ArgVerbosity, *const c_char, *mut c_void)>, *mut c_void);
+struct DumpCallback(Option<unsafe extern "C" fn(LogLevel, *const c_char, *mut c_void)>, *mut c_void);
 
 impl DumpCallback {
-    unsafe fn call(self, dump_level: ArgVerbosity, info: *const c_char) {
+    unsafe fn call(self, dump_level: LogLevel, info: *const c_char) {
         if let Some(cb) = self.0 {
             unsafe { cb(dump_level, info, self.1) };
         }
@@ -99,7 +136,7 @@ impl DumpLogger {
         let ptr = c_msg.as_ptr();
         if let Ok(cb) = DUMP_CALLBACK.lock() {
             if let Some(cb) = cb.clone() {
-                unsafe { cb.call(record.level().into(), ptr) };
+                unsafe { cb.call(record.level().to_level_filter().into(), ptr) };
             }
         }
         Ok(())

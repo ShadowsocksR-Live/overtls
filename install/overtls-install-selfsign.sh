@@ -361,8 +361,7 @@ function write_overtls_config_file() {
         "server_domain": "${web_svr_domain}",
         "cafile": "${self_signed_root_ca_file}",
         "dangerous_mode": ${dangerous_mode},
-        "listen_host": "127.0.0.1",
-        "listen_port": 1080
+        "listen": "mixed://127.0.0.1:1080"
     }
 }
 EOF

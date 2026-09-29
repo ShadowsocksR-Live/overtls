@@ -279,8 +279,7 @@ EOF
         "server_host": "${web_svr_public_ip_addr}",
         "server_port": ${svr_listen_port},
         "server_domain": "${web_svr_domain}",
-        "listen_host": "127.0.0.1",
-        "listen_port": 1080
+        "listen": "mixed://127.0.0.1:1080"
     }
 }
 EOF

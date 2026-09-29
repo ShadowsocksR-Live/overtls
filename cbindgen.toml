@@ -17,7 +17,7 @@ exclude = [
 ]
 
 [export.rename]
-"ArgVerbosity" = "OverTlsVerbosity"
+"LogLevel" = "OverTlsLogLevel"
 "TrafficStatus" = "OverTlsTrafficStatus"
 
 [enum]

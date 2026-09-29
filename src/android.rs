@@ -1,7 +1,7 @@
 #![cfg(target_os = "android")]
 
 use crate::traffic_status::{TrafficStatus, overtls_set_traffic_status_callback};
-use crate::{ArgVerbosity, Error, Result};
+use crate::{Error, LevelFilter, Result};
 use jni::{
     Env, EnvUnowned, JavaVM,
     objects::{Global, JClass, JObject, JString, JValue},
@@ -26,7 +26,16 @@ pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient
     verbosity: jint,
 ) -> jint {
     env.with_env(|env: &mut Env| -> Result<jint> {
-        let log_level = ArgVerbosity::try_from(verbosity).unwrap_or_default().to_string();
+        let log_level = match verbosity {
+            0 => LevelFilter::Off,
+            1 => LevelFilter::Error,
+            2 => LevelFilter::Warn,
+            3 => LevelFilter::Info,
+            4 => LevelFilter::Debug,
+            5 => LevelFilter::Trace,
+            _ => LevelFilter::Info,
+        }
+        .to_string();
         let root = module_path!().split("::").next().unwrap_or("overtls");
         let filter_str = &format!("off,{root}={log_level}");
         let filter = android_logger::FilterBuilder::new().parse(filter_str).build();

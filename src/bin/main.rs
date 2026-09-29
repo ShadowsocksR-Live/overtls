@@ -1,4 +1,4 @@
-use overtls::{BoxError, CmdOpt, Config, Result, async_main};
+use overtls::{BoxError, CmdOpt, Config, LogLevel, Result, async_main};
 
 fn main() -> Result<(), BoxError> {
     let opt = CmdOpt::parse_cmd();
@@ -17,7 +17,7 @@ fn main() -> Result<(), BoxError> {
             true
         })?;
 
-        unsafe extern "C" fn log_cb(_: overtls::ArgVerbosity, msg: *const std::os::raw::c_char, _ctx: *mut std::os::raw::c_void) {
+        unsafe extern "C" fn log_cb(_: LogLevel, msg: *const std::os::raw::c_char, _ctx: *mut std::os::raw::c_void) {
             println!("{:?}", unsafe { std::ffi::CStr::from_ptr(msg).to_str() });
         }
         unsafe { overtls::overtls_set_log_callback(true, Some(log_cb), std::ptr::null_mut()) };
@@ -47,7 +47,7 @@ fn main() -> Result<(), BoxError> {
             } else {
                 std::ptr::null()
             };
-            let v = opt.verbosity;
+            let v = opt.verbosity.into();
 
             unsafe { overtls::over_tls_client_run(config_path, listen_addr, advertise_ip, v, Some(port_cb), std::ptr::null_mut()) };
 
@@ -69,7 +69,7 @@ fn main() -> Result<(), BoxError> {
             } else {
                 std::ptr::null()
             };
-            let v = opt.verbosity;
+            let v = opt.verbosity.into();
 
             unsafe { overtls::over_tls_client_run_with_ssr_url(url_ptr, listen_addr, a_ip, v, Some(port_cb), std::ptr::null_mut()) };
 

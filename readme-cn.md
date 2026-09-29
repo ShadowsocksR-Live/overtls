@@ -127,8 +127,7 @@ overtls-bin -r client -c config.json
     "server_host": "123.45.67.89",
     "server_port": 443,
     "server_domain": "example.com",
-    "listen_host": "127.0.0.1",
-    "listen_port": 1080
+    "listen": "mixed://127.0.0.1:1080"
   }
 }
 ```

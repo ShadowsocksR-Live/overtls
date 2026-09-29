@@ -1,5 +1,4 @@
 use crate::{
-    ArgVerbosity,
     config::Config,
     error::{Error, Result},
 };
@@ -8,6 +7,8 @@ use std::{
     os::raw::{c_char, c_int, c_void},
 };
 
+/// C callback wrapper for overtls client.
+/// The parameters are the port number and the context pointer provided by the caller.
 #[derive(Clone)]
 struct CCallback(Option<unsafe extern "C" fn(c_int, *mut c_void)>, *mut c_void);
 
@@ -33,7 +34,7 @@ static EXITING_FLAG: std::sync::Mutex<Option<crate::CancellationToken>> = std::s
 /// - `config_path`: The path to the config file.
 /// - `listen_addr`: If not null, it overrides the listen address in the config file. It should be in the format of "ip:port".
 /// - `advertise_ip`: The public IP address to be advertised in UDP ASSOCIATE replies. If null, the server will use the local IP address.
-/// - `verbosity`: The verbosity level of the logger.
+/// - `log_level`: The verbosity level of the logger.
 /// - `callback`: The callback function to be called when the client is listening on a port. It should be thread-safe and will be called with the port number and should be called only once.
 /// - `ctx`: The context pointer to be passed to the callback function.
 ///
@@ -42,11 +43,11 @@ pub unsafe extern "C" fn over_tls_client_run(
     config_path: *const c_char,
     listen_addr: *const c_char,
     advertise_ip: *const c_char,
-    verbosity: ArgVerbosity,
+    log_level: crate::LogLevel,
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
 ) -> c_int {
-    log::set_max_level(verbosity.into());
+    log::set_max_level(log_level.into());
     if !crate::dump_logger::check_logger() {
         if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
             log::warn!("failed to set logger, error={err:?}");
@@ -88,7 +89,7 @@ pub unsafe extern "C" fn over_tls_client_run(
 /// - `url`: SSR style URL string of the server node, e.g. "ssr://server:port:protocol:method:obfs:password_base64/?params_base64".
 /// - `listen_addr`: The address to listen on, in the format of "ip:port".
 /// - `advertise_ip`: The public IP address to be advertised in UDP ASSOCIATE replies. If null, the server will use the local IP address.
-/// - `verbosity`: The verbosity level of the logger.
+/// - `log_level`: The verbosity level of the logger.
 /// - `callback`: The callback function to be called when the client is listening on a port.
 ///   It should be thread-safe and will be called with the port number and should be called only once.
 /// - `ctx`: The context pointer to be passed to the callback function.
@@ -98,11 +99,11 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
     url: *const c_char,
     listen_addr: *const c_char,
     advertise_ip: *const c_char,
-    verbosity: ArgVerbosity,
+    log_level: crate::LogLevel,
     callback: Option<unsafe extern "C" fn(c_int, *mut c_void)>,
     ctx: *mut c_void,
 ) -> c_int {
-    log::set_max_level(verbosity.into());
+    log::set_max_level(log_level.into());
     if !crate::dump_logger::check_logger() {
         if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
             log::warn!("failed to set logger, error={err:?}");

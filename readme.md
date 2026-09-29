@@ -13,13 +13,6 @@ which implements data transmission through TLS and supports TCP and UDP traffic 
 
 The function is complete and the code is concise, and the core function is 1200 lines of code in total.
 
-> `OverTLS` is a Rust implementation of [SSRoT](https://github.com/ShadowsocksR-Live/shadowsocksr-native) without `SSR` and `SS`, only retaining `oT`, which is fast and stable.
->
-> ```kotlin
->     fun isOverTLS() : Boolean =
->         over_tls_enable && method == "none" && obfs == "plain" && protocol == "origin"
-> ```
-
 ## Principle
 
 In order to effectively deceive [GFW](https://en.wikipedia.org/wiki/Great_Firewall),
@@ -144,8 +137,7 @@ with `RUST_LOG=overtls=trace` as content.
     "server_host": "123.45.67.89",
     "server_port": 443,
     "server_domain": "example.com",
-    "listen_host": "127.0.0.1",
-    "listen_port": 1080
+    "listen": "mixed://127.0.0.1:1080"
   }
 }
 ```

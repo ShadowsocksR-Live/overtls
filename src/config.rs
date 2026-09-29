@@ -3,6 +3,7 @@ use crate::{
     panel_sync::PanelSyncConfig,
 };
 use serde::{Deserialize, Serialize};
+use socks5_impl::protocol::ProxyParameters;
 use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
     path::PathBuf,
@@ -135,12 +136,7 @@ pub struct Client {
     pub cafile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dangerous_mode: Option<bool>,
-    pub listen_host: String,
-    pub listen_port: u16,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub listen_user: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub listen_password: Option<String>,
+    pub listen: ProxyParameters,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub advertise_ip: Option<std::net::IpAddr>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -238,8 +234,13 @@ impl Config {
             let f = |s: &Server| SocketAddr::new(s.listen_host.parse().unwrap_or(unspec), s.listen_port);
             self.server.as_ref().map(f).ok_or_else(|| "Server listen address is not set".into())
         } else {
-            let f = |c: &Client| SocketAddr::new(c.listen_host.parse().unwrap_or(unspec), c.listen_port);
-            self.client.as_ref().map(f).ok_or_else(|| "Client listen address is not set".into())
+            let client = self.client.as_ref().ok_or_else(|| Error::from("Client settings are not set"))?;
+            let addr = client
+                .listen
+                .addr
+                .as_ref()
+                .ok_or_else(|| Error::from("Client listen address is not set"))?;
+            Ok(SocketAddr::try_from(addr)?)
         }
     }
 
@@ -250,8 +251,7 @@ impl Config {
                 s.listen_port = addr.port();
             }
         } else if let Some(c) = &mut self.client {
-            c.listen_host = addr.ip().to_string();
-            c.listen_port = addr.port();
+            c.listen.addr = Some(addr.into());
         }
     }
 
@@ -371,12 +371,15 @@ impl Config {
                     let timeout = std::time::Duration::from_secs(self.test_timeout_secs.unwrap_or(TEST_TIMEOUT_SECS));
                     crate::tcp_stream::std_create(addr, Some(timeout))?;
                 }
-                if client.listen_host.is_empty() {
-                    client.listen_host = if addr.is_ipv4() {
+                if let Some(listen_addr) = &client.listen.addr
+                    && listen_addr.host().is_empty()
+                {
+                    let ip = if addr.is_ipv4() {
                         Ipv4Addr::LOCALHOST.to_string()
                     } else {
                         Ipv6Addr::LOCALHOST.to_string()
                     };
+                    client.listen.addr = Some(SocketAddr::new(ip.parse()?, listen_addr.port()).into());
                 }
                 client.server_ip_addr = Some(addr);
             }
@@ -542,8 +545,6 @@ fn test_config() {
     let client = Client {
         server_host: "www.gov.cn".to_string(),
         server_port: 443,
-        listen_host: "127.0.0.1".to_string(),
-        listen_port: 0,
         // server_domain: Some("www.gov.cn".to_string()),
         dangerous_mode: Some(false),
         ..Client::default()
@@ -567,4 +568,23 @@ fn test_config() {
     println!("{config2:?}");
 
     assert_eq!(config, config2);
+}
+
+#[test]
+fn test_client_listen_url_deserialization() {
+    let client: Client =
+        serde_json::from_str(r#"{"server_host":"example.com","server_port":443,"listen":"mixed://127.0.0.1:3080"}"#).unwrap();
+
+    assert_eq!(client.listen.to_string(), "mixed://127.0.0.1:3080");
+
+    let client: Client = serde_json::from_str(r#"{"server_host":"example.com","server_port":443,"listen":"none"}"#).unwrap();
+    let mut config = Config {
+        client: Some(client),
+        ..Config::default()
+    };
+    assert!(config.listen_addr().is_err());
+
+    let listen_addr = "127.0.0.1:1080".parse().unwrap();
+    config.set_listen_addr(listen_addr);
+    assert_eq!(config.listen_addr().unwrap(), listen_addr);
 }

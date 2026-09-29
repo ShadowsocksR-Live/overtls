@@ -53,13 +53,9 @@ where
 fn extract_auth_adaptor_from_config(config: &Config) -> Result<AuthAdaptor> {
     let client = config.client.as_ref().ok_or("client")?;
 
-    let listen_user = client.listen_user.as_deref().filter(|s| !s.is_empty());
-    let auth: AuthAdaptor = if let Some(user) = listen_user {
-        let listen_password = client.listen_password.as_deref().unwrap_or("");
-        let key = UserKeyAuth::new(user, listen_password);
-        Arc::new(key)
-    } else {
-        Arc::new(NoAuth)
+    let auth: AuthAdaptor = match &client.listen.credentials {
+        Some(credentials) => Arc::new(UserKeyAuth::from(credentials)),
+        None => Arc::new(NoAuth),
     };
     Ok(auth)
 }
@@ -69,7 +65,7 @@ where
     F: FnOnce(SocketAddr) + Send + Sync + 'static,
 {
     let client = config.client.as_ref().ok_or("client")?;
-    let addr = SocketAddr::new(client.listen_host.parse()?, client.listen_port);
+    let addr = config.listen_addr()?;
 
     let listener = TcpListener::bind(addr).await?;
 
@@ -79,11 +75,7 @@ where
         callback(listener.local_addr()?);
     }
 
-    let credentials = if let Some(user) = client.listen_user.as_deref().filter(|s| !s.is_empty()) {
-        UserKey::new(user, client.listen_password.as_deref().unwrap_or(""))
-    } else {
-        UserKey::default()
-    };
+    let credentials = client.listen.credentials.clone().unwrap_or_default();
 
     if config.disable_tls() {
         let manager = WsPlainConnectionManager { config: config.clone() };
