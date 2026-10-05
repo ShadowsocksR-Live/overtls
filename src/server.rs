@@ -9,16 +9,18 @@ use crate::{
 };
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
+use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use socks5_impl::protocol::Address;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
+    path::{Path, PathBuf},
     sync::Arc,
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, UdpSocket},
-    sync::Mutex,
+    sync::{Mutex, mpsc, watch},
 };
 use tokio_rustls::{TlsAcceptor, rustls};
 use tokio_tungstenite::{
@@ -50,34 +52,27 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     let p = server.listen_port;
     let addr: SocketAddr = (h, p).to_socket_addrs()?.next().ok_or("Invalid server listen address")?;
 
-    let certs = server.certfile.as_ref().filter(|_| !config.disable_tls()).and_then(|cert| {
-        let certs = server_load_certs(cert);
-        if let Err(err) = &certs {
-            log::warn!("failed to load certificate file: {err}");
-        }
-        certs.ok()
-    });
-
-    let keys = server.keyfile.as_ref().filter(|_| !config.disable_tls()).and_then(|key| {
-        let keys = server_load_keys(key);
-        if let Err(err) = &keys {
-            log::warn!("failed to load key file: {err}");
-        }
-        keys.ok().filter(|keys| !keys.is_empty())
-    });
-
-    let svr_cfg = if let (Some(certs), Some(mut keys)) = (certs, keys) {
-        let _key = keys.first().ok_or("no keys")?;
-        rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(certs, keys.remove(0))
-            .ok()
-    } else {
+    let tls_paths = if config.disable_tls() {
         None
+    } else {
+        server.certfile.as_ref().zip(server.keyfile.as_ref())
     };
-
-    let acceptor = svr_cfg.map(|svr_cfg| TlsAcceptor::from(std::sync::Arc::new(svr_cfg)));
-    if acceptor.is_none() {
+    let (tls_file_watcher, tls_events, cert_path, key_path) = match tls_paths {
+        Some((cert_path, key_path)) => {
+            let (watcher, events, cert_path, key_path) = watch_server_tls_files(cert_path, key_path)?;
+            (Some(watcher), Some(events), Some(cert_path), Some(key_path))
+        }
+        None => (None, None, None, None),
+    };
+    let acceptor = tls_paths.and_then(|(cert_path, key_path)| match server_tls_acceptor(cert_path, key_path) {
+        Ok(acceptor) => Some(acceptor),
+        Err(error) => {
+            log::warn!("failed to load server certificate or key: {error}");
+            None
+        }
+    });
+    let (tls_acceptor_tx, tls_acceptor_rx) = watch::channel(acceptor);
+    if tls_acceptor_rx.borrow().is_none() {
         log::warn!("no certificate and key file, using plain TCP");
     } else {
         log::info!("using TLS");
@@ -109,6 +104,17 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
 
     let session_id = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let session_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let _tls_file_watcher = tls_file_watcher;
+    let mut tls_reload_task = match (tls_events, cert_path, key_path) {
+        (Some(events), Some(cert_path), Some(key_path)) => Some(tokio::spawn(reload_server_tls_on_events(
+            events,
+            tls_acceptor_tx,
+            cert_path,
+            key_path,
+            exiting_flag.clone(),
+        ))),
+        _ => None,
+    };
 
     loop {
         tokio::select! {
@@ -118,7 +124,7 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
             }
             ret = listener.accept() => {
                 let (stream, peer_addr) = ret?;
-                let acceptor = acceptor.clone();
+                let acceptor = tls_acceptor_rx.borrow().clone();
                 let config = config.clone();
                 let traffic_audit = traffic_audit.clone();
 
@@ -148,7 +154,118 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
         }
     }
 
+    if let Some(task) = tls_reload_task.take() {
+        let _ = task.await;
+    }
+
     Ok(())
+}
+
+fn watch_server_tls_files(
+    cert_path: &Path,
+    key_path: &Path,
+) -> std::io::Result<(RecommendedWatcher, mpsc::UnboundedReceiver<notify::Result<Event>>, PathBuf, PathBuf)> {
+    let absolute_path = |path: &Path| -> std::io::Result<PathBuf> {
+        if path.is_absolute() {
+            Ok(path.to_path_buf())
+        } else {
+            Ok(std::env::current_dir()?.join(path))
+        }
+    };
+    let cert_path = absolute_path(cert_path)?;
+    let key_path = absolute_path(key_path)?;
+    let (event_sender, events) = mpsc::unbounded_channel();
+    let mut watcher = notify::recommended_watcher(move |event| {
+        let _ = event_sender.send(event);
+    })
+    .map_err(std::io::Error::other)?;
+
+    let directories: HashSet<PathBuf> = [&cert_path, &key_path]
+        .into_iter()
+        .filter_map(|path| path.parent().map(Path::to_path_buf))
+        .collect();
+    for directory in directories {
+        watcher
+            .watch(&directory, RecursiveMode::NonRecursive)
+            .map_err(std::io::Error::other)?;
+    }
+
+    Ok((watcher, events, cert_path, key_path))
+}
+
+async fn reload_server_tls_on_events(
+    mut events: mpsc::UnboundedReceiver<notify::Result<Event>>,
+    tls_acceptor: watch::Sender<Option<TlsAcceptor>>,
+    cert_path: PathBuf,
+    key_path: PathBuf,
+    exiting_flag: crate::CancellationToken,
+) {
+    const DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(250);
+    loop {
+        tokio::select! {
+            _ = exiting_flag.cancelled() => return,
+            event = events.recv() => match event {
+                Some(Ok(event)) if !event_affects_tls_files(&event, &cert_path, &key_path) => continue,
+                Some(Ok(_)) => {}
+                Some(Err(error)) => {
+                    log::warn!("TLS file watcher error: {error}");
+                    continue;
+                }
+                None => return,
+            },
+        };
+        let mut debounce = Box::pin(tokio::time::sleep(DEBOUNCE));
+        loop {
+            tokio::select! {
+                _ = exiting_flag.cancelled() => return,
+                _ = &mut debounce => break,
+                event = events.recv() => match event {
+                    Some(Ok(event)) if event_affects_tls_files(&event, &cert_path, &key_path) => {
+                        debounce.as_mut().reset(tokio::time::Instant::now() + DEBOUNCE)
+                    }
+                    Some(Ok(_)) => {}
+                    Some(Err(error)) => log::warn!("TLS file watcher error: {error}"),
+                    None => return,
+                },
+            }
+        }
+
+        let cert_path_for_load = cert_path.clone();
+        let key_path_for_load = key_path.clone();
+        let load = tokio::task::spawn_blocking(move || server_tls_acceptor(&cert_path_for_load, &key_path_for_load));
+        let result = tokio::select! {
+            _ = exiting_flag.cancelled() => return,
+            result = load => result,
+        };
+        match result {
+            Ok(Ok(acceptor)) => {
+                tls_acceptor.send_replace(Some(acceptor));
+                log::info!("reloaded server TLS certificate and private key");
+            }
+            Ok(Err(error)) => {
+                log::warn!("failed to reload server TLS certificate and private key; keeping the current configuration: {error}")
+            }
+            Err(error) => log::error!("TLS reload task failed: {error}"),
+        }
+    }
+}
+
+fn event_affects_tls_files(event: &Event, cert_path: &Path, key_path: &Path) -> bool {
+    !event.kind.is_access() && event.paths.iter().any(|path| path == cert_path || path == key_path)
+}
+
+fn server_tls_acceptor(cert_path: &Path, key_path: &Path) -> std::io::Result<TlsAcceptor> {
+    let certs = server_load_certs(cert_path).map_err(std::io::Error::other)?;
+    let key = server_load_keys(key_path)
+        .map_err(std::io::Error::other)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "no private key found"))?;
+    let config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .map_err(std::io::Error::other)?;
+    Ok(TlsAcceptor::from(Arc::new(config)))
 }
 
 async fn handle_incoming<S>(mut stream: S, peer: SocketAddr, config: Config, traffic_audit: TrafficAuditPtr) -> Result<()>
@@ -684,4 +801,32 @@ fn tcp_stream_from_s5_address(s5_addr: &Address, time_out: std::time::Duration, 
         }
     }
     Err(Error::from(format!("{peer} <> {s5_addr} All addresses failed to connect")))
+}
+
+#[cfg(test)]
+mod tls_reload_event_tests {
+    use super::event_affects_tls_files;
+    use notify::{
+        Event, EventKind,
+        event::{AccessKind, AccessMode, DataChange, ModifyKind},
+    };
+    use std::path::Path;
+
+    #[test]
+    fn ignores_read_access_to_tls_files() {
+        let cert_path = Path::new("/etc/overtls/fullchain.pem");
+        let key_path = Path::new("/etc/overtls/privkey.pem");
+        let event = Event::new(EventKind::Access(AccessKind::Open(AccessMode::Read))).add_path(cert_path.to_path_buf());
+
+        assert!(!event_affects_tls_files(&event, cert_path, key_path));
+    }
+
+    #[test]
+    fn accepts_modifications_to_tls_files() {
+        let cert_path = Path::new("/etc/overtls/fullchain.pem");
+        let key_path = Path::new("/etc/overtls/privkey.pem");
+        let event = Event::new(EventKind::Modify(ModifyKind::Data(DataChange::Content))).add_path(cert_path.to_path_buf());
+
+        assert!(event_affects_tls_files(&event, cert_path, key_path));
+    }
 }

@@ -151,6 +151,8 @@ The configuration file is very simple. It is common to both `server` and `client
 
 The `certfile` and `keyfile` are optional, and the software will become `https` protocol server after the correct pairing, and the non-flip traffic will be forwarded directly to the `forward_addr` destination. If the `certfile` and `keyfile` are incorrectly matched or simply do not exist, you will need the help of a previous `reverse proxy` such as `nginx` to work.
 
+While TLS is enabled, the server watches the directories containing these files and reloads the certificate and private key when either changes. The updated certificate is used for new connections; existing connections are not interrupted. If reloading fails, the server keeps using the currently loaded certificate.
+
 > If the forward_addr option does not exist, the default value is `http://127.0.0.1:80`, which is the port `80` on which the local `nginx` listens to `http`.
 
 Note the `tunnel_path` configuration, please make sure to change it to your own unique complex string, otherwise `GFW` will block you immediately.

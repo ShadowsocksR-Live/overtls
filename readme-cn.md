@@ -140,6 +140,9 @@ overtls-bin -r client -c config.json
 `certfile` 和 `keyfile` 爲可選項，配正確後 軟件就變身 https 協議服務端，非翻牆流量直接轉發到 `forward_addr` 指向的目標。
 若 `certfile` 和 `keyfile` 兩項配錯或乾脆不存在，則需要前置的 `反向代理` 如 `nginx` 協助方可工作。
 
+啟用 TLS 時，服務端會監視證書和私鑰所在的目錄；任一文件變更後會自動重新加載。
+新證書只用於後續建立的連接，不會中斷現有連接；若重新加載失敗，則繼續使用當前證書。
+
 如果你要讓服務端主動和面板同步，請使用 `server_settings.panel_sync`。
 
 > 如果 `forward_addr` 選項不存在，則默認值爲 `http://127.0.0.1:80`，即本機 `nginx` 監聽 `http` 的 `80` 端口。
