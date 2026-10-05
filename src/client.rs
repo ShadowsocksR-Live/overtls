@@ -9,6 +9,7 @@ use crate::{
 };
 use bytes::BytesMut;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
+use method_name::method_name_unstable;
 use socks_hub_core::{BoxedStream, HttpConnector, UserKey, run_http_service};
 use socks5_impl::{
     protocol::{Address, Reply},
@@ -227,6 +228,7 @@ where
     M: ConnectionManager<Connection = WebSocketStream<S>> + Send + Sync + 'static,
     S: AsyncRead + AsyncWrite + Unpin + Send + Sync + 'static,
 {
+    let mn = method_name_unstable!();
     let mut peek_buf = [0u8; 16];
     let n = stream.peek(&mut peek_buf).await?;
     if n == 0 {
@@ -235,21 +237,21 @@ where
     let peer_addr = stream.peer_addr().ok();
     match peek_buf[0] {
         0x05 => {
-            log::trace!("SOCKS5 client detected from {peer_addr:?}");
+            log::trace!("{mn} -- SOCKS5 client detected from {peer_addr:?}");
             let auth = extract_auth_adaptor_from_config(&config)?;
             let conn = IncomingConnection::new(stream, auth);
             let mut ws_stream = match pool.get_connection().await.map_err(std::io::Error::other) {
                 Ok(stream) => stream,
                 Err(e) => {
-                    log::debug!("{peer_addr:?} failed to acquire WebSocket stream from pool: '{e}'");
+                    log::debug!("{mn} -- {peer_addr:?} failed to acquire WebSocket stream from pool: '{e}'");
                     return Ok(());
                 }
             };
             handle_incoming::<S>(conn, config, Some(udp_tx), incomings, &mut *ws_stream).await?;
-            log::trace!("SOCKS5 client from {peer_addr:?} disconnected");
+            log::trace!("{mn} -- SOCKS5 client from {peer_addr:?} disconnected");
         }
         0x04 => {
-            log::warn!("socks4 client detected from {peer_addr:?}, but only SOCKS5/HTTP mixed mode is supported");
+            log::warn!("{mn} -- socks4 client detected from {peer_addr:?}, but only SOCKS5/HTTP mixed mode is supported");
             let _ = stream.shutdown().await;
         }
         _ => {
@@ -270,14 +272,14 @@ where
 
             if !is_http {
                 let fb = first_bytes[0];
-                log::warn!("unknown client type detected from {peer_addr:?}, first byte: 0x{fb:02x}");
+                log::warn!("{mn} -- unknown client type detected from {peer_addr:?}, first byte: 0x{fb:02x}");
                 let _ = stream.shutdown().await;
                 return Ok(());
             }
 
-            log::trace!("HTTP client detected from {peer_addr:?}");
+            log::trace!("{mn} -- HTTP client detected from {peer_addr:?}");
             run_http_service(stream, connector, credentials).await?;
-            log::trace!("HTTP client from {peer_addr:?} disconnected");
+            log::trace!("{mn} -- HTTP client from {peer_addr:?} disconnected");
         }
     }
 
@@ -303,9 +305,10 @@ where
     let session_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
     loop {
+        let mn = method_name_unstable!();
         tokio::select! {
             _ = quit.cancelled() => {
-                log::info!("exiting...");
+                log::info!("{mn} -- exiting...");
                 break;
             }
             result = listener.accept() => {
@@ -321,12 +324,12 @@ where
                 let credentials = credentials.clone();
                 tokio::spawn(async move {
                     let count = session_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                    log::debug!("session #{session_id} from {peer_addr:?} started, session count {count}");
+                    log::debug!("{mn} -- session #{session_id} from {peer_addr:?} started, session count {count}");
                     if let Err(e) = handle_listener_stream(stream, connector, credentials, pool, udp_tx, incomings, config).await {
-                        log::debug!("{e}");
+                        log::debug!("{mn} -- {e}");
                     }
                     let count = session_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) - 1;
-                    log::debug!("session #{session_id} from {peer_addr:?} ended, session count {count}");
+                    log::debug!("{mn} -- session #{session_id} from {peer_addr:?} ended, session count {count}");
                 });
             }
         }
@@ -345,13 +348,14 @@ async fn handle_incoming<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
+    let mn = method_name_unstable!();
     let peer_addr = conn.peer_addr()?;
     let conn = conn.authenticate().await?;
     match conn.wait_request().await? {
         ClientConnection::UdpAssociate(asso, _) => {
             if let Some(udp_tx) = udp_tx {
                 if let Err(e) = udprelay::handle_s5_upd_associate(asso, udp_tx, incomings, config).await {
-                    log::debug!("{peer_addr} handle_s5_upd_associate \"{e}\"");
+                    log::debug!("{mn} -- {peer_addr} handle_s5_upd_associate \"{e}\"");
                 }
             } else {
                 let mut conn = asso.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
@@ -364,12 +368,12 @@ where
         }
         ClientConnection::Connect(connect, addr) => {
             if let Err(e) = handle_socks5_cmd_connection::<S>(connect, addr.clone(), config, ws_stream).await {
-                log::debug!("{peer_addr} <> {addr} {e}");
+                log::debug!("{mn} -- {peer_addr} <> {addr} {e}");
             }
         }
     }
 
-    log::trace!("{peer_addr} disconnected");
+    log::trace!("{mn} -- {peer_addr} disconnected");
 
     Ok(())
 }
@@ -387,7 +391,8 @@ where
 
     let peer_addr = incoming.peer_addr()?;
 
-    log::trace!("{peer_addr} -> {target_addr} tunnel establishing");
+    let mn = method_name_unstable!();
+    log::trace!("{mn} -- {peer_addr} -> {target_addr} tunnel establishing");
 
     client_traffic_loop(incoming, ws_stream, peer_addr, target_addr).await?;
     Ok(())
@@ -407,6 +412,7 @@ where
     let mut session_confirmed = false;
     let mut shutdown_deadline: Option<tokio::time::Instant> = None;
     loop {
+        let mn = method_name_unstable!();
         let mut buf = BytesMut::with_capacity(crate::STREAM_BUFFER_SIZE);
         tokio::select! {
             // Only allow reading from local connection after session_confirmed
@@ -419,16 +425,16 @@ where
             } => {
                 let len = result?;
                 if len == 0 {
-                    log::debug!("{src} -> {dst} incoming closed");
+                    log::debug!("{mn} -- {src} -> {dst} incoming closed");
                     // Send "End session" text message
                     ws_stream.send(Message::Text(END_SESSION.into())).await?;
                     break;
                 }
                 ws_stream.send(Message::binary(buf.to_vec())).await?;
-                log::trace!("{src} -> {dst} length {}", buf.len());
+                log::trace!("{mn} -- {src} -> {dst} length {}", buf.len());
 
                 if let Err(e) = crate::traffic_status::traffic_status_update(len, 0) {
-                    log::error!("{e}");
+                    log::error!("{mn} -- {e}");
                 }
 
                 buf.clear();
@@ -437,47 +443,47 @@ where
                 let msg = result.ok_or("message not exist")??;
 
                 if let Err(e) = crate::traffic_status::traffic_status_update(0, msg.len()) {
-                    log::error!("{e}");
+                    log::error!("{mn} -- {e}");
                 }
 
                 match msg {
                     Message::Binary(data) => {
                         incoming.write_all(&data).await?;
-                        log::trace!("{src} <- {dst} length {}", data.len());
+                        log::trace!("{mn} -- {src} <- {dst} length {}", data.len());
                     }
                     Message::Close(_) => {
-                        log::debug!("{src} <- {dst} ws closed, exiting...");
+                        log::debug!("{mn} -- {src} <- {dst} ws closed, exiting...");
                         break;
                     }
                     Message::Text(data) => {
                         let msg_str = data.as_str();
                         if let Some(reason) = msg_str.strip_prefix(END_SESSION) {
                             let reason = reason.strip_prefix(':').unwrap_or(reason).trim();
-                            log::debug!("{src} <- {dst} session ended by remote message '{END_SESSION}' with reason: '{reason}'");
+                            log::debug!("{mn} -- {src} <- {dst} session ended by remote message '{END_SESSION}' with reason: '{reason}'");
                             break;
                         } else if msg_str.starts_with(START_SESSION) {
                             session_confirmed = true;
-                            log::debug!("{src} <- {dst} received '{START_SESSION}' confirmation from server");
+                            log::debug!("{mn} -- {src} <- {dst} received '{START_SESSION}' confirmation from server");
                         } else if msg_str == REMOTE_EOF {
-                            log::debug!("{src} <- {dst} received from server the '{REMOTE_EOF}' indication");
+                            log::debug!("{mn} -- {src} <- {dst} received from server the '{REMOTE_EOF}' indication");
                             // Force shutdown after 1 second
                             shutdown_deadline = Some(tokio::time::Instant::now() + std::time::Duration::from_secs(1));
                         } else {
-                            log::warn!("{src} <- {dst} unexpected Websocket text from remote: {msg_str}");
+                            log::warn!("{mn} -- {src} <- {dst} unexpected Websocket text from remote: {msg_str}");
                         }
                     }
                     Message::Ping(_) => {
-                        log::trace!("{src} <- {dst} Websocket ping from remote");
+                        log::trace!("{mn} -- {src} <- {dst} Websocket ping from remote");
                     }
                     Message::Pong(_) => {
-                        log::trace!("{src} <- {dst} Websocket pong from remote");
+                        log::trace!("{mn} -- {src} <- {dst} Websocket pong from remote");
                     }
                     _ => {}
                 }
             }
             _ = timer.tick() => {
                 ws_stream.send(Message::Ping(vec![].into())).await?;
-                log::trace!("{src} -> {dst} Websocket ping from local");
+                log::trace!("{mn} -- {src} -> {dst} Websocket ping from local");
             }
             _ = async {
                 if let Some(deadline) = shutdown_deadline.take() {
@@ -486,7 +492,7 @@ where
                     futures_util::future::pending::<()>().await;
                 }
             } => {
-                log::debug!("{src} <> {dst} forcibly closed after 1 second of '{REMOTE_EOF}' indication");
+                log::debug!("{mn} -- {src} <> {dst} forcibly closed after 1 second of '{REMOTE_EOF}' indication");
                 ws_stream.send(Message::Text(END_SESSION.into())).await?;
                 let _ = incoming.shutdown().await;
                 break;
@@ -505,7 +511,8 @@ pub(crate) async fn create_tls_ws_stream(
     let client = config.client.as_ref().ok_or("client not exist")?;
 
     if client.dangerous_mode.unwrap_or(false) {
-        log::warn!("Dangerous mode enabled, this will skip certificate verification. It is not recommended for production use");
+        let mn = method_name_unstable!();
+        log::warn!("{mn} -- Dangerous mode enabled, this will skip certificate verification. It is not recommended for production use");
         let domain = client.server_domain.as_ref().unwrap_or(&client.server_host);
         let stream = create_dangerous_tls_client_stream(svr_addr, domain).await?;
         let ws_stream = create_ws_stream(dst_addr, config, udp_tunnel, stream).await?;

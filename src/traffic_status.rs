@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use method_name::method_name_unstable;
 use std::{
     os::raw::c_void,
     sync::{LazyLock, Mutex},
@@ -16,7 +17,7 @@ pub unsafe extern "C" fn overtls_set_traffic_status_callback(
     if let Ok(mut cb) = TRAFFIC_STATUS_CALLBACK.lock() {
         *cb = Some(TrafficStatusCallback(callback, ctx));
     } else {
-        log::error!("set traffic status callback failed");
+        log::error!("{} -- set traffic status callback failed", method_name_unstable!());
     }
     if send_interval_secs > 0 {
         SEND_INTERVAL_SECS.store(send_interval_secs, std::sync::atomic::Ordering::Relaxed);
@@ -53,7 +54,7 @@ static TIME_STAMP: LazyLock<Mutex<std::time::Instant>> = LazyLock::new(|| Mutex:
 pub(crate) fn traffic_status_update(delta_tx: usize, delta_rx: usize) -> Result<()> {
     {
         let is_none_or_error = TRAFFIC_STATUS_CALLBACK.lock().map(|guard| guard.is_none()).unwrap_or_else(|e| {
-            log::error!("Failed to acquire lock: {e}");
+            log::error!("{} -- Failed to acquire lock: {e}", method_name_unstable!());
             true
         });
         if is_none_or_error {

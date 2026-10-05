@@ -11,7 +11,7 @@ fn main() -> Result<(), BoxError> {
         let ctrlc_fired = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let ctrlc_fired_clone = ctrlc_fired.clone();
         let ctrl_handle = ctrlc2::set_handler(move || {
-            log::info!("Ctrl-C received, exiting...");
+            log::info!("{} -- Ctrl-C received, exiting...", method_name::method_name_unstable!());
             ctrlc_fired_clone.store(true, std::sync::atomic::Ordering::SeqCst);
             unsafe { overtls::over_tls_client_stop() };
             true
@@ -23,7 +23,7 @@ fn main() -> Result<(), BoxError> {
         unsafe { overtls::overtls_set_log_callback(true, Some(log_cb), std::ptr::null_mut()) };
 
         unsafe extern "C" fn port_cb(port: i32, _ctx: *mut std::os::raw::c_void) {
-            log::info!("Listening on {port}");
+            log::info!("{} -- Listening on {port}", method_name::method_name_unstable!());
         }
 
         if let Some(cfg) = opt.config.as_ref() {

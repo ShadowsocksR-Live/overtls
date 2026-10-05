@@ -9,6 +9,7 @@ use crate::{
 };
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
+use method_name::method_name_unstable;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use socks5_impl::protocol::Address;
 use std::{
@@ -41,6 +42,7 @@ const WS_HANDSHAKE_LEN: usize = 1024;
 const WS_MSG_HEADER_LEN: usize = 14;
 
 pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken) -> Result<()> {
+    let mn = method_name_unstable!();
     crate::ensure_rustls_crypto_provider()?;
 
     log::info!("starting {} {} server...", clap::crate_name!(), crate::cmdopt::version_info());
@@ -67,15 +69,15 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     let acceptor = tls_paths.and_then(|(cert_path, key_path)| match server_tls_acceptor(cert_path, key_path) {
         Ok(acceptor) => Some(acceptor),
         Err(error) => {
-            log::warn!("failed to load server certificate or key: {error}");
+            log::warn!("{mn} -- failed to load server certificate or key: {error}");
             None
         }
     });
     let (tls_acceptor_tx, tls_acceptor_rx) = watch::channel(acceptor);
     if tls_acceptor_rx.borrow().is_none() {
-        log::warn!("no certificate and key file, using plain TCP");
+        log::warn!("{mn} -- no certificate and key file, using plain TCP");
     } else {
-        log::info!("using TLS");
+        log::info!("{mn} -- using TLS");
     }
 
     let traffic_audit = Arc::new(Mutex::new(TrafficAudit::new()));
@@ -89,7 +91,7 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
         tokio::spawn(async move {
             let syncer = PanelSyncClient::new(&panel_sync_config);
             if let Err(e) = syncer.run(sync_traffic_audit, sync_quit).await {
-                log::warn!("panel sync task stopped: {e}");
+                log::warn!("{} -- panel sync task stopped: {e}", method_name_unstable!());
             }
         });
     }
@@ -97,7 +99,7 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     let listener = match TcpListener::bind(&addr).await {
         Ok(listener) => listener,
         Err(e) => {
-            log::error!("failed to bind to {} in file {} at line {}: \"{}\"", addr, file!(), line!(), e);
+            log::error!("{mn} -- failed to bind to {addr} in file {} at line {}: \"{e}\"", file!(), line!(),);
             return Err(e.into());
         }
     };
@@ -119,7 +121,7 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     loop {
         tokio::select! {
             _ = exiting_flag.cancelled() => {
-                log::info!("exiting...");
+                log::info!("{mn} -- exiting...");
                 break;
             }
             ret = listener.accept() => {
@@ -142,13 +144,14 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
                 let session_count = session_count.clone();
 
                 tokio::spawn(async move {
+                    let mn = method_name_unstable!();
                     let count = session_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                    log::debug!("session #{session_id} from {peer_addr} started, session count {count}");
+                    log::debug!("{mn} -- session #{session_id} from {peer_addr} started, session count {count}");
                     if let Err(e) = incoming_task.await {
-                        log::debug!("{peer_addr}: {e}");
+                        log::debug!("{mn} -- {peer_addr}: {e}");
                     }
                     let count = session_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) - 1;
-                    log::debug!("session #{session_id} from {peer_addr} ended, session count {count}");
+                    log::debug!("{mn} -- session #{session_id} from {peer_addr} ended, session count {count}");
                 });
             }
         }
@@ -200,6 +203,7 @@ async fn reload_server_tls_on_events(
     key_path: PathBuf,
     exiting_flag: crate::CancellationToken,
 ) {
+    let mn = method_name_unstable!();
     const DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(250);
     loop {
         tokio::select! {
@@ -208,7 +212,7 @@ async fn reload_server_tls_on_events(
                 Some(Ok(event)) if !event_affects_tls_files(&event, &cert_path, &key_path) => continue,
                 Some(Ok(_)) => {}
                 Some(Err(error)) => {
-                    log::warn!("TLS file watcher error: {error}");
+                    log::warn!("{mn} -- TLS file watcher error: {error}");
                     continue;
                 }
                 None => return,
@@ -224,7 +228,7 @@ async fn reload_server_tls_on_events(
                         debounce.as_mut().reset(tokio::time::Instant::now() + DEBOUNCE)
                     }
                     Some(Ok(_)) => {}
-                    Some(Err(error)) => log::warn!("TLS file watcher error: {error}"),
+                    Some(Err(error)) => log::warn!("{mn} -- TLS file watcher error: {error}"),
                     None => return,
                 },
             }
@@ -240,12 +244,12 @@ async fn reload_server_tls_on_events(
         match result {
             Ok(Ok(acceptor)) => {
                 tls_acceptor.send_replace(Some(acceptor));
-                log::info!("reloaded server TLS certificate and private key");
+                log::info!("{mn} -- reloaded server TLS certificate and private key");
             }
             Ok(Err(error)) => {
-                log::warn!("failed to reload server TLS certificate and private key; keeping the current configuration: {error}")
+                log::warn!("{mn} -- failed to reload server TLS certificate and private key; keeping the current configuration: {error}")
             }
-            Err(error) => log::error!("TLS reload task failed: {error}"),
+            Err(error) => log::error!("{mn} -- TLS reload task failed: {error}"),
         }
     }
 }
@@ -327,7 +331,8 @@ async fn forward_traffic_wrapper<S>(stream: S, data: &[u8], config: &Config) -> 
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    log::debug!("not match path \"{}\", forward traffic directly...", config.tunnel_path);
+    let mn = method_name_unstable!();
+    log::debug!("{mn} -- not match path \"{}\", forward traffic directly...", config.tunnel_path);
     let forward_addr = config.forward_addr().ok_or("config forward addr not exist")?;
 
     let url = url::Url::parse(&forward_addr)?;
@@ -421,8 +426,9 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
             panel_sync_enabled = traffic_audit.lock().await.get_enable_of(client_id);
         }
     }
+    let mn = method_name_unstable!();
     if !panel_sync_enabled {
-        log::warn!("{peer} -> client id: \"{client_id:?}\" is disabled");
+        log::warn!("{mn} -- {peer} -> client id: \"{client_id:?}\" is disabled");
         return Ok(());
     }
 
@@ -435,12 +441,12 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
 
     let result;
     if udp_tunnel {
-        log::trace!("[UDP] {peer} tunneling established");
+        log::trace!("{mn} -- [UDP] {peer} tunneling established");
         result = svr_udp_tunnel(ws_stream, config, traffic_audit, &client_id).await;
         if let Err(ref e) = result {
-            log::debug!("[UDP] {peer} closed with error \"{e}\"");
+            log::debug!("{mn} -- [UDP] {peer} closed with error \"{e}\"");
         } else {
-            log::trace!("[UDP] {peer} closed.");
+            log::trace!("{mn} -- [UDP] {peer} closed.");
         }
     } else {
         let stream = if let Some(target_address) = &target_address {
@@ -454,7 +460,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
             None
         };
         result = svr_normal_tunnel(ws_stream, peer, config, traffic_audit, &client_id, stream).await;
-        log::trace!("{peer} connection closed with {result:?}.");
+        log::trace!("{mn} -- {peer} connection closed with {result:?}.");
     }
     result
 }
@@ -474,6 +480,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
     // Mark if outgoing has been written to
     let mut outgoing_can_be_read = false;
     let mut enable_check = tokio::time::interval(std::time::Duration::from_secs(1));
+    let mn = method_name_unstable!();
 
     loop {
         tokio::select! {
@@ -481,7 +488,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 if let Some(client_id) = client_id
                     && !traffic_audit.lock().await.get_enable_of(client_id)
                 {
-                    log::debug!("{peer} <> {dst_addr:?} client id {client_id:?} disabled by panel sync");
+                    log::debug!("{mn} -- {peer} <> {dst_addr:?} client id {client_id:?} disabled by panel sync");
                     let _ = ws_stream.send(Message::Text(END_SESSION.into())).await;
                     break;
                 }
@@ -494,23 +501,23 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 }
                 match msg {
                     Message::Close(_) => {
-                        log::debug!("{peer} <> {dst_addr:?} incoming connection closed normally");
+                        log::debug!("{mn} -- {peer} <> {dst_addr:?} incoming connection closed normally");
                         break;
                     }
                     Message::Binary(data) => {
                         if let Some(outgoing) = &mut outgoing {
-                            log::trace!("{peer} -> {dst_addr:?} length {len}");
+                            log::trace!("{mn} -- {peer} -> {dst_addr:?} length {len}");
                             outgoing.write_all(&data).await?;
                             outgoing_can_be_read = true;
                         } else {
-                            log::warn!("{peer} -> no outgoing connection available, dropping data len = {}", data.len());
+                            log::warn!("{mn} -- {peer} -> no outgoing connection available, dropping data len = {}", data.len());
                         }
                     }
                     Message::Text(ref data) => {
                         let msg_str = data.as_str();
                         if let Some(reason) = msg_str.strip_prefix(END_SESSION) {
                             let reason = reason.strip_prefix(':').unwrap_or(reason).trim();
-                            log::debug!("{peer} <> {dst_addr:?} ended session with '{END_SESSION}' message with '{reason}'");
+                            log::debug!("{mn} -- {peer} <> {dst_addr:?} ended session with '{END_SESSION}' message with '{reason}'");
                             if let Some(mut stream) = outgoing.take() {
                                 let _ = stream.shutdown().await;
                             }
@@ -523,7 +530,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                             // Close existing connection
                             if let Some(mut stream) = outgoing.take() {
                                 let _ = stream.shutdown().await;
-                                log::info!("{peer} <> {dst_addr:?} closed previous session");
+                                log::info!("{mn} -- {peer} <> {dst_addr:?} closed previous session");
                             }
 
                             let time_out = std::time::Duration::from_secs(config.test_timeout_secs.unwrap_or(TEST_TIMEOUT_SECS));
@@ -532,31 +539,31 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                                     let stream = tokio::net::TcpStream::from_std(stream)?;
                                     dst_addr = Some(stream.peer_addr()?);
                                     outgoing = Some(stream);
-                                    log::info!("{peer} -> {dst_addr:?} started new session");
+                                    log::info!("{mn} -- {peer} -> {dst_addr:?} started new session");
                                     // Feedback confirmation to client
                                     let msg = Message::Text(START_SESSION.into());
                                     svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                                 }
                                 Err(e) => {
-                                    log::error!("{peer} failed to create connection to address '{dst_address}': {e}");
+                                    log::error!("{mn} -- {peer} failed to create connection to address '{dst_address}': {e}");
                                     let msg = Message::Text(END_SESSION.into());
-                                    log::trace!("{peer} <> {dst_addr:?} sending text message '{END_SESSION}' to end session");
+                                    log::trace!("{mn} -- {peer} <> {dst_addr:?} sending text message '{END_SESSION}' to end session");
                                     svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                                     dst_addr = None;
                                 }
                             }
                         } else {
-                            log::warn!("{peer} -> {dst_addr:?} received text message len = {} in unexpected state", data.len());
+                            log::warn!("{mn} -- {peer} -> {dst_addr:?} received text message len = {} in unexpected state", data.len());
                         }
                     }
                     Message::Ping(_data) => {
-                        log::debug!("{peer} -> {dst_addr:?} received ping message");
+                        log::debug!("{mn} -- {peer} -> {dst_addr:?} received ping message");
                     }
                     Message::Pong(_data) => {
-                        log::debug!("{peer} -> {dst_addr:?} received pong message");
+                        log::debug!("{mn} -- {peer} -> {dst_addr:?} received pong message");
                     }
                     _ => {
-                        log::debug!("{peer} -> {dst_addr:?} received unexpected message len {}, ignoring", msg.len());
+                        log::debug!("{mn} -- {peer} -> {dst_addr:?} received unexpected message len {}, ignoring", msg.len());
                     }
                 }
             }
@@ -571,7 +578,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
             } => {
                 match len {
                     Ok(0) => {
-                        log::debug!("{peer} <> {dst_addr:?} outgoing connection reached EOF");
+                        log::debug!("{mn} -- {peer} <> {dst_addr:?} outgoing connection reached EOF");
                         if is_old_client {
                             ws_stream.send(Message::Close(None)).await?;
                             break;
@@ -586,12 +593,12 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                     Ok(n) => {
                         let msg = Message::binary(buffer[..n].to_vec());
                         let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-                        log::trace!("{peer} <- {dst_addr:?} length {len}");
+                        log::trace!("{mn} -- {peer} <- {dst_addr:?} length {len}");
                         svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                     }
                     Err(e) => {
                         if is_old_client {
-                            log::debug!("{peer} <> {dst_addr:?} outgoing connection closed '{e}'");
+                            log::debug!("{mn} -- {peer} <> {dst_addr:?} outgoing connection closed '{e}'");
                             ws_stream.send(Message::Close(None)).await?;
                             break;
                         }
@@ -602,7 +609,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                         dst_addr = None;
                         outgoing_can_be_read = false;
                         let msg = Message::Text(END_SESSION.into());
-                        log::debug!("{peer} <> {dst_addr:?} sending text message '{END_SESSION}' to end session because '{e}'");
+                        log::debug!("{mn} -- {peer} <> {dst_addr:?} sending text message '{END_SESSION}' to end session because '{e}'");
                         svr_send_ws_message(&mut ws_stream, msg, &traffic_audit, client_id).await?;
                     }
                 }
@@ -640,6 +647,7 @@ async fn svr_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
 
     let dst_src_pairs = Arc::new(Mutex::new(HashMap::new()));
     let mut enable_check = tokio::time::interval(std::time::Duration::from_secs(1));
+    let mn = method_name_unstable!();
 
     loop {
         tokio::select! {
@@ -647,7 +655,7 @@ async fn svr_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 if let Some(client_id) = client_id
                     && !traffic_audit.lock().await.get_enable_of(client_id)
                 {
-                    log::debug!("[UDP] tunnel disabled by panel sync for client {client_id:?}");
+                    log::debug!("{mn} -- [UDP] tunnel disabled by panel sync for client {client_id:?}");
                     break;
                 }
             }
@@ -659,24 +667,24 @@ async fn svr_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 }
                 match msg {
                     Message::Close(_) => {
-                        log::trace!("[UDP] tunnel closed by remote client {client_id:?}");
+                        log::trace!("{mn} -- [UDP] tunnel closed by remote client {client_id:?}");
                         break;
                     }
                     Message::Ping(_) => {
-                        log::trace!("[UDP] received ping message, ignoring");
+                        log::trace!("{mn} -- [UDP] received ping message, ignoring");
                     }
                     Message::Pong(_) => {
-                        log::trace!("[UDP] received pong message, ignoring");
+                        log::trace!("{mn} -- [UDP] received pong message, ignoring");
                     }
                     Message::Binary(data) => {
                         let buf = BytesMut::from(&data[..]);
                         svr_send_udp_packet_to_dst(buf, &dst_src_pairs, &udp_socket, &udp_socket_v6).await?;
                     }
                     Message::Text(_) => {
-                        log::warn!("[UDP] unexpected text message, ignoring");
+                        log::warn!("{mn} -- [UDP] unexpected text message, ignoring");
                     }
                     _ => {
-                        log::warn!("[UDP] unexpected message type: {msg:?}, ignoring");
+                        log::warn!("{mn} -- [UDP] unexpected message type: {msg:?}, ignoring");
                     }
                 }
             }
@@ -702,8 +710,9 @@ async fn svr_send_udp_packet_to_dst(
     udp_socket: &UdpSocket,
     udp_socket_v6: &UdpSocket,
 ) -> Result<()> {
+    let mn = method_name_unstable!();
     let (dst_addr, src_addr, pkt) = crate::udprelay::decode_udp_packet(&mut buf)?;
-    log::trace!("[UDP] {src_addr} -> {dst_addr} length {}", pkt.len());
+    log::trace!("{mn} -- [UDP] {src_addr} -> {dst_addr} length {}", pkt.len());
 
     dst_src_pairs.lock().await.insert(dst_addr.clone(), src_addr.clone());
 
@@ -764,6 +773,7 @@ async fn svr_udp_write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
     traffic_audit: &TrafficAuditPtr,
     client_id: &Option<Uuid>,
 ) -> Result<()> {
+    let mn = method_name_unstable!();
     let dst_addr = Address::from(addr);
     let src_addr = dst_src_pairs.lock().await.get(&dst_addr).cloned();
     if let Some(src_addr) = src_addr {
@@ -772,7 +782,7 @@ async fn svr_udp_write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 
         let msg = Message::binary(buf.to_vec());
 
-        log::trace!("[UDP] {src_addr} <- {dst_addr} length {}", pkt.len());
+        log::trace!("{mn} -- [UDP] {src_addr} <- {dst_addr} length {}", pkt.len());
         if let Some(client) = client_id {
             let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
             traffic_audit.lock().await.add_downstream_traffic_of(client, len);
@@ -784,10 +794,11 @@ async fn svr_udp_write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
 }
 
 fn tcp_stream_from_s5_address(s5_addr: &Address, time_out: std::time::Duration, peer: SocketAddr) -> Result<std::net::TcpStream> {
+    let mn = method_name_unstable!();
     // try to connect to the first available address
     for dst_addr in s5_addr.to_socket_addrs()? {
         if addr_is_private(&dst_addr) {
-            log::warn!("{peer} <> {dst_addr} destination address is private, skipping");
+            log::warn!("{mn} -- {peer} <> {dst_addr} destination address is private, skipping");
             continue;
         }
         match crate::tcp_stream::std_create(dst_addr, Some(time_out)) {
@@ -796,11 +807,11 @@ fn tcp_stream_from_s5_address(s5_addr: &Address, time_out: std::time::Duration, 
                 return Ok(stream);
             }
             Err(ref e) => {
-                log::debug!("{peer} <> {dst_addr} destination address is unreachable: {e}");
+                log::debug!("{mn} -- {peer} <> {dst_addr} destination address is unreachable: {e}");
             }
         }
     }
-    Err(Error::from(format!("{peer} <> {s5_addr} All addresses failed to connect")))
+    Err(Error::from(format!("{mn} -- {peer} <> {s5_addr} All addresses failed to connect")))
 }
 
 #[cfg(test)]

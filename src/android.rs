@@ -46,7 +46,8 @@ pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient
                 .with_filter(filter),
         );
 
-        log::info!("Starting overtls client on Android");
+        let mn = method_name::method_name_unstable!();
+        log::info!("{mn} -- Starting overtls client on Android");
 
         let shutdown_token = crate::CancellationToken::new();
         {
@@ -74,7 +75,8 @@ pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_runClient
         set_panic_handler();
 
         let callback = |addr| {
-            log::trace!("Listening on {}", addr);
+            let mn = method_name::method_name_unstable!();
+            log::trace!("{mn} -- Listening on {}", addr);
         };
 
         let mut config = crate::config::Config::from_config_file(config_path)?;
@@ -129,7 +131,7 @@ fn _protect_socket(env: &mut Env, vpn_service: &JObject<'_>, socket: i32) -> Res
     let return_type = ReturnType::Primitive(Primitive::Boolean);
     let arguments = [JValue::Int(socket).as_jni()];
     let value = unsafe { env.call_method_unchecked(vpn_service, method_id, return_type, &arguments[..])? };
-    log::trace!("protected socket, result={:?}", value);
+    log::trace!("{} -- protected socket, result={:?}", method_name::method_name_unstable!(), value);
     Ok(value.z()?)
 }
 
@@ -144,13 +146,13 @@ pub unsafe extern "C" fn Java_com_github_shadowsocks_bg_OverTlsWrapper_stopClien
         }
     }
     remove_panic_handler();
-    log::trace!("remove_panic_handler");
+    log::trace!("{} -- remove_panic_handler", method_name::method_name_unstable!());
     0
 }
 
 fn set_panic_handler() {
     std::panic::set_hook(Box::new(|panic_info| {
-        log::error!("*** PANIC [{:?}]", panic_info);
+        log::error!("{} -- *** PANIC [{:?}]", method_name::method_name_unstable!(), panic_info);
     }));
 }
 
@@ -163,7 +165,8 @@ static STAT_PATH: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None)
 unsafe extern "C" fn send_traffic_stat(traffic_status: *const TrafficStatus, _ctx: *mut c_void) {
     let traffic_status = unsafe { *traffic_status };
     if let Err(e) = _send_traffic_stat(&traffic_status) {
-        log::error!("failed to send traffic stat, error={:?}", e);
+        let mn = method_name::method_name_unstable!();
+        log::error!("{mn} -- failed to send traffic stat, error={e:?}");
     }
 }
 

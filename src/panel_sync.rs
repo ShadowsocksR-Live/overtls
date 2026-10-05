@@ -2,6 +2,7 @@ use crate::{
     error::{Error, Result},
     traffic_audit::TrafficAuditPtr,
 };
+use method_name::method_name_unstable;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use url::Url;
@@ -50,6 +51,7 @@ impl PanelSyncClient {
     }
 
     pub(crate) async fn run(mut self, traffic_audit: TrafficAuditPtr, quit: crate::CancellationToken) -> Result<()> {
+        let mn = method_name_unstable!();
         let interval_secs = self.config.api_update_interval_secs.unwrap_or(60).max(10);
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
 
@@ -60,10 +62,10 @@ impl PanelSyncClient {
                 }
                 _ = interval.tick() => {
                     if let Err(e) = self.sync_once(&traffic_audit).await {
-                        log::warn!("panel sync failed: {e}");
+                        log::warn!("{mn} -- panel sync failed: {e}");
                     }
                     if let Err(e) = self.report_traffic_once(&traffic_audit).await {
-                        log::warn!("panel traffic report failed: {e}");
+                        log::warn!("{mn} -- panel traffic report failed: {e}");
                     }
                 }
             }
@@ -73,12 +75,13 @@ impl PanelSyncClient {
     }
 
     async fn sync_once(&mut self, traffic_audit: &TrafficAuditPtr) -> Result<()> {
+        let mn = method_name_unstable!();
         let users = self.fetch_sync_payload().await?;
 
         let existing_clients = traffic_audit.lock().await.get_client_list();
         let mut seen_clients = HashSet::new();
 
-        log::trace!("syncing users from panel: {:?}", users);
+        log::trace!("{mn} -- syncing users from panel: {:?}", users);
 
         for user in users {
             let client_id = user.client_id;
@@ -145,7 +148,8 @@ impl PanelSyncClient {
         let response = self.client.post(url).json(&body).send().await?;
         let r: serde_json::Value = self.parse_payload(response).await?;
 
-        log::trace!("reported traffic post {body:?} response: {r:?}");
+        let mn = method_name_unstable!();
+        log::trace!("{mn} -- reported traffic post {body:?} response: {r:?}");
 
         for (client_id, &(upstream, downstream)) in &current_traffic {
             self.reported_traffic.insert(*client_id, (upstream, downstream));

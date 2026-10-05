@@ -535,7 +535,7 @@ where
 {
     let config = Config::from_config_file(path)?;
     if config.certificate_content().is_some() {
-        log::warn!("Certificate content exists!");
+        log::warn!("{} -- Certificate content exists!", method_name::method_name_unstable!());
     }
     config.generate_ssr_url()
 }

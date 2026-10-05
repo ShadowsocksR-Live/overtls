@@ -24,6 +24,7 @@ pub use config::{Client as ClientConfig, Config, Server as ServerConfig, TunnelP
 pub use dump_logger::{LogLevel, overtls_set_log_callback};
 pub use error::{BoxError, Error, Result};
 pub use log::LevelFilter;
+use method_name::method_name_unstable;
 pub use server::run_server;
 use socks5_impl::protocol::{Address, StreamOperation};
 pub use tokio_util::sync::CancellationToken;
@@ -35,6 +36,8 @@ pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32;
 pub(crate) const STREAM_BUFFER_SIZE: usize = 1024 * 32 * 3;
 
 pub(crate) fn ensure_rustls_crypto_provider() -> Result<()> {
+    let mn = method_name_unstable!();
+
     if rustls::crypto::CryptoProvider::get_default().is_some() {
         return Ok(());
     }
@@ -43,11 +46,13 @@ pub(crate) fn ensure_rustls_crypto_provider() -> Result<()> {
 
     if rustls::crypto::CryptoProvider::get_default().is_none() {
         if let Err(e) = install_result {
-            return Err(Error::from(format!("failed to install rustls aws_lc_rs CryptoProvider: {e:?}")));
+            return Err(Error::from(format!(
+                "{mn} -- failed to install rustls aws_lc_rs CryptoProvider: {e:?}"
+            )));
         } else {
-            return Err(Error::from(
-                "failed to install rustls ring CryptoProvider: provider is still not set after successful installation",
-            ));
+            return Err(Error::from(format!(
+                "{mn} -- failed to install rustls ring CryptoProvider: provider is still not set after successful installation"
+            )));
         }
     }
 
@@ -92,7 +97,7 @@ pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: Ca
         let shutdown_token_clone = shutdown_token.clone();
         let ctrlc_fired_clone = ctrlc_fired.clone();
         let handle = ctrlc2::AsyncCtrlC::new(move || {
-            log::info!("Ctrl-C received, exiting...");
+            log::info!("{} -- Ctrl-C received, exiting...", method_name_unstable!());
             ctrlc_fired_clone.store(true, std::sync::atomic::Ordering::SeqCst);
             shutdown_token_clone.cancel();
             true
@@ -101,6 +106,7 @@ pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: Ca
     }
 
     let main_body = async {
+        let mn = method_name_unstable!();
         if config.is_server {
             if config.exist_server() {
                 run_server(&config, shutdown_token).await?;
@@ -109,7 +115,7 @@ pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: Ca
             }
         } else if config.exist_client() {
             let callback = |addr| {
-                log::trace!("Listening on {addr}");
+                log::trace!("{} -- Listening on {addr}", method_name_unstable!());
             };
             run_client(&config, shutdown_token, Some(callback)).await?;
         } else {
@@ -120,14 +126,14 @@ pub async fn async_main(config: Config, allow_shutdown: bool, shutdown_token: Ca
             let Some(handle) = ctrlc_handle else {
                 return Ok(());
             };
-            log::info!("Waiting for Ctrl-C handler to finish...");
+            log::info!("{mn} -- Waiting for Ctrl-C handler to finish...");
             handle.await.map_err(|e| e.to_string())?;
         }
         Ok(())
     };
 
     if let Err(e) = main_body.await {
-        log::error!("main_body error: \"{e}\"");
+        log::error!("{} -- main_body error: \"{e}\"", method_name_unstable!());
     }
 
     Ok(())

@@ -7,6 +7,7 @@ use crate::{
 use async_shared_timeout::{Timeout, runtime};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::{SinkExt, StreamExt};
+use method_name::method_name_unstable;
 use socks5_impl::{
     protocol::{Address, Reply, StreamOperation, UdpHeader},
     server::{
@@ -51,7 +52,8 @@ pub(crate) async fn handle_s5_upd_associate(
     let udp_listener = UdpSocket::bind(SocketAddr::from((advertise_ip, 0))).await;
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
         Ok((listen_udp, listen_addr)) => {
-            log::trace!("[UDP] {listen_addr} listen on");
+            let mn = method_name_unstable!();
+            log::trace!("{mn} -- [UDP] {listen_addr} listen on");
 
             let s5_listen_addr = SocketAddr::from((advertise_ip, listen_addr.port())).into();
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
@@ -76,7 +78,7 @@ pub(crate) async fn handle_s5_upd_associate(
 
             reply_listener.shutdown().await?;
 
-            log::trace!("[UDP] {listen_addr} listener closed with {res:?}");
+            log::trace!("{mn} -- [UDP] {listen_addr} listener closed with {res:?}");
 
             {
                 let incoming = *incoming_addr.lock().await;
@@ -107,27 +109,28 @@ async fn socks5_to_relay(
     udp_tx: UdpRequestSender,
     timeout: &Timeout<runtime::Tokio>,
 ) -> Result<()> {
+    let mn = method_name_unstable!();
     loop {
-        // log::trace!("[UDP] waiting for incoming packet");
+        // log::trace!("{mn} -- [UDP] waiting for incoming packet");
 
         let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();
         listen_udp.set_max_packet_size(buf_size);
 
         let (pkt, frag, dst_addr, src_addr) = listen_udp.recv_from().await?;
         if frag != 0 {
-            log::warn!("[UDP] packet fragment is not supported");
+            log::warn!("{mn} -- [UDP] packet fragment is not supported");
             break;
         }
 
         incoming.lock().await.clone_from(&src_addr);
         incomings.lock().await.insert(src_addr);
 
-        // log::trace!("[UDP] {src_addr} -> {dst_addr} incoming packet size {}", pkt.len());
+        // log::trace!("{mn} -- [UDP] {src_addr} -> {dst_addr} incoming packet size {}", pkt.len());
         let src_addr = src_addr.into();
         let _ = udp_tx.send((pkt, dst_addr, src_addr));
         timeout.reset();
     }
-    log::trace!("[UDP] socks5_to_relay exiting.");
+    log::trace!("{mn} -- [UDP] socks5_to_relay exiting.");
     Ok(())
 }
 
@@ -137,15 +140,16 @@ async fn relay_to_socks5(
     mut udp_rx: UdpRequestReceiver,
     timeout: &Timeout<runtime::Tokio>,
 ) -> Result<()> {
+    let mn = method_name_unstable!();
     while let Ok((pkt, addr, _from_addr)) = udp_rx.recv().await {
         let to_addr = SocketAddr::try_from(addr.clone())?;
         if *incoming_addr.lock().await == to_addr {
-            // log::trace!("[UDP] {to_addr} <- {_from_addr} feedback to incoming");
+            // log::trace!("{mn} -- [UDP] {to_addr} <- {_from_addr} feedback to incoming");
             listen_udp.send_to(pkt, 0, addr, to_addr).await?;
             timeout.reset();
         }
     }
-    log::trace!("[UDP] relay_to_socks5 exiting.");
+    log::trace!("{mn} -- [UDP] relay_to_socks5 exiting.");
     Ok(())
 }
 
@@ -176,6 +180,7 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
     cache_dns: bool,
     max_lifetime: Option<u64>,
 ) -> Result<()> {
+    let mn = method_name_unstable!();
     let mut udp_rx = udp_tx.subscribe();
 
     let mut timer = tokio::time::interval(Duration::from_secs(30));
@@ -197,44 +202,44 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                     let buf = build_udp_packet(&dst_addr, &src_addr, &pkt);
 
                     if let Err(e) = crate::traffic_status::traffic_status_update(buf.len(), 0) {
-                        log::error!("{e}");
+                        log::error!("{mn} -- {e}");
                     }
 
                     if dst_addr.port() == 53 {
                         let msg = dns::parse_data_to_dns_message(&pkt, false)?;
                         let domain = dns::extract_domain_from_dns_message(&msg)?;
                         if let (true, Some(cached_message)) = (cache_dns, dns::dns_cache_get_message(&cache, &msg).await) {
-                            log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query hit cache \"{domain}\"");
+                            log::debug!("{mn} -- [UDP] {src_addr} -> {dst_addr} DNS query hit cache \"{domain}\"");
                             let data = cached_message.to_vec().map_err(|e| e.to_string())?;
                             udp_tx.send((Bytes::from(data), src_addr, dst_addr))?;
                             continue;
                         }
-                        log::debug!("[UDP] {src_addr} -> {dst_addr} DNS query \"{domain}\"");
+                        log::debug!("{mn} -- [UDP] {src_addr} -> {dst_addr} DNS query \"{domain}\"");
                     } else {
-                        log::debug!("[UDP] {src_addr} -> {dst_addr} send to remote size {}", buf.len());
+                        log::debug!("{mn} -- [UDP] {src_addr} -> {dst_addr} send to remote size {}", buf.len());
                     }
                     let msg = Message::binary(buf.freeze().to_vec());
                     ws_stream.send(msg).await?;
                 } else {
-                    // log::trace!("[UDP] {dst_addr} <- {src_addr} skip feedback packet");
+                    // log::trace!("{mn} -- [UDP] {dst_addr} <- {src_addr} skip feedback packet");
                 }
                  Ok::<_, Error>(())
             },
             msg = ws_stream.next() => {
                 let len = msg.as_ref().map(|m| m.as_ref().map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
                 if let Err(e) = crate::traffic_status::traffic_status_update(0, len) {
-                    log::error!("{e}");
+                    log::error!("{mn} -- {e}");
                 }
 
                 let msg = match msg {
                     Some(Ok(msg)) => msg,
                     Some(Err(err)) => {
-                        log::trace!("[UDP] error \"{err}\"");
+                        log::trace!("{mn} -- [UDP] error \"{err}\"");
                         res = Err(err.into());
                         break;
                     }
                     None => {
-                        log::trace!("[UDP] Websocket stream closed by remote");
+                        log::trace!("{mn} -- [UDP] Websocket stream closed by remote");
                         break;
                     }
                 };
@@ -251,41 +256,41 @@ async fn _run_udp_loop<S: AsyncRead + AsyncWrite + Unpin>(
                             if cache_dns {
                                 dns::dns_cache_put_message(&cache, &msg).await;
                             }
-                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} DNS response \"{domain}\" <==> \"{ipaddr}\"");
+                            log::debug!("{mn} -- [UDP] {incoming_addr} <- {remote_addr} DNS response \"{domain}\" <==> \"{ipaddr}\"");
                         } else {
-                            log::debug!("[UDP] {incoming_addr} <- {remote_addr} recv from remote size {len}");
+                            log::debug!("{mn} -- [UDP] {incoming_addr} <- {remote_addr} recv from remote size {len}");
                         }
                         udp_tx.send((Bytes::from(pkt), incoming_addr, remote_addr))?;
                     },
                     Message::Close(_) => {
-                        log::trace!("[UDP] ws stream closed by remote");
+                        log::trace!("{mn} -- [UDP] ws stream closed by remote");
                         break;
                     },
                     Message::Ping(_) => {
-                        log::trace!("[UDP] Websocket ping from remote");
+                        log::trace!("{mn} -- [UDP] Websocket ping from remote");
                     },
                     Message::Pong(_) => {
-                        log::trace!("[UDP] Websocket pong from remote");
+                        log::trace!("{mn} -- [UDP] Websocket pong from remote");
                     },
                     _ => {
-                        log::trace!("[UDP] unexpected Websocket message");
+                        log::trace!("{mn} -- [UDP] unexpected Websocket message");
                     },
                 }
                 Ok::<_, Error>(())
             },
             _ = timer.tick() => {
                 ws_stream.send(Message::Ping(vec![].into())).await?;
-                log::trace!("[UDP] Websocket ping from local");
+                log::trace!("{mn} -- [UDP] Websocket ping from local");
                 Ok::<_, Error>(())
             },
             _ = &mut lifetime => {
-                log::trace!("[UDP] _run_udp_loop reached max lifetime ({max_lifetime:?})");
+                log::trace!("{mn} -- [UDP] _run_udp_loop reached max lifetime ({max_lifetime:?})");
                 break;
             }
         };
     }
 
-    log::trace!("[UDP] _run_udp_loop exiting...");
+    log::trace!("{mn} -- [UDP] _run_udp_loop exiting...");
 
     res
 }
@@ -309,10 +314,10 @@ pub(crate) async fn udp_handler_watchdog(
             let block = async move {
                 let (tx, mut rx) = mpsc::channel::<()>(10);
 
-                log::trace!("[UDP] udp client guard thread started");
+                log::trace!("{} -- [UDP] udp client guard thread started", method_name_unstable!());
                 let _ = tokio::spawn(async move {
                     if let Err(e) = run_udp_loop(udp_tx, incomings, config).await {
-                        log::trace!("[UDP] {e}");
+                        log::trace!("{} -- [UDP] {e}", method_name_unstable!());
                     }
                     let _ = tx.send(()).await;
                 })
@@ -326,7 +331,7 @@ pub(crate) async fn udp_handler_watchdog(
                     break;
                 },
                 _ = block => {
-                    log::trace!("[UDP] udp client guard thread exited");
+                    log::trace!("{} -- [UDP] udp client guard thread exited", method_name_unstable!());
                 }
             };
         }

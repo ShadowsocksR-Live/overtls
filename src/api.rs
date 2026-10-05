@@ -2,6 +2,7 @@ use crate::{
     config::Config,
     error::{Error, Result},
 };
+use method_name::method_name_unstable;
 use std::{
     net::SocketAddr,
     os::raw::{c_char, c_int, c_void},
@@ -50,7 +51,7 @@ pub unsafe extern "C" fn over_tls_client_run(
     log::set_max_level(log_level.into());
     if !crate::dump_logger::check_logger() {
         if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
-            log::warn!("failed to set logger, error={err:?}");
+            log::warn!("{} -- failed to set logger, error={err:?}", method_name_unstable!());
         }
     }
     let result = || {
@@ -76,7 +77,7 @@ pub unsafe extern "C" fn over_tls_client_run(
     match result() {
         Ok(_) => 0,
         Err(err) => {
-            log::error!("failed to run client, error={err:?}");
+            log::error!("{} -- failed to run client, error={err:?}", method_name_unstable!());
             -1
         }
     }
@@ -106,7 +107,7 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
     log::set_max_level(log_level.into());
     if !crate::dump_logger::check_logger() {
         if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
-            log::warn!("failed to set logger, error={err:?}");
+            log::warn!("{} -- failed to set logger, error={err:?}", method_name_unstable!());
         }
     }
 
@@ -134,7 +135,7 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
     match result() {
         Ok(_) => 0,
         Err(err) => {
-            log::error!("failed to run client, error={err:?}");
+            log::error!("{} -- failed to run client, error={err:?}", method_name_unstable!());
             -1
         }
     }

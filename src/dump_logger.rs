@@ -61,14 +61,14 @@ pub unsafe extern "C" fn overtls_set_log_callback(
         LOGGER_SETTED.store(true, std::sync::atomic::Ordering::Relaxed);
         log::set_max_level(log::LevelFilter::Trace);
         if let Err(err) = log::set_boxed_logger(Box::<DumpLogger>::default()) {
-            log::warn!("failed to set logger, error={err:?}");
+            log::warn!("{} -- failed to set logger, error={err:?}", method_name::method_name_unstable!());
         }
     }
 
     if let Ok(mut cb) = DUMP_CALLBACK.lock() {
         *cb = Some(DumpCallback(callback, ctx));
     } else {
-        log::error!("set log callback failed");
+        log::error!("{} -- set log callback failed", method_name::method_name_unstable!());
     }
 }
 
