@@ -179,32 +179,31 @@ pub unsafe extern "C" fn over_tls_client_stop() -> c_int {
 
 /// # Safety
 ///
-/// Create a SSR URL from the config file.
+/// Create a SSR URL from the config file and write it to `buf` if it has enough space.
+/// Returns the required buffer size, including the null terminator, or 0 on failure.
+/// If `buf` is null or `size` is too small, no data is written.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn overtls_generate_url(cfg_path: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn overtls_generate_url(cfg_path: *const c_char, buf: *mut c_char, size: usize) -> usize {
+    if cfg_path.is_null() {
+        return 0;
+    }
     let cfg_path = unsafe { std::ffi::CStr::from_ptr(cfg_path) };
     let cfg_path = match cfg_path.to_str() {
         Ok(s) => s,
-        Err(_) => return std::ptr::null_mut(),
+        Err(_) => return 0,
     };
     let url = match crate::config::generate_ssr_url(cfg_path) {
         Ok(s) => s,
-        Err(_) => return std::ptr::null_mut(),
+        Err(_) => return 0,
     };
     let url = match std::ffi::CString::new(url) {
         Ok(s) => s,
-        Err(_) => return std::ptr::null_mut(),
+        Err(_) => return 0,
     };
-    url.into_raw()
-}
-
-/// # Safety
-///
-/// Free the string returned by `overtls_generate_url`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn overtls_free_string(s: *mut c_char) {
-    if s.is_null() {
-        return;
+    let required_size = url.as_bytes_with_nul().len();
+    if buf.is_null() || size < required_size {
+        return required_size;
     }
-    drop(unsafe { std::ffi::CString::from_raw(s) });
+    unsafe { std::ptr::copy_nonoverlapping(url.as_ptr(), buf, required_size) };
+    required_size
 }

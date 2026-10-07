@@ -16,7 +16,7 @@ pub(crate) mod udprelay;
 pub(crate) mod weirduri;
 pub mod win_svc;
 
-pub use api::{over_tls_client_run, over_tls_client_run_with_ssr_url, over_tls_client_stop, overtls_free_string, overtls_generate_url};
+pub use api::{over_tls_client_run, over_tls_client_run_with_ssr_url, over_tls_client_stop, overtls_generate_url};
 use bytes::BytesMut;
 pub use client::run_client;
 pub use cmdopt::{CmdOpt, Role};
