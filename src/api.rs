@@ -49,10 +49,10 @@ pub unsafe extern "C" fn over_tls_client_run(
     ctx: *mut c_void,
 ) -> c_int {
     log::set_max_level(log_level.into());
-    if !crate::dump_logger::check_logger() {
-        if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
-            log::warn!("{} -- failed to set logger, error={err:?}", method_name_unstable!());
-        }
+    if !crate::dump_logger::check_logger()
+        && let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default())
+    {
+        log::warn!("{} -- failed to set logger, error={err:?}", method_name_unstable!());
     }
     let result = || {
         if config_path.is_null() {
@@ -105,10 +105,10 @@ pub unsafe extern "C" fn over_tls_client_run_with_ssr_url(
     ctx: *mut c_void,
 ) -> c_int {
     log::set_max_level(log_level.into());
-    if !crate::dump_logger::check_logger() {
-        if let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default()) {
-            log::warn!("{} -- failed to set logger, error={err:?}", method_name_unstable!());
-        }
+    if !crate::dump_logger::check_logger()
+        && let Err(err) = log::set_boxed_logger(Box::<crate::dump_logger::DumpLogger>::default())
+    {
+        log::warn!("{} -- failed to set logger, error={err:?}", method_name_unstable!());
     }
 
     let result = || {
@@ -169,10 +169,10 @@ fn _over_tls_client_run(config: Config, callback: Option<unsafe extern "C" fn(c_
 /// Shutdown the client.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn over_tls_client_stop() -> c_int {
-    if let Ok(mut token) = EXITING_FLAG.lock() {
-        if let Some(token) = token.take() {
-            token.cancel();
-        }
+    if let Ok(mut token) = EXITING_FLAG.lock()
+        && let Some(token) = token.take()
+    {
+        token.cancel();
     }
     0
 }

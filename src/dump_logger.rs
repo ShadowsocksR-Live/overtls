@@ -98,10 +98,10 @@ impl log::Log for DumpLogger {
         #[cfg(not(target_os = "ios"))]
         if self.enabled(record.metadata()) {
             let current_crate_name = env!("CARGO_CRATE_NAME");
-            if record.module_path().unwrap_or("").starts_with(current_crate_name) {
-                if let Err(err) = self.do_dump_log(record) {
-                    eprint!("failed to dump log, error={err:?}");
-                }
+            if record.module_path().unwrap_or("").starts_with(current_crate_name)
+                && let Err(err) = self.do_dump_log(record)
+            {
+                eprint!("failed to dump log, error={err:?}");
             }
         }
         #[cfg(target_os = "ios")]
@@ -134,10 +134,10 @@ impl DumpLogger {
         let msg = format!("[{:<5} {}] - {}", record.level(), record.module_path().unwrap_or(""), record.args());
         let c_msg = std::ffi::CString::new(msg)?;
         let ptr = c_msg.as_ptr();
-        if let Ok(cb) = DUMP_CALLBACK.lock() {
-            if let Some(cb) = cb.clone() {
-                unsafe { cb.call(record.level().to_level_filter().into(), ptr) };
-            }
+        if let Ok(cb) = DUMP_CALLBACK.lock()
+            && let Some(cb) = cb.clone()
+        {
+            unsafe { cb.call(record.level().to_level_filter().into(), ptr) };
         }
         Ok(())
     }

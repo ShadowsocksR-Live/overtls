@@ -38,6 +38,8 @@ fn default_true() -> bool {
 pub(crate) struct PanelSyncClient {
     config: PanelSyncConfig,
     client: reqwest::Client,
+    reporter_id: Uuid,
+    traffic_report_sequence: u64,
     reported_traffic: HashMap<Uuid, (u64, u64)>,
 }
 
@@ -46,6 +48,8 @@ impl PanelSyncClient {
         Self {
             config: config.clone(),
             client: reqwest::Client::new(),
+            reporter_id: Uuid::new_v4(),
+            traffic_report_sequence: 1,
             reported_traffic: HashMap::new(),
         }
     }
@@ -139,6 +143,8 @@ impl PanelSyncClient {
         }
 
         let body = serde_json::json!({
+            "reporter_id": self.reporter_id,
+            "sequence": self.traffic_report_sequence,
             "data": payload,
         });
 
@@ -154,6 +160,10 @@ impl PanelSyncClient {
         for (client_id, &(upstream, downstream)) in &current_traffic {
             self.reported_traffic.insert(*client_id, (upstream, downstream));
         }
+        self.traffic_report_sequence = self
+            .traffic_report_sequence
+            .checked_add(1)
+            .ok_or_else(|| Error::from("panel traffic report sequence exhausted"))?;
 
         Ok(())
     }
