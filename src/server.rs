@@ -2,11 +2,10 @@ use crate::{
     b64str_to_address,
     config::{Config, TEST_TIMEOUT_SECS},
     error::{Error, Result},
-    panel_sync::PanelSyncClient,
     tls::*,
-    traffic_audit::{TrafficAudit, TrafficAuditPtr},
     weirduri::{CLIENT_ID, TARGET_ADDRESS, UDP_TUNNEL},
 };
+use anytls::{PanelSyncClient, TrafficAudit, TrafficAuditPtr};
 use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use method_name::method_name_unstable;
@@ -83,16 +82,11 @@ pub async fn run_server(config: &Config, exiting_flag: crate::CancellationToken)
     let traffic_audit = Arc::new(Mutex::new(TrafficAudit::new()));
 
     let panel_sync_config = config.get_panel_sync_config();
-    if let Some(panel_sync_config) = panel_sync_config
-        && panel_sync_config.enabled.unwrap_or(false)
-    {
+    if let Some(panel_sync_config) = panel_sync_config {
         let sync_traffic_audit = traffic_audit.clone();
         let sync_quit = exiting_flag.clone();
         tokio::spawn(async move {
-            let syncer = PanelSyncClient::new(&panel_sync_config);
-            if let Err(e) = syncer.run(sync_traffic_audit, sync_quit).await {
-                log::warn!("{} -- panel sync task stopped: {e}", method_name_unstable!());
-            }
+            PanelSyncClient::new(panel_sync_config).run(sync_traffic_audit, sync_quit).await;
         });
     }
 
@@ -413,17 +407,20 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
     }
 
     if let Some(client_id) = &client_id {
-        traffic_audit.lock().await.add_client(client_id);
+        let mut audit = traffic_audit.lock().await;
+        if !audit.client_ids().contains(client_id) {
+            audit.sync_client(*client_id, false);
+        }
     }
 
     let mut panel_sync_enabled = true;
     let panel_sync_config = config.get_panel_sync_config();
     if let Some(panel_sync_config) = panel_sync_config
-        && panel_sync_config.enabled.unwrap_or(false)
+        && panel_sync_config.is_configured()
     {
         panel_sync_enabled = false;
         if let Some(client_id) = &client_id {
-            panel_sync_enabled = traffic_audit.lock().await.get_enable_of(client_id);
+            panel_sync_enabled = traffic_audit.lock().await.is_enabled(client_id);
         }
     }
     let mn = method_name_unstable!();
@@ -436,7 +433,7 @@ async fn websocket_traffic_handler<S: AsyncRead + AsyncWrite + Unpin>(
         let len = WS_HANDSHAKE_LEN;
         let len = if !handshake.is_empty() { handshake.len() } else { len };
         let len = (len * 2) as u64;
-        traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
+        traffic_audit.lock().await.add_upstream(client_id, len);
     }
 
     let result;
@@ -486,7 +483,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
         tokio::select! {
             _ = enable_check.tick() => {
                 if let Some(client_id) = client_id
-                    && !traffic_audit.lock().await.get_enable_of(client_id)
+                    && !traffic_audit.lock().await.is_enabled(client_id)
                 {
                     log::debug!("{mn} -- {peer} <> {dst_addr:?} client id {client_id:?} disabled by panel sync");
                     let _ = ws_stream.send(Message::Text(END_SESSION.into())).await;
@@ -497,7 +494,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 let msg = msg.ok_or(format!("{peer} -> {dst_addr:?} no Websocket message"))??;
                 let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
                 if let Some(client_id) = &client_id {
-                    traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
+                    traffic_audit.lock().await.add_upstream(client_id, len);
                 }
                 match msg {
                     Message::Close(_) => {
@@ -627,7 +624,7 @@ async fn svr_send_ws_message<S: AsyncRead + AsyncWrite + Unpin>(
 ) -> Result<()> {
     if let Some(client_id) = client_id {
         let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-        traffic_audit.lock().await.add_downstream_traffic_of(client_id, len);
+        traffic_audit.lock().await.add_downstream(client_id, len);
     }
     ws_stream.send(msg).await?;
     Ok(())
@@ -653,7 +650,7 @@ async fn svr_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
         tokio::select! {
             _ = enable_check.tick() => {
                 if let Some(client_id) = client_id
-                    && !traffic_audit.lock().await.get_enable_of(client_id)
+                    && !traffic_audit.lock().await.is_enabled(client_id)
                 {
                     log::debug!("{mn} -- [UDP] tunnel disabled by panel sync for client {client_id:?}");
                     break;
@@ -663,7 +660,7 @@ async fn svr_udp_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                 let msg = msg?;
                 if let Some(client_id) = client_id {
                     let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-                    traffic_audit.lock().await.add_upstream_traffic_of(client_id, len);
+                    traffic_audit.lock().await.add_upstream(client_id, len);
                 }
                 match msg {
                     Message::Close(_) => {
@@ -785,7 +782,7 @@ async fn svr_udp_write_ws_stream<S: AsyncRead + AsyncWrite + Unpin>(
         log::trace!("{mn} -- [UDP] {src_addr} <- {dst_addr} length {}", pkt.len());
         if let Some(client) = client_id {
             let len = (msg.len() + WS_MSG_HEADER_LEN) as u64;
-            traffic_audit.lock().await.add_downstream_traffic_of(client, len);
+            traffic_audit.lock().await.add_downstream(client, len);
         }
 
         ws_stream.send(msg).await?;

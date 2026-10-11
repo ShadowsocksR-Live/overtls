@@ -258,9 +258,8 @@ EOF
     if [[ "${use_sspanel}" == "true" ]]; then
         cat >> ${local_cfg_file_path} <<EOF
         "panel_sync": {
-            "enabled": true,
             "node_id": ${sspanel_node_id},
-            "api_update_time": 10,
+            "update_interval_secs": 10,
             "webapi_url": "${sspanel_server_addr}",
             "webapi_token": "${sspanel_api_token}"
         },

@@ -7,9 +7,8 @@
     "server_settings": {
         "disable_tls": false,
         "panel_sync": {
-            "enabled": false,
             "node_id": 1,
-            "api_update_time": 10,
+            "update_interval_secs": 10,
             "webapi_url": "https://sspanelhost.com:443/",
             "webapi_token": "secret-token"
         },

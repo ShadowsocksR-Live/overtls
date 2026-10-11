@@ -16,6 +16,9 @@ name = "overtls-bin"
 path = "src/bin/main.rs"
 
 [dependencies]
+anytls = { version = "0.4.9", default-features = false, features = [
+    "panel-sync",
+] }
 async-shared-timeout = "0.2.2"
 base64easy = "0.1.7"
 bytes = "1.12.1"
@@ -33,7 +36,7 @@ hickory-proto = "0.26.3"
 http = "1.5.0"
 httparse = "1.10.1"
 log = { version = "0.4.34", features = ["std"] }
-method_name = { version = "0.3.2", default-features = false, features = [
+method_name = { version = "0.3.4", default-features = false, features = [
     "unstable",
 ] }
 moka = { version = "0.12.16", default-features = false, features = ["future"] }
@@ -50,7 +53,7 @@ rustls = { version = "0.23.45", default-features = false, features = [
 ] }
 rustls-pemfile = "2.2.0"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
+serde_json = "1.0.152"
 socket2 = "0.6.5"
 socks-hub = { version = "0.2.11", default-features = false, features = [
     "httpproxy",
@@ -69,9 +72,9 @@ tokio-rustls = { version = "0.26.6", default-features = false, features = [
 tokio-tungstenite = { version = "0.30.0", features = [
     "rustls-tls-webpki-roots",
 ] }
-tokio-util = "0.7.19"
+tokio-util = "0.7.20"
 url = { version = "2.5.8", default-features = false, features = ["serde"] }
-uuid = { version = "1.27.0", features = ["serde", "v4"] }
+uuid = { version = "1.28.0", features = ["serde", "v4"] }
 webpki-roots = "1.0.9"
 
 [target.'cfg(target_os = "android")'.dependencies]

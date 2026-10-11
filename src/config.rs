@@ -1,7 +1,5 @@
-use crate::{
-    error::{Error, Result},
-    panel_sync::PanelSyncConfig,
-};
+use crate::error::{Error, Result};
+use anytls::PanelSyncConfig;
 use serde::{Deserialize, Serialize};
 use socks5_impl::protocol::ProxyParameters;
 use std::{
