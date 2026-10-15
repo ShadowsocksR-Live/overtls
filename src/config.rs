@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use anytls::PanelSyncConfig;
 use serde::{Deserialize, Serialize};
-use socks5_impl::protocol::ProxyParameters;
+use socks5_impl::ProxyParameters;
 use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
     path::PathBuf,

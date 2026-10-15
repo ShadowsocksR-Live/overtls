@@ -24,7 +24,7 @@ pub use error::{BoxError, Error, Result};
 pub use log::LevelFilter;
 use method_name::method_name_unstable;
 pub use server::run_server;
-use socks5_impl::protocol::{Address, StreamOperation};
+use socks5_impl::{Address, StreamOperation};
 pub use tokio_util::sync::CancellationToken;
 pub use traffic_status::{TrafficStatus, overtls_set_traffic_status_callback};
 

@@ -9,7 +9,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::{SinkExt, StreamExt};
 use method_name::method_name_unstable;
 use socks5_impl::{
-    protocol::{Address, Reply, StreamOperation, UdpHeader},
+    Address, StreamOperation,
+    protocol::{Reply, UdpHeader},
     server::{
         UdpAssociate,
         connection::associate::{AssociatedUdpSocket, NeedReply as UdpNeedReply},

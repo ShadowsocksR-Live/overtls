@@ -12,7 +12,8 @@ use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use method_name::method_name_unstable;
 use socks_hub_core::{BoxedStream, HttpConnector, UserKey, run_http_service};
 use socks5_impl::{
-    protocol::{Address, Reply},
+    Address,
+    protocol::Reply,
     server::{
         AuthAdaptor, ClientConnection, Connect, IncomingConnection,
         auth::{NoAuth, UserKeyAuth},

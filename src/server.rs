@@ -10,7 +10,7 @@ use bytes::BytesMut;
 use futures_util::{SinkExt, StreamExt};
 use method_name::method_name_unstable;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
-use socks5_impl::protocol::Address;
+use socks5_impl::Address;
 use std::{
     collections::{HashMap, HashSet},
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},

@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use socks5_impl::protocol::Address;
+use socks5_impl::Address;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
