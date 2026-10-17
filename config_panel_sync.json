@@ -1,0 +1,34 @@
+{
+    "remarks": "nickname of this config",
+    "test_timeout_secs": 10,
+    "method": "none",
+    "password": "password",
+    "tunnel_path": "/secret-tunnel-path/",
+    "server_settings": {
+        "disable_tls": false,
+        "panel_sync": {
+            "node_id": 1,
+            "update_interval_secs": 10,
+            "webapi_url": "https://sspanelhost.com:443/",
+            "webapi_token": "secret-token"
+        },
+        "certfile": "/etc/mysite_cert/fullchain.pem",
+        "keyfile": "/etc/mysite_cert/privkey.pem",
+        "forward_addr": "http://127.0.0.1:80",
+        "listen_host": "0.0.0.0",
+        "listen_port": 443
+    },
+    "client_settings": {
+        "disable_tls": false,
+        "client_id": "33959370-71e0-401d-9746-cda471fc5926",
+        "server_host": "123.45.67.89",
+        "server_port": 443,
+        "server_domain": "example.com",
+        "cafile": "",
+        "dangerous_mode": false,
+        "advertise_ip": "127.0.0.1",
+        "max_lifetime": 3600,
+        "pool_max_size": 30,
+        "listen": "mixed://127.0.0.1:1080"
+    }
+}

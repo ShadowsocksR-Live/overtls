@@ -16,7 +16,7 @@ name = "overtls-bin"
 path = "src/bin/main.rs"
 
 [dependencies]
-anytls = { version = "0.5.0", default-features = false, features = [
+anytls = { version = "0.5.1", default-features = false, features = [
     "panel-sync",
 ] }
 async-shared-timeout = "0.2.2"
@@ -58,7 +58,7 @@ socket2 = "0.6.5"
 socks-hub = { version = "0.2.12", default-features = false, features = [
     "httpproxy",
 ] }
-socks5-impl = { version = "0.10.0", default-features = false, features = [
+socks5-impl = { version = "0.10.2", default-features = false, features = [
     "server",
     "serde",
 ] }
