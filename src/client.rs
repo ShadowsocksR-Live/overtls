@@ -359,12 +359,12 @@ where
                     log::debug!("{mn} -- {peer_addr} handle_s5_upd_associate \"{e}\"");
                 }
             } else {
-                let mut conn = asso.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
+                let mut conn = asso.reply(Reply::CommandNotSupported, Address::unspecified_v4()).await?;
                 conn.shutdown().await?;
             }
         }
         ClientConnection::Bind(bind, _) => {
-            let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
+            let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified_v4()).await?;
             conn.shutdown().await?;
         }
         ClientConnection::Connect(connect, addr) => {
@@ -388,7 +388,7 @@ async fn handle_socks5_cmd_connection<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    let incoming = connect.reply(Reply::Succeeded, Address::unspecified()).await?;
+    let incoming = connect.reply(Reply::Succeeded, Address::unspecified_v4()).await?;
 
     let peer_addr = incoming.peer_addr()?;
 

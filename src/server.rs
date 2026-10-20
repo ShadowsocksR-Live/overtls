@@ -522,7 +522,7 @@ async fn svr_normal_tunnel<S: AsyncRead + AsyncWrite + Unpin>(
                             outgoing_can_be_read = false;
                         } else if let Some(dst_addr_str) = msg_str.strip_prefix(START_SESSION) {
                             let dst_addr_str = dst_addr_str.strip_prefix(':').map(|s| s.trim()).unwrap_or("");
-                            let dst_address = b64str_to_address(dst_addr_str, false).unwrap_or(Address::unspecified());
+                            let dst_address = b64str_to_address(dst_addr_str, false).unwrap_or(Address::unspecified_v4());
                             outgoing_can_be_read = false;
                             // Close existing connection
                             if let Some(mut stream) = outgoing.take() {

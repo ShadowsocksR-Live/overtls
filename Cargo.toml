@@ -16,7 +16,7 @@ name = "overtls-bin"
 path = "src/bin/main.rs"
 
 [dependencies]
-anytls = { version = "0.5.1", default-features = false, features = [
+anytls = { version = "0.5.3", default-features = false, features = [
     "panel-sync",
 ] }
 async-shared-timeout = "0.2.2"
@@ -55,15 +55,15 @@ rustls-pemfile = "2.2.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 socket2 = "0.6.5"
-socks-hub = { version = "0.2.12", default-features = false, features = [
+socks-hub = { version = "0.2.13", default-features = false, features = [
     "httpproxy",
 ] }
-socks5-impl = { version = "0.10.2", default-features = false, features = [
+socks5-impl = { version = "0.10.3", default-features = false, features = [
     "server",
     "serde",
 ] }
 thiserror = "2.0.21"
-tokio = { version = "1.53.3", features = ["full"] }
+tokio = { version = "1.54.0", features = ["full"] }
 tokio-rustls = { version = "0.26.6", default-features = false, features = [
     "logging",
     "tls12",
@@ -75,7 +75,7 @@ tokio-tungstenite = { version = "0.30.0", features = [
 tokio-util = "0.7.20"
 url = { version = "2.5.8", default-features = false, features = ["serde"] }
 uuid = { version = "1.28.0", features = ["serde", "v4"] }
-webpki-roots = "1.0.9"
+webpki-roots = "1.0.10"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.15.1"

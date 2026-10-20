@@ -89,7 +89,7 @@ pub(crate) async fn handle_s5_upd_associate(
             res
         }
         Err(err) => {
-            let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified()).await?;
+            let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified_v4()).await?;
             conn.shutdown().await?;
             Err(err.into())
         }
